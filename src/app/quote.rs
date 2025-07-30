@@ -40,7 +40,7 @@ impl QuoteManager {
     /// 随机选择一条格言
     pub fn random_quote(&mut self) {
         use rand::Rng;
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         self.current_index = rng.gen_range(0..self.quotes.len());
     }
 }

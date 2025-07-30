@@ -4,19 +4,21 @@ version = "0.1.0"
 edition = "2024"
 
 [features]
-default = ["pc"]
-pc = ["sdl2", "env_logger"]
-embedded = ["linux-embedded-hal"]
+default = ["simulator"]
+simulator = ["env_logger", "embedded-hal-mock"]
+embedded_linux = ["linux-embedded-hal"]
 
 [dependencies]
 chrono = "0.4.41"
 embedded-hal = "1.0.0"
 log = "0.4.27"
 thiserror = "2.0.12"
+rand = "0.9.2"
 
 # PC端依赖
-env_logger = { version  = "0.11.8", optional = true }
-sdl2 = { version = "0.38.0", optional = true }
+embedded-hal-mock = { path = "./../embedded-hal-mock/", optional = true}
+env_logger = { version = "0.11.8", optional = true}
+
 
 # 嵌入式Linux端依赖
 libc = { version = "0.2.174", optional = true }
@@ -24,3 +26,7 @@ linux-embedded-hal = { version = "0.4.0", optional = true }
 
 # 嵌入式STM32、ESP32等依赖
 littlefs2 = { version = "0.6.1", optional = true }
+freetype-rs = "0.38.0"
+embedded-graphics = "0.8.1"
+
+epd-waveshare = { path = "./../epd-waveshare/" }
