@@ -1,7 +1,9 @@
 //! 墨水瓶渲染程序主入口
 
-use log::{info, debug};
+use log::{debug, info};
 
+#[cfg(feature = "embedded_linux")]
+use bitbang_hal::spi_halfduplex::{SPI as SpiDevice, SpiConfig};
 use embedded_graphics::{
     mono_font::MonoTextStyleBuilder,
     prelude::*,
@@ -20,11 +22,7 @@ use epd_waveshare::{
     prelude::*,
 };
 #[cfg(feature = "embedded_linux")]
-use linux_embedded_hal::{
-    Delay, SPIError, SpidevDevice, SysfsPin,
-    spidev::{self, SpidevOptions},
-    sysfs_gpio::Direction,
-};
+use linux_embedded_hal::{Delay, SPIError as Error, SysfsPin, sysfs_gpio::Direction};
 
 fn main() -> Result<(), Error> {
     // 初始化日志
@@ -40,13 +38,21 @@ fn main() -> Result<(), Error> {
     let mut spi;
     #[cfg(feature = "embedded_linux")]
     {
-        spi = SpidevDevice::open("/dev/spidev3.0").expect("spidev directory");
-        let options = SpidevOptions::new()
-            .bits_per_word(8)
-            .max_speed_hz(4_000_000)
-            .mode(spidev::SpiModeFlags::SPI_MODE_0)
-            .build();
-        spi.configure(&options).expect("spi configuration");
+        let mosi = SysfsPin::new(147);
+        mosi.export().expect("miso export");
+        while !mosi.is_exported() {}
+        mosi.set_direction(Direction::In).expect("CS Direction");
+        mosi.set_value(1).expect("CS Value set to 1");
+
+        let sck = SysfsPin::new(146);
+        sck.export().expect("miso export");
+        while !sck.is_exported() {}
+        sck.set_direction(Direction::In).expect("CS Direction");
+        sck.set_value(1).expect("CS Value set to 1");
+
+        let config = SpiConfig::default();
+
+        spi = SpiDevice::new(embedded_hal::spi::MODE_0, mosi, sck, delay, config);
     }
     #[cfg(feature = "simulator")]
     {
@@ -57,7 +63,7 @@ fn main() -> Result<(), Error> {
     let cs;
     #[cfg(feature = "embedded_linux")]
     {
-        cs = SysfsPin::new(26); //BCM7 CE0
+        cs = SysfsPin::new(150);
         cs.export().expect("cs export");
         while !cs.is_exported() {}
         cs.set_direction(Direction::Out).expect("CS Direction");
@@ -71,7 +77,7 @@ fn main() -> Result<(), Error> {
     let busy;
     #[cfg(feature = "embedded_linux")]
     {
-        busy = SysfsPin::new(5); //pin 29
+        busy = SysfsPin::new(101);
         busy.export().expect("busy export");
         while !busy.is_exported() {}
         busy.set_direction(Direction::In).expect("busy Direction");
@@ -85,7 +91,7 @@ fn main() -> Result<(), Error> {
     let dc;
     #[cfg(feature = "embedded_linux")]
     {
-        dc = SysfsPin::new(6); //pin 31 //bcm6
+        dc = SysfsPin::new(102);
         dc.export().expect("dc export");
         while !dc.is_exported() {}
         dc.set_direction(Direction::Out).expect("dc Direction");
@@ -99,7 +105,7 @@ fn main() -> Result<(), Error> {
     let rst;
     #[cfg(feature = "embedded_linux")]
     {
-        rst = SysfsPin::new(16);
+        rst = SysfsPin::new(97);
         rst.export().expect("rst export");
         while !rst.is_exported() {}
         rst.set_direction(Direction::Out).expect("rst Direction");
