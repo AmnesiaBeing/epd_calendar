@@ -338,6 +338,7 @@ dependencies = [
  "bit_field",
  "embedded-graphics-core",
  "embedded-hal",
+ "log",
 ]
 
 [[package]]

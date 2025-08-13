@@ -14,7 +14,7 @@ fn main() {
     // 初始化日志
     log::set_max_level(log::LevelFilter::Info);
 
-    #[cfg(feature = "simulator")]
+    // #[cfg(feature = "simulator")]
     env_logger::init();
 
     info!("墨水屏渲染程序启动");
@@ -32,6 +32,8 @@ fn main() {
     // Draw some text at a certain point using the specified text style
     let _ = Text::with_text_style("It's working-WoB!", Point::new(175, 250), style, text_style)
         .draw(&mut board.epd_display);
+
+    info!("墨水屏即将开始渲染");
 
     // Show display on e-paper
     board

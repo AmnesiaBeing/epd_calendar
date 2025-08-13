@@ -2,6 +2,7 @@ use bitbang_hal::spi_halfduplex::{SPIDevice, SpiConfig};
 use epd_waveshare::epd7in5_yrd0750ryf665f60::{Display7in5, Epd7in5 as Epd};
 use epd_waveshare::prelude::WaveshareDisplay;
 use linux_embedded_hal::{Delay, SysfsPin, sysfs_gpio::Direction};
+use log::info;
 
 pub struct Board {
     // pub epd_busy: SysfsPin,
@@ -40,14 +41,14 @@ impl Board {
         let mosi = SysfsPin::new(147);
         mosi.export().expect("miso export");
         while !mosi.is_exported() {}
-        mosi.set_direction(Direction::In).expect("CS Direction");
-        mosi.set_value(1).expect("CS Value set to 1");
+        mosi.set_direction(Direction::Out).expect("MISO Direction");
+        mosi.set_value(1).expect("MOSI Value set to 1");
 
         let sck = SysfsPin::new(146);
-        sck.export().expect("miso export");
+        sck.export().expect("sck export");
         while !sck.is_exported() {}
-        sck.set_direction(Direction::In).expect("CS Direction");
-        sck.set_value(1).expect("CS Value set to 1");
+        sck.set_direction(Direction::Out).expect("SCK Direction");
+        sck.set_value(1).expect("SCK Value set to 1");
 
         let cs = SysfsPin::new(150);
         cs.export().expect("cs export");
@@ -63,6 +64,8 @@ impl Board {
             .expect("eink initalize error");
 
         let epd_display = Display7in5::default();
+
+        info!("E-Paper display initialized");
 
         Board {
             epd_spi,
