@@ -4,9 +4,13 @@ version = "0.1.0"
 edition = "2024"
 
 [features]
-default = ["simulator"]
+default = ["embedded_linux"]
 simulator = ["env_logger", "embedded-hal-mock"]
-embedded_linux = ["linux-embedded-hal"]
+embedded_linux = ["linux-embedded-hal", "env_logger"]
+
+[profile.release]
+# 优化编译大小
+opt-level = "z"
 
 [dependencies]
 chrono = "0.4.41"

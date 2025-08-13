@@ -1,6 +1,3 @@
-use embedded_hal::delay;
-use log::{debug, info};
-
 use embedded_graphics::{
     mono_font::MonoTextStyleBuilder,
     pixelcolor::Rgb888,
@@ -17,28 +14,35 @@ use epd_waveshare::{color::*, prelude::*};
 
 use epd_waveshare::epd_simulator::EpdSimulator;
 
-pub fn bsp_init() -> Result<
-    EpdSimulator<
-        QuadColor,
-        embedded_hal_mock::common::Generic<Transaction<u8>>,
-        embedded_hal_mock::common::Generic<embedded_hal_mock::eh1::digital::Transaction>,
-        embedded_hal_mock::common::Generic<embedded_hal_mock::eh1::digital::Transaction>,
-        embedded_hal_mock::common::Generic<embedded_hal_mock::eh1::digital::Transaction>,
-        Delay,
-    >,
-    Error,
-> {
-    let mut spi = SpiDevice::new(&[]);
-    let mut busy = SysfsPin::new(&[]);
-    let mut dc = SysfsPin::new(&[]);
-    let mut rst = SysfsPin::new(&[]);
-    let mut delay = Delay::new();
+pub struct Board {
+    pub epd_busy: SysfsPin,
+    pub epd_dc: SysfsPin,
+    pub epd_rst: SysfsPin,
+    pub epd_spi: embedded_hal_mock::common::Generic<embedded_hal_mock::eh1::spi::Transaction<u8>>,
+    pub epd: EpdSimulator<QuadColor, (), (), (), (), ()>,
+    pub epd_display: Display<800, 480, false, { 800 * 480 * 2 }, QuadColor>,
+    pub delay: Delay,
+}
 
-    // Setup the epd
-    let mut epd: EpdSimulator<QuadColor, embedded_hal_mock::common::Generic<Transaction<u8>>, embedded_hal_mock::common::Generic<embedded_hal_mock::eh1::digital::Transaction>, embedded_hal_mock::common::Generic<embedded_hal_mock::eh1::digital::Transaction>, embedded_hal_mock::common::Generic<embedded_hal_mock::eh1::digital::Transaction>, Delay> = EpdSimulator::<QuadColor, SpiDevice<u8>,SysfsPin,SysfsPin,SysfsPin,Delay>::new_with_size(
-        &mut spi, busy, dc, rst, &mut delay, None, 800, 480,
-    )
-    .expect("eink initalize error");
+impl Board {
+    pub fn new() -> Self {
+        let epd_busy = SysfsPin::new(&[]);
+        let epd_dc = SysfsPin::new(&[]);
+        let epd_rst = SysfsPin::new(&[]);
+        let mut epd_spi = SpiDevice::new(&[]);
+        let delay = Delay::new();
+        let epd = EpdSimulator::<QuadColor,(),(),(),(),()>::new(epd_spi, epd_busy, epd_dc, epd_rst, delay, None)
+            .unwrap();
+        let mut epd_display = Display::<800, 480, false, { 800 * 480 * 2 }, QuadColor>::default();
 
-    Ok(epd)
+        Board {
+            epd_busy,
+            epd_dc,
+            epd_rst,
+            epd_spi,
+            epd,
+            delay,
+            epd_display,
+        }
+    }
 }

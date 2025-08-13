@@ -1,9 +1,13 @@
-//! 墨水瓶渲染程序主入口
-
 mod bsp;
 
-use embedded_graphics::{mono_font::MonoTextStyleBuilder, prelude::Point, text::{Baseline, Text, TextStyleBuilder}};
-use epd_waveshare::{color::QuadColor, graphics::Display};
+use embedded_graphics::Drawable;
+use embedded_graphics::{
+    mono_font::MonoTextStyleBuilder,
+    prelude::Point,
+    text::{Baseline, Text, TextStyleBuilder},
+};
+use epd_waveshare::color::QuadColor;
+use epd_waveshare::prelude::WaveshareDisplay;
 use log::{debug, info};
 
 fn main() {
@@ -15,10 +19,7 @@ fn main() {
 
     info!("墨水屏渲染程序启动");
 
-    let epd = bsp::simulator::bsp_init().unwrap();
-
-    // Setup the graphics
-    let mut display = Display::<800, 480, false, { 800 * 480 * 2 }, QuadColor>::default();
+    let mut board = bsp::Board::new();
 
     // Build the style
     let style = MonoTextStyleBuilder::new()
@@ -30,9 +31,15 @@ fn main() {
 
     // Draw some text at a certain point using the specified text style
     let _ = Text::with_text_style("It's working-WoB!", Point::new(175, 250), style, text_style)
-        .draw(&mut display);
+        .draw(&mut board.epd_display);
 
     // Show display on e-paper
-    epd.update_and_display_frame(&mut spi, display.buffer(), &mut delay)
+    board
+        .epd
+        .update_and_display_frame(
+            &mut board.epd_spi,
+            board.epd_display.buffer(),
+            &mut board.delay,
+        )
         .expect("display error");
 }
