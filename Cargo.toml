@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [features]
-default = ["embedded_linux"]
+default = []
 simulator = ["env_logger", "embedded-hal-mock"]
 embedded_linux = ["linux-embedded-hal", "env_logger"]
 

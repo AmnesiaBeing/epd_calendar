@@ -5,9 +5,6 @@ use linux_embedded_hal::{Delay, SysfsPin, sysfs_gpio::Direction};
 use log::info;
 
 pub struct Board {
-    // pub epd_busy: SysfsPin,
-    // pub epd_dc: SysfsPin,
-    // pub epd_rst: SysfsPin,
     pub epd_spi: SPIDevice<SysfsPin, SysfsPin, SysfsPin, Delay>,
     pub epd:
         Epd<SPIDevice<SysfsPin, SysfsPin, SysfsPin, Delay>, SysfsPin, SysfsPin, SysfsPin, Delay>,
