@@ -400,7 +400,7 @@ version = "0.1.0"
 dependencies = [
  "bitbang-hal",
  "chrono",
- "embedded-graphics",
+ "embedded-graphics-core",
  "embedded-hal",
  "embedded-hal-mock",
  "env_logger",

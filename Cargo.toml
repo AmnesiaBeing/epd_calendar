@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [features]
-default = []
+default = ["simulator"]
 simulator = ["env_logger", "embedded-hal-mock", "epd-waveshare/simulator"]
 embedded_linux = ["linux-embedded-hal", "env_logger"]
 
@@ -31,7 +31,8 @@ linux-embedded-hal = { version = "0.4.0", optional = true }
 littlefs2 = { version = "0.6.1", optional = true }
 
 # 核心图形库 - 只声明一次
-embedded-graphics = "0.8.1"
+# embedded-graphics = "0.8.1"
 
 epd-waveshare = { path = "./../epd-waveshare/", features = []}
 bitbang-hal = { path = "./../bitbang-hal/" }
+embedded-graphics-core = "0.4.0"

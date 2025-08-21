@@ -23,14 +23,14 @@ fn main() {
 
     // Build the style
     let style = MonoTextStyleBuilder::new()
-        .font(&embedded_graphics::mono_font::ascii::FONT_6X10)
-        .text_color(QuadColor::White)
-        .background_color(QuadColor::Black)
+        .font(&embedded_graphics::mono_font::ascii::FONT_10X20)
+        .text_color(QuadColor::Black)
+        .background_color(QuadColor::White)
         .build();
     let text_style = TextStyleBuilder::new().baseline(Baseline::Top).build();
 
     // Draw some text at a certain point using the specified text style
-    let _ = Text::with_text_style("It's working-WoB!", Point::new(175, 250), style, text_style)
+    let _ = Text::with_text_style("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz", Point::new(175, 250), style, text_style)
         .draw(&mut board.epd_display);
 
     info!("墨水屏即将开始渲染");
