@@ -1,14 +1,13 @@
 mod bsp;
 
-use embedded_graphics::Drawable;
-use embedded_graphics::{
-    mono_font::MonoTextStyleBuilder,
-    prelude::Point,
-    text::{Baseline, Text, TextStyleBuilder},
-};
 use epd_waveshare::color::QuadColor;
 use epd_waveshare::prelude::WaveshareDisplay;
 use log::{debug, info};
+
+use embedded_graphics::{
+    prelude::*,
+    primitives::{PrimitiveStyle, Rectangle},
+};
 
 fn main() {
     // 初始化日志
@@ -21,19 +20,13 @@ fn main() {
 
     let mut board = bsp::Board::new();
 
-    // Build the style
-    let style = MonoTextStyleBuilder::new()
-        .font(&embedded_graphics::mono_font::ascii::FONT_10X20)
-        .text_color(QuadColor::Black)
-        .background_color(QuadColor::White)
-        .build();
-    let text_style = TextStyleBuilder::new().baseline(Baseline::Top).build();
-
-    // Draw some text at a certain point using the specified text style
-    let _ = Text::with_text_style("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz", Point::new(175, 250), style, text_style)
-        .draw(&mut board.epd_display);
-
     info!("墨水屏即将开始渲染");
+
+    let rect = Rectangle::new(Point::new(10, 10), Size::new(400, 300));
+
+    let _ = rect
+        .into_styled(PrimitiveStyle::with_stroke(QuadColor::Yellow, 1))
+        .draw(&mut board.epd_display);
 
     // Show display on e-paper
     board
@@ -44,5 +37,4 @@ fn main() {
             &mut board.delay,
         )
         .expect("display error");
-
 }
