@@ -1,20 +1,26 @@
-mod bsp;
-
 use epd_waveshare::color::QuadColor;
 use epd_waveshare::prelude::WaveshareDisplay;
 use log::{debug, info};
+
+use embassy_executor::Spawner;
 
 use embedded_graphics::{
     prelude::*,
     primitives::{PrimitiveStyle, Rectangle},
 };
 
-fn main() {
-    // 初始化日志
-    log::set_max_level(log::LevelFilter::Info);
+mod bsp;
 
-    // #[cfg(feature = "simulator")]
+#[embassy_executor::main]
+async fn main(spawner: Spawner) {
+    // 初始化日志
+    log::set_max_level(log::LevelFilter::Trace);
+
+    #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
     env_logger::init();
+
+    #[cfg(feature = "embedded_esp")]
+    log_to_defmt::setup();
 
     info!("墨水屏渲染程序启动");
 
@@ -37,4 +43,6 @@ fn main() {
             &mut board.delay,
         )
         .expect("display error");
+
+    // spawner.spawn(run().unwrap());
 }
