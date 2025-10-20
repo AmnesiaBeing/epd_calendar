@@ -3,7 +3,6 @@ use embedded_hal_mock::eh1::{
     digital::{Mock as SysfsPin, State as PinState, Transaction as PinTransaction},
     spi::Mock as SPIDevice,
 };
-use epd_waveshare::color::*;
 use epd_waveshare::epd7in5_yrd0750ryf665f60::{Display7in5 as Epd_Display, Epd7in5 as Epd};
 use epd_waveshare::prelude::WaveshareDisplay;
 

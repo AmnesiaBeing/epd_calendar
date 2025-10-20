@@ -1,6 +1,6 @@
 use epd_waveshare::color::QuadColor;
 use epd_waveshare::prelude::WaveshareDisplay;
-use log::{debug, info};
+use log::info;
 
 use embassy_executor::Spawner;
 
