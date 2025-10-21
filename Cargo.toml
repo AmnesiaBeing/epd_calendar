@@ -3,15 +3,11 @@ name = "epd_calendar"
 version = "0.1.0"
 edition = "2024"
 
-# [[bin]]
-# name = "epd_calendar"
-# path = "./src/app/main.rs"
-
 [features]
 default = ["simulator"]
 simulator = [
     "embedded-hal-mock",
-    "embedded-storage-std-mock",
+    "embedded-storage-std-async-mock",
     "epd-waveshare/simulator",
     "embassy-sync/log",
     "embassy-executor/arch-std",
@@ -24,7 +20,7 @@ simulator = [
 ]
 embedded_linux = [
     "linux-embedded-hal",
-    "embedded-storage-std-mock",
+    "embedded-storage-std-async-mock",
     "bitbang-hal",
     "embassy-sync/log",
     "embassy-executor/arch-std",
@@ -49,11 +45,12 @@ chrono = "0.4.41"
 log = "0.4.27"
 thiserror = "2.0.12"
 
-ekv = "1.0.0"
+sequential-storage = "5.0.1"
 
 embedded-hal = "1.0.0"
 embedded-graphics = "0.8.1"
 embedded-storage = "0.3.1"
+embedded-storage-async = "0.4.1"
 
 embassy-sync = { version = "0.7.2", default-features = false }
 embassy-executor = { version = "0.9.1", default-features = false }
@@ -66,7 +63,8 @@ defmt = "1.0.1"
 
 # PC端依赖
 embedded-hal-mock = { path = "./../embedded-hal-mock/", optional = true }
-embedded-storage-std-mock = { path = "./../embedded-storage-std-mock", optional = true}
+# embedded-storage-std-mock = { path = "./../embedded-storage-std-mock", optional = true}
+embedded-storage-std-async-mock = { path = "./../embedded-storage-std-mock/embedded-storage-std-async-mock", optional = true }
 
 # 嵌入式Linux端依赖
 libc = { version = "0.2.174", optional = true }

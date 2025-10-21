@@ -10,23 +10,27 @@ use embedded_graphics::{
 };
 
 mod bsp;
+mod app;
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
     // 初始化日志
-    log::set_max_level(log::LevelFilter::Trace);
-
     #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
     env_logger::init();
-
     #[cfg(feature = "embedded_esp")]
     log_to_defmt::setup();
 
-    info!("墨水屏渲染程序启动");
+    info!("epd_calendar starting...");
 
     let mut board = bsp::Board::new();
 
-    info!("墨水屏即将开始渲染");
+    info!("epd_calendar running...");
+
+    board.storage.store_kv::<u128>(&0, &1).await;
+
+    let a = board.storage.fetch_kv::<u128>(&0).await;
+
+    info!("try read k:0 from kvs, value: {}", a.unwrap());
 
     let rect = Rectangle::new(Point::new(10, 10), Size::new(400, 300));
 
