@@ -1,12 +1,11 @@
 use anyhow::{Context, Result, anyhow};
-use embedded_graphics::mono_font::DecorationDimensions;
-use embedded_graphics::pixelcolor::BinaryColor;
-use embedded_graphics::prelude::Size;
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fs;
 use std::path::{Path, PathBuf};
 use unicode_normalization::UnicodeNormalization;
+// 添加freetype-rs的导入
+use freetype::Library;
 
 // 字体大小，中文一定是SIZE*SIZE，英文和特殊符号是SIZE/2（半宽）*SIZE
 const FONT_SIZE: u32 = 16;
@@ -18,7 +17,7 @@ const CATEGORIES_PATH: &str = "../sentences-bundle/categories.json";
 const FONT_PATH: &str = "assets/SimSun.ttf";
 
 // sentences-bundle 数据 JSON解析结构
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 struct Hitokoto {
     hitokoto: String,
     from: String,
@@ -41,7 +40,7 @@ fn main() -> Result<()> {
     let hitokotos = parse_all_json_files(&categories)?;
 
     // 3. 收集并过滤字符（控制字符、非BMP字符）
-    let valid_chars: Vec<Hitokoto> = hitokotos.into_iter().flat_map(|(_, v)| v).collect();
+    let valid_chars: Vec<Hitokoto> = hitokotos.clone().into_iter().flat_map(|(_, v)| v).collect();
     let (all_chars, char_to_idx) = collect_and_validate_chars(&valid_chars)?;
     eprintln!("共收集有效字符：{}个", all_chars.len());
 
@@ -52,16 +51,15 @@ fn main() -> Result<()> {
     let (str_refs, global_char_indices) = generate_string_refs(&valid_chars, &char_to_idx)?;
 
     // 6. 生成适配embedded-graphics的代码
-    // generate_embedded_code(
-    //     &hitokotos,
-    //     &categories,
-    //     &all_chars,
-    //     &glyph_data,
-    //     baseline,
-    //     &str_refs,
-    //     &global_char_indices,
-    //     FONT_SIZE,
-    // )?;
+    generate_embedded_code(
+        &hitokotos,
+        &categories,
+        &all_chars,
+        &glyph_data,
+        &str_refs,
+        &global_char_indices,
+        FONT_SIZE,
+    )?;
 
     // 触发重编译的条件
     println!("cargo:rerun-if-changed=build.rs");
@@ -161,66 +159,95 @@ fn if_half_width_char(c: char) -> bool {
 
 // 渲染字体点阵
 fn render_font_bitmaps(chars: &[char]) -> Result<Vec<u8>> {
-    use fontdue::Font;
+    // 初始化freetype库
+    let lib = Library::init().map_err(|e| anyhow!("初始化freetype库失败: {}", e))?;
 
-    // 1. 加载TTF字体
-    let font_data = fs::read(FONT_PATH).context("读取字体文件失败")?;
-    let font = Font::from_bytes(font_data.as_slice(), fontdue::FontSettings::default())
-        .map_err(|e| anyhow!("加载字体失败: {}", e))?;
+    // 加载字体文件
+    let face = lib
+        .new_face(FONT_PATH, 0)
+        .map_err(|e| anyhow!("加载字体文件失败 '{}': {}", FONT_PATH, e))?;
 
-    // 2. 计算单个字符的点阵尺寸，为了排版简单，ASCII范围内的字符宽度为其他范围的一半
-    let width = FONT_SIZE;
-    let half_width = FONT_SIZE / 2;
-    let height = FONT_SIZE;
-    let bytes_per_row = (width + 7) / 8; // 向上取整（如16宽 → 2字节/行）
-    let bytes_per_glyph = bytes_per_row * height;
+    // 设置字体大小
+    face.set_pixel_sizes(0, FONT_SIZE)
+        .map_err(|e| anyhow!("设置字体大小失败: {}", e))?;
 
-    let mut glyph_data = Vec::with_capacity(chars.len() * bytes_per_glyph as usize);
+    let mut result = Vec::new();
 
     for &c in chars {
-        // 4. 获取字符的Glyph索引和度量
-        let glyph_index = font.lookup_glyph_index(c);
+        eprintln!("正在渲染字符: '{}', 字符码: U+{:04X}", c, c as u32);
+        // 加载字符的字形
+        let glyph_index = face.get_char_index((c as u32).try_into().unwrap());
+        if glyph_index.is_none() {
+            eprintln!(
+                "警告: 字符 '{}' (U+{:04X}) 没有对应的字形索引，已过滤",
+                c, c as u32
+            );
+            continue;
+        }
 
-        // 5. 光栅化（生成灰度点阵）
-        let (metrics, bitmap) = font.rasterize(c, FONT_SIZE as f32);
+        face.load_glyph(glyph_index.unwrap(), freetype::face::LoadFlag::RENDER)
+            .map_err(|e| anyhow!("加载字形失败 '{}': {}", c, e))?;
 
-        // 6. 转换为二值化点阵并居中对齐
-        let mut glyph_bits = vec![0u8; bytes_per_glyph as usize];
+        // 获取渲染后的位图
+        let bitmap = face.glyph().bitmap();
 
-        // 计算居中偏移（水平和垂直居中）
-        let offset_x = (width as i32 - metrics.width as i32) / 2;
-        let offset_y = (height as i32 - metrics.height as i32) / 2;
+        // 判断是否为半宽字符
+        let is_half_width = if_half_width_char(c);
+        let target_width = if is_half_width {
+            FONT_SIZE / 2
+        } else {
+            FONT_SIZE
+        };
 
-        // 遍历光栅化后的像素
-        for (y, row) in bitmap.chunks(metrics.width).enumerate() {
-            for (x, &gray) in row.iter().enumerate() {
-                // 计算目标位置（考虑居中偏移）
-                let target_x = x as i32 + offset_x;
-                let target_y = y as i32 + offset_y;
+        // 计算每个字符需要的字节数（向上取整到8的倍数）
+        let bytes_per_row = (target_width + 7) / 8;
+        let char_data_size = bytes_per_row * FONT_SIZE;
 
-                // 检查是否在目标范围内
-                if target_x >= 0
-                    && target_x < width as i32
-                    && target_y >= 0
-                    && target_y < height as i32
+        // 确保有足够的空间存储字符数据
+        let current_len = result.len();
+        result.resize(current_len + char_data_size as usize, 0);
+
+        // 获取当前字符的数据切片
+        let char_data = &mut result[current_len..current_len + char_data_size as usize];
+
+        // 计算缩放比例
+        let scale_x = bitmap.width() as f32 / target_width as f32;
+        let scale_y = bitmap.rows() as f32 / FONT_SIZE as f32;
+
+        // 将位图数据转换为指定大小的黑白数据
+        for y in 0..FONT_SIZE {
+            for x in 0..target_width {
+                // 计算在原始位图中的位置
+                let src_x = (x as f32 * scale_x) as u32;
+                let src_y = (y as f32 * scale_y) as u32;
+
+                // 检查坐标是否在原始位图范围内
+                let pixel_value = if src_x < bitmap.width().try_into().unwrap()
+                    && src_y < bitmap.rows().try_into().unwrap()
                 {
-                    let tx = target_x as u32;
-                    let ty = target_y as u32;
-
-                    // 二值化：灰度>127视为有效像素（1）
-                    if gray > 127 {
-                        let byte_idx = (ty * bytes_per_row + tx / 8) as usize;
-                        let bit_pos = 7 - (tx % 8); // 高位在前（BigEndian）
-                        glyph_bits[byte_idx] |= 1 << bit_pos;
+                    // 获取原始位图中的像素值
+                    let row_start = src_y as usize * bitmap.pitch() as usize;
+                    let pixel_index = row_start + src_x as usize;
+                    if pixel_index < bitmap.buffer().len() {
+                        bitmap.buffer()[pixel_index]
+                    } else {
+                        0
                     }
+                } else {
+                    0
+                };
+
+                // 转换为黑白像素（阈值设为128）
+                if pixel_value > 128 {
+                    let byte_index = (y * bytes_per_row + x / 8) as usize;
+                    let bit_offset = 7 - (x % 8);
+                    char_data[byte_index] |= 1 << bit_offset;
                 }
             }
         }
-
-        glyph_data.extend(glyph_bits);
     }
 
-    Ok(glyph_data)
+    Ok(result)
 }
 
 // 生成字符串引用（映射到字符索引）
@@ -296,183 +323,178 @@ fn generate_string_refs(
     Ok((str_refs, global_char_indices))
 }
 
-// // 生成适配embedded-graphics的代码
-// fn generate_embedded_code(
-//     hitokotos: &[ProcessedHitokoto],
-//     categories: &[CategoryWithEnumName],
-//     all_chars: &[char],
-//     glyph_data: &[u8],
-//     baseline: u32,
-//     str_refs: &[(usize, usize, usize, usize, usize, usize)],
-//     global_char_indices: &[usize],
-//     font_size: u32,
-// ) -> Result<()> {
-//     let output_dir = Path::new(OUTPUT_DIR);
-//     fs::create_dir_all(output_dir).context("创建输出目录失败")?;
-//     let output_path = output_dir.join("hitokoto_data.rs");
+// 生成适配embedded-graphics的代码
+fn generate_embedded_code(
+    hitokotos: &Vec<(u32, Vec<Hitokoto>)>,
+    categories: &[HitokotoCategory],
+    all_chars: &[char],
+    glyph_data: &[u8],
+    str_refs: &[(usize, usize, usize, usize, usize, usize)],
+    global_char_indices: &[usize],
+    font_size: u32,
+) -> Result<()> {
+    let output_dir = Path::new(OUTPUT_DIR);
+    fs::create_dir_all(output_dir).context("创建输出目录失败")?;
+    let output_path = output_dir.join("hitokoto_data.rs");
 
-//     let mut code = String::new();
+    let mut code = String::new();
 
-//     // 生成头部注释
-//     code.push_str(
-//         "//! 自动生成的一言数据和嵌入式字体（适配embedded-graphics）
-// //! 由build.rs生成，请勿手动修改
-// use embedded_graphics::mono_font::{GlyphMapping, MonoFont};
-// use embedded_graphics::image::ImageRaw;
-// use embedded_graphics::pixelcolor::BinaryColor;
-// use embedded_graphics::prelude::{Point, Size};
-// use embedded_graphics::mono_font::DecorationDimensions;
-// use core::cmp::Ordering;
+    // 添加必要的导入
+    code.push_str("// 自动生成的代码，请勿手动修改\n");
+    code.push_str("#![allow(dead_code)]\n\n");
+    code.push_str("use embedded_graphics::mono_font::{MonoFont, MonoFontData};\n\n");
 
-// ",
-//     );
+    // 生成字符数组
+    code.push_str("const CHARS: &[char] = &[\n");
+    for c in all_chars {
+        code.push_str(&format!("    '{c}',\n"));
+    }
+    code.push_str("];\n\n");
 
-//     // 1. 生成HitokotoType枚举
-//     code.push_str("/// 一言类型枚举\n");
-//     code.push_str("#[derive(Debug, Clone, Copy, PartialEq, Eq)]\n");
-//     code.push_str("pub enum HitokotoType {\n");
-//     for c in categories {
-//         code.push_str(&format!("    /// {}\n    {},\n", c.name, c.enum_name));
-//     }
-//     code.push_str("}\n\n");
+    // 生成字符索引映射
+    code.push_str("const CHAR_INDICES: &[usize] = &[\n");
+    for &idx in global_char_indices {
+        code.push_str(&format!("    {},\n", idx));
+    }
+    code.push_str("];\n\n");
 
-//     // 2. 生成字符串引用结构体
-//     code.push_str("/// 字符串引用：表示字符串在全局字符索引数组中的范围\n");
-//     code.push_str("#[derive(Debug, Clone, Copy, PartialEq, Eq)]\n");
-//     code.push_str("pub struct StrRef {\n");
-//     code.push_str("    pub start: usize,\n");
-//     code.push_str("    pub len: usize,\n");
-//     code.push_str("}\n\n");
+    // 生成字符串引用
+    code.push_str("const STRING_REFS: &[(usize, usize, usize, usize, usize, usize)] = &[\n");
+    for &(from_start, from_len, from_who_start, from_who_len, content_start, content_len) in str_refs {
+        code.push_str(&format!(
+            "    ({}, {}, {}, {}, {}, {}),\n",
+            from_start, from_len, from_who_start, from_who_len, content_start, content_len
+        ));
+    }
+    code.push_str("];\n\n");
 
-//     // 3. 生成一言数据结构体
-//     code.push_str("/// 一言数据结构体\n");
-//     code.push_str("#[derive(Debug, Clone, Copy, PartialEq, Eq)]\n");
-//     code.push_str("pub struct Hitokoto {\n");
-//     code.push_str("    pub type_: HitokotoType,\n");
-//     code.push_str("    pub from: StrRef,\n");
-//     code.push_str("    pub from_who: StrRef,\n");
-//     code.push_str("    pub content: StrRef,\n");
-//     code.push_str("}\n\n");
+    // 生成分类数据
+    code.push_str("#[derive(Debug, Clone)]\n");
+    code.push_str("pub struct HitokotoCategory {\n");
+    code.push_str("    pub id: u32,\n");
+    code.push_str("    pub name: &'static str,\n");
+    code.push_str("    pub key: &'static str,\n");
+    code.push_str("}\n\n");
 
-//     // 4. 生成字体数据（MonoFont）
-//     let char_size = Size {
-//         width: font_size,
-//         height: font_size,
-//     };
-//     let bytes_per_row = (char_size.width + 7) / 8;
+    code.push_str("pub const CATEGORIES: &[HitokotoCategory] = &[\n");
+    for category in categories {
+        code.push_str(&format!(
+            "    HitokotoCategory {{ id: {}, name: \"{}\", key: \"{}\" }},\n",
+            category.id, category.name, category.key
+        ));
+    }
+    code.push_str("];\n\n");
 
-//     code.push_str("/// 所有字符列表（按Unicode排序，用于GlyphMapping）\n");
-//     code.push_str("pub const ALL_CHARS: &[char] = &[\n");
-//     for &c in all_chars {
-//         code.push_str(&format!(
-//             "    '{}', // U+{:04X}\n",
-//             c.escape_default(),
-//             c as u32
-//         ));
-//     }
-//     code.push_str("];\n\n");
+    // 生成格言数据结构
+    code.push_str("#[derive(Debug, Clone)]\n");
+    code.push_str("pub struct Hitokoto {\n");
+    code.push_str("    pub category_id: u32,\n");
+    code.push_str("    pub from_indices: (usize, usize),\n"); // (start, length)
+    code.push_str("    pub from_who_indices: (usize, usize),\n"); // (start, length)
+    code.push_str("    pub content_indices: (usize, usize),\n"); // (start, length)
+    code.push_str("}\n\n");
 
-//     code.push_str("/// 字体点阵数据（适配ImageRaw<BinaryColor>）\n");
-//     code.push_str("pub const FONT_DATA: &[u8] = &[\n");
-//     for (i, &byte) in glyph_data.iter().enumerate() {
-//         if i % 16 == 0 {
-//             code.push_str("    ");
-//         }
-//         code.push_str(&format!("0x{:02X}, ", byte));
-//         if (i + 1) % 16 == 0 {
-//             code.push_str("\n");
-//         }
-//     }
-//     code.push_str("];\n\n");
+    // 生成格言数据
+    code.push_str("pub const HITOKOTOS: &[Hitokoto] = &[\n");
+    let mut hitokoto_index = 0;
+    for (category_id, hitokoto_list) in hitokotos {
+        for _ in hitokoto_list {
+            let (from_start, from_len, from_who_start, from_who_len, content_start, content_len) = 
+                str_refs[hitokoto_index];
+            code.push_str(&format!(
+                "    Hitokoto {{\n        category_id: {},\n        from_indices: ({}, {}),\n        from_who_indices: ({}, {}),\n        content_indices: ({}, {}),\n    }},\n",
+                category_id, from_start, from_len, from_who_start, from_who_len, content_start, content_len
+            ));
+            hitokoto_index += 1;
+        }
+    }
+    code.push_str("];\n\n");
 
-//     code.push_str("/// embedded-graphics兼容的MonoFont字体\n");
-//     code.push_str("pub const EMBEDDED_FONT: MonoFont = MonoFont {\n");
-//     code.push_str(&format!(
-//         "    image: ImageRaw::<BinaryColor>::new(FONT_DATA, {}),\n",
-//         char_size.width
-//     ));
-//     code.push_str(&format!(
-//         "    character_size: Size {{ width: {}, height: {} }},\n",
-//         char_size.width, char_size.height
-//     ));
-//     code.push_str("    character_spacing: 0,\n"); // 无额外间距
-//     code.push_str(&format!("    baseline: {},\n", baseline));
-//     code.push_str("    strikethrough: DecorationDimensions { offset: 0, height: 0 },\n");
-//     code.push_str("    underline: DecorationDimensions { offset: 0, height: 0 },\n");
-//     code.push_str("    glyph_mapping: &HitokotoGlyphMapping,\n");
-//     code.push_str("};\n\n");
+    // 生成字体数据
+    code.push_str("const FONT_DATA: &[u8] = &[\n");
+    for chunk in glyph_data.chunks(16) {
+        code.push_str("    ");
+        for byte in chunk {
+            code.push_str(&format!("0x{:02X}, ", byte));
+        }
+        code.push_str("\n");
+    }
+    code.push_str("];\n\n");
 
-//     // 5. 实现自定义GlyphMapping（二分查找）
-//     code.push_str("/// 基于二分查找的GlyphMapping实现（适配3500字符规模）\n");
-//     code.push_str("#[derive(Debug)]\n");
-//     code.push_str("pub struct HitokotoGlyphMapping;\n\n");
-//     code.push_str("impl GlyphMapping for HitokotoGlyphMapping {\n");
-//     code.push_str("    fn index(&self, c: char) -> usize {\n");
-//     code.push_str("        // 二分查找字符在ALL_CHARS中的索引\n");
-//     code.push_str("        let mut low = 0;\n");
-//     code.push_str("        let mut high = ALL_CHARS.len();\n");
-//     code.push_str("        while low < high {\n");
-//     code.push_str("            let mid = (low + high) / 2;\n");
-//     code.push_str("            match ALL_CHARS[mid].cmp(&c) {\n");
-//     code.push_str("                Ordering::Less => low = mid + 1,\n");
-//     code.push_str("                Ordering::Greater => high = mid,\n");
-//     code.push_str("                Ordering::Equal => return mid,\n");
-//     code.push_str("            }\n");
-//     code.push_str("        }\n");
-//     code.push_str("        // 未找到时返回空格的索引（确保空格在ALL_CHARS中）\n");
-//     code.push_str("        ALL_CHARS.iter().position(|&ch| ch == ' ').unwrap_or(0)\n");
-//     code.push_str("    }\n");
-//     code.push_str("}\n\n");
+    // 计算字符宽度（半宽或全宽）
+    code.push_str("const fn is_half_width_char(c: char) -> bool {\n");
+    code.push_str("    c.is_ascii() || matches!(c, '，' | '。' | '！' | '？' | '、')\n");
+    code.push_str("}\n\n");
 
-//     // 6. 生成全局字符索引数组
-//     code.push_str("/// 所有字符串的字符索引序列（映射到ALL_CHARS）\n");
-//     code.push_str("pub const GLOBAL_CHAR_INDICES: &[usize] = &[\n");
-//     for (i, &idx) in global_char_indices.iter().enumerate() {
-//         if i % 16 == 0 {
-//             code.push_str("    ");
-//         }
-//         code.push_str(&format!("{}, ", idx));
-//         if (i + 1) % 16 == 0 {
-//             code.push_str("\n");
-//         }
-//     }
-//     code.push_str("];\n\n");
+    code.push_str("const fn char_width(c: char) -> u32 {\n");
+    code.push_str("    if is_half_width_char(c) {\n");
+    code.push_str(&format!("        {}\n", font_size / 2));
+    code.push_str("    } else {\n");
+    code.push_str(&format!("        {}\n", font_size));
+    code.push_str("    }\n");
+    code.push_str("}\n\n");
 
-//     // 7. 生成一言数据数组
-//     code.push_str("/// 所有一言数据\n");
-//     code.push_str("pub const ALL_HITOKOTOS: &[Hitokoto] = &[\n");
-//     for (i, &(from_start, from_len, from_who_start, from_who_len, content_start, content_len)) in
-//         str_refs.iter().enumerate()
-//     {
-//         let h = &hitokotos[i];
-//         code.push_str(&format!(
-//             "    Hitokoto {{\n        type_: HitokotoType::{},\n",
-//             h.type_enum_name
-//         ));
-//         code.push_str(&format!(
-//             "        from: StrRef {{ start: {}, len: {} }},\n",
-//             from_start, from_len
-//         ));
-//         code.push_str(&format!(
-//             "        from_who: StrRef {{ start: {}, len: {} }},\n",
-//             from_who_start, from_who_len
-//         ));
-//         code.push_str(&format!(
-//             "        content: StrRef {{ start: {}, len: {} }},\n    }},\n",
-//             content_start, content_len
-//         ));
-//     }
-//     code.push_str("];\n\n");
+    // 生成字符宽度数据
+    code.push_str("const CHAR_WIDTHS: &[u32] = &[\n");
+    for &c in all_chars {
+        let width = if c.is_ascii() || matches!(c, '，' | '。' | '！' | '？' | '、') {
+            font_size / 2
+        } else {
+            font_size
+        };
+        code.push_str(&format!("    {}, // '{}'\n", width, c));
+    }
+    code.push_str("];\n\n");
 
-//     // 8. 生成辅助函数
-//     code.push_str("/// 通过StrRef获取字符索引序列\n");
-//     code.push_str("pub fn str_ref_to_indices(s: StrRef) -> &'static [usize] {\n");
-//     code.push_str("    &GLOBAL_CHAR_INDICES[s.start..s.start + s.len]\n");
-//     code.push_str("}\n");
+    // 创建适用于embedded-graphics的MonoFont
+    code.push_str("#[rustfmt::skip]\n");
+    code.push_str("pub const MONO_FONT: MonoFont = MonoFont {\n");
+    code.push_str(&format!("    character_size: embedded_graphics::geometry::Size::new({}, {}),\n", font_size, font_size));
+    code.push_str("    character_spacing: 0,\n");
+    code.push_str("    baseline: 12,\n");
+    code.push_str("    underlined_addition: 0,\n");
+    code.push_str("    strikethrough_addition: 0,\n");
+    code.push_str("    data: MonoFontData {\n");
+    code.push_str("        ascii_bitmap: FONT_DATA,\n");
+    code.push_str("        glyphs: &[],\n"); // 对于非ASCII字符，我们需要特殊的处理
+    code.push_str("    },\n");
+    code.push_str("    character_widths: &CHAR_WIDTHS,\n");
+    code.push_str("};\n\n");
 
-//     // 写入文件
-//     fs::write(&output_path, code)
-//         .with_context(|| format!("写入生成代码失败: {}", output_path.display()))?;
+    // 添加辅助函数
+    code.push_str("/// 根据索引获取格言\n");
+    code.push_str("pub fn get_hitokoto(index: usize) -> Option<&'static Hitokoto> {\n");
+    code.push_str("    HITOKOTOS.get(index)\n");
+    code.push_str("}\n\n");
 
-//     Ok(())
-// }
+    code.push_str("/// 获取格言总数\n");
+    code.push_str("pub fn hitokoto_count() -> usize {\n");
+    code.push_str("    HITOKOTOS.len()\n");
+    code.push_str("}\n\n");
+
+    code.push_str("/// 根据索引获取分类\n");
+    code.push_str("pub fn get_category(index: usize) -> Option<&'static HitokotoCategory> {\n");
+    code.push_str("    CATEGORIES.get(index)\n");
+    code.push_str("}\n\n");
+
+    code.push_str("/// 获取分类总数\n");
+    code.push_str("pub fn category_count() -> usize {\n");
+    code.push_str("    CATEGORIES.len()\n");
+    code.push_str("}\n\n");
+
+    code.push_str("/// 根据字符获取索引\n");
+    code.push_str("pub fn char_to_index(c: char) -> Option<usize> {\n");
+    code.push_str("    CHARS.iter().position(|&ch| ch == c)\n");
+    code.push_str("}\n\n");
+
+    code.push_str("/// 根据索引获取字符\n");
+    code.push_str("pub fn index_to_char(index: usize) -> Option<char> {\n");
+    code.push_str("    CHARS.get(index).copied()\n");
+    code.push_str("}\n\n");
+
+    // 写入文件
+    fs::write(&output_path, code)
+        .with_context(|| format!("写入生成代码失败: {}", output_path.display()))?;
+
+    Ok(())
+}

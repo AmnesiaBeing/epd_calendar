@@ -47,7 +47,6 @@ walkdir = "2.5"
 freetype-rs = { version = "*", features = ["bundled"] }
 anyhow = "1.0"
 unicode-normalization = "0.1"
-embedded-graphics = "0.7"
 
 [dependencies]
 chrono = "0.4.41"

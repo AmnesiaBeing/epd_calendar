@@ -436,38 +436,15 @@ dependencies = [
 
 [[package]]
 name = "embedded-graphics"
-version = "0.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "750082c65094fbcc4baf9ba31583ce9a8bb7f52cadfb96f6164b1bc7f922f32b"
-dependencies = [
- "az",
- "byteorder",
- "embedded-graphics-core 0.3.3",
- "float-cmp 0.8.0",
- "micromath 1.1.1",
-]
-
-[[package]]
-name = "embedded-graphics"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0649998afacf6d575d126d83e68b78c0ab0e00ca2ac7e9b3db11b4cbe8274ef0"
 dependencies = [
  "az",
  "byteorder",
- "embedded-graphics-core 0.4.0",
- "float-cmp 0.9.0",
- "micromath 2.1.0",
-]
-
-[[package]]
-name = "embedded-graphics-core"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8b1239db5f3eeb7e33e35bd10bd014e7b2537b17e071f726a09351431337cfa"
-dependencies = [
- "az",
- "byteorder",
+ "embedded-graphics-core",
+ "float-cmp",
+ "micromath",
 ]
 
 [[package]]
@@ -487,7 +464,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a31606a4fb7d9d3a79a38d27bc2954cfa98682c8fea4b22c09a442785a80424e"
 dependencies = [
  "base64",
- "embedded-graphics 0.8.1",
+ "embedded-graphics",
  "image",
  "ouroboros",
  "sdl2",
@@ -633,7 +610,7 @@ name = "epd-waveshare"
 version = "0.6.0"
 dependencies = [
  "bit_field",
- "embedded-graphics-core 0.4.0",
+ "embedded-graphics-core",
  "embedded-graphics-simulator",
  "embedded-hal 1.0.0",
  "log",
@@ -651,8 +628,7 @@ dependencies = [
  "embassy-net",
  "embassy-sync",
  "embassy-time",
- "embedded-graphics 0.7.1",
- "embedded-graphics 0.8.1",
+ "embedded-graphics",
  "embedded-hal 1.0.0",
  "embedded-hal-mock",
  "embedded-storage",
@@ -691,15 +667,6 @@ checksum = "4a3d7db9596fecd151c5f638c0ee5d5bd487b6e0ea232e5dc96d5250f6f94b1d"
 dependencies = [
  "crc32fast",
  "miniz_oxide",
-]
-
-[[package]]
-name = "float-cmp"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e1267f4ac4f343772758f7b1bdcbe767c218bbab93bb432acbf5162bbf85a6c4"
-dependencies = [
- "num-traits",
 ]
 
 [[package]]
@@ -1032,12 +999,6 @@ checksum = "5de893c32cde5f383baa4c04c5d6dbdd735cfd4a794b0debdb2bb1b421da5ff4"
 dependencies = [
  "autocfg",
 ]
-
-[[package]]
-name = "micromath"
-version = "1.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc4010833aea396656c2f91ee704d51a6f1329ec2ab56ffd00bfd56f7481ea94"
 
 [[package]]
 name = "micromath"
