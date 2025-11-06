@@ -5,12 +5,14 @@ use log::info;
 use embassy_executor::Spawner;
 
 use embedded_graphics::{
-    mono_font::MonoTextStyle, prelude::*, primitives::{PrimitiveStyle, Rectangle}, text::{Text,TextStyle,TextStyleBuilder}
+    mono_font::MonoTextStyle,
+    prelude::*,
+    primitives::{PrimitiveStyle, Rectangle},
+    text::{Text, TextStyle, TextStyleBuilder},
 };
 
-mod bsp;
 mod app;
-mod generated;
+mod bsp;
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
@@ -38,9 +40,12 @@ async fn main(spawner: Spawner) {
         .into_styled(PrimitiveStyle::with_stroke(QuadColor::Yellow, 1))
         .draw(&mut board.epd_display);
 
-    let style = MonoTextStyle::new(&MONO_FONT,QuadColor::BLACk);
-    let text = Text::new("Hello World！", position, style);
-    
+    let position = Point::new(10, 100);
+    let style = MonoTextStyle::new(&app::hitokoto_fonts::FULL_WIDTH_FONT, QuadColor::Black);
+    let text = Text::new("你好，世界！", position, style);
+
+    let _ = text.draw(&mut board.epd_display);
+
     // Show display on e-paper
     board
         .epd
