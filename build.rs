@@ -369,7 +369,6 @@ fn generate_embedded_code(
     code.push_str("];\n\n");
 
     // 生成分类数据
-    code.push_str("#[derive(Debug, Clone)]\n");
     code.push_str("pub struct HitokotoCategory {\n");
     code.push_str("    pub id: u32,\n");
     code.push_str("    pub name: &'static str,\n");
@@ -386,7 +385,6 @@ fn generate_embedded_code(
     code.push_str("];\n\n");
 
     // 生成格言数据结构
-    code.push_str("#[derive(Debug, Clone)]\n");
     code.push_str("pub struct Hitokoto {\n");
     code.push_str("    pub category_id: u32,\n");
     code.push_str("    pub from_indices: (usize, usize),\n"); // (start, length)
