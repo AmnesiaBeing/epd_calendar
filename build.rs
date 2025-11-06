@@ -344,23 +344,74 @@ fn generate_embedded_code(
     code.push_str("#![allow(dead_code)]\n\n");
     code.push_str("use embedded_graphics::mono_font::{MonoFont, MonoFontData};\n\n");
 
-    // 生成字符数组
-    code.push_str("const CHARS: &[char] = &[\n");
-    for c in all_chars {
-        code.push_str(&format!("    '{c}',\n"));
+    fn char_literal(c: char) -> String {
+        match c {
+            '\\' => "'\\\\'".to_string(),
+            '\'' => "'\\''".to_string(),
+            '\n' => "'\\n'".to_string(),
+            '\r' => "'\\r'".to_string(),
+            '\t' => "'\\t'".to_string(),
+            c if c.is_control() || (c as u32) > 0x7E => {
+                format!("'\\u{{{:04X}}}'", c as u32)
+            }
+            c => format!("'{}'", c),
+        }
     }
-    code.push_str("];\n\n");
 
-    // 生成字符索引映射
-    code.push_str("const CHAR_INDICES: &[usize] = &[\n");
-    for &idx in global_char_indices {
-        code.push_str(&format!("    {},\n", idx));
+    // 生成字符数组，每行20个字符（对特殊字符进行转义）
+    {
+        let mut chars_section = String::new();
+        chars_section.push_str("const CHARS: &[char] = &[\n");
+
+        for (i, c) in all_chars.iter().enumerate() {
+            if i % 20 == 0 {
+                chars_section.push_str("    ");
+            }
+            let lit = char_literal(*c);
+            chars_section.push_str(&format!("{}, ", lit));
+            if i % 20 == 19 || i + 1 == all_chars.len() {
+                // 去掉行尾多余空格后换行
+                if chars_section.ends_with(", ") {
+                    let len = chars_section.len();
+                    chars_section.truncate(len - 1); // 保留最后的逗号
+                }
+                chars_section.push_str("\n");
+            }
+        }
+
+        chars_section.push_str("];\n\n");
+        code.push_str(&chars_section);
     }
-    code.push_str("];\n\n");
+
+    // 生成字符索引映射，每行20个索引
+    {
+        let mut idx_section = String::new();
+        idx_section.push_str("const CHAR_INDICES: &[usize] = &[\n");
+
+        for (i, idx) in global_char_indices.iter().enumerate() {
+            if i % 20 == 0 {
+                idx_section.push_str("    ");
+            }
+            idx_section.push_str(&format!("{}, ", idx));
+            if i % 20 == 19 || i + 1 == global_char_indices.len() {
+                if idx_section.ends_with(", ") {
+                    let len = idx_section.len();
+                    idx_section.truncate(len - 2); // 移除最后一个逗号和空格
+                }
+                idx_section.push_str(",\n");
+            }
+        }
+
+        idx_section.push_str("];\n\n");
+        let idx_section = idx_section.replace("##", "#\\#");
+        code.push_str(&idx_section);
+    }
 
     // 生成字符串引用
     code.push_str("const STRING_REFS: &[(usize, usize, usize, usize, usize, usize)] = &[\n");
-    for &(from_start, from_len, from_who_start, from_who_len, content_start, content_len) in str_refs {
+    for &(from_start, from_len, from_who_start, from_who_len, content_start, content_len) in
+        str_refs
+    {
         code.push_str(&format!(
             "    ({}, {}, {}, {}, {}, {}),\n",
             from_start, from_len, from_who_start, from_who_len, content_start, content_len
@@ -397,7 +448,7 @@ fn generate_embedded_code(
     let mut hitokoto_index = 0;
     for (category_id, hitokoto_list) in hitokotos {
         for _ in hitokoto_list {
-            let (from_start, from_len, from_who_start, from_who_len, content_start, content_len) = 
+            let (from_start, from_len, from_who_start, from_who_len, content_start, content_len) =
                 str_refs[hitokoto_index];
             code.push_str(&format!(
                 "    Hitokoto {{\n        category_id: {},\n        from_indices: ({}, {}),\n        from_who_indices: ({}, {}),\n        content_indices: ({}, {}),\n    }},\n",
@@ -440,14 +491,18 @@ fn generate_embedded_code(
         } else {
             font_size
         };
-        code.push_str(&format!("    {}, // '{}'\n", width, c));
+        let lit = char_literal(c);
+        code.push_str(&format!("    {}, // '{}'\n", width, lit));
     }
     code.push_str("];\n\n");
 
     // 创建适用于embedded-graphics的MonoFont
     code.push_str("#[rustfmt::skip]\n");
     code.push_str("pub const MONO_FONT: MonoFont = MonoFont {\n");
-    code.push_str(&format!("    character_size: embedded_graphics::geometry::Size::new({}, {}),\n", font_size, font_size));
+    code.push_str(&format!(
+        "    character_size: embedded_graphics::geometry::Size::new({}, {}),\n",
+        font_size, font_size
+    ));
     code.push_str("    character_spacing: 0,\n");
     code.push_str("    baseline: 12,\n");
     code.push_str("    underlined_addition: 0,\n");
