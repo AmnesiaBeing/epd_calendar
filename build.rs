@@ -1,5 +1,6 @@
 use anyhow::{Context, Result, anyhow};
 use freetype::Library;
+use freetype::bitmap::PixelMode;
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fs;
@@ -204,6 +205,51 @@ fn add_ascii_chars(existing_chars: Vec<char>) -> Vec<char> {
     all_chars.into_iter().collect()
 }
 
+// 在编译期预览字符点阵
+fn preview_char_bitmap(char_data: &[u8], char_width: u32, char_height: u32, c: char) {
+    let bytes_per_row = (char_width + 7) / 8;
+
+    eprintln!("字符 '{}' (U+{:04X}) 点阵预览:", c, c as u32);
+    eprintln!("+{}+", "-".repeat(char_width as usize));
+
+    for y in 0..char_height {
+        let mut line = String::from("|");
+        for x in 0..char_width {
+            let byte_index = (y * bytes_per_row + x / 8) as usize;
+            let bit_offset = 7 - (x % 8);
+
+            let pixel = if byte_index < char_data.len() {
+                (char_data[byte_index] >> bit_offset) & 1
+            } else {
+                0
+            };
+
+            line.push(if pixel == 1 { '█' } else { ' ' });
+        }
+        line.push('|');
+        eprintln!("{}", line);
+    }
+
+    eprintln!("+{}+", "-".repeat(char_width as usize));
+
+    // 打印字节数据用于调试
+    eprintln!("原始字节数据:");
+    for y in 0..char_height {
+        let row_start = (y * bytes_per_row) as usize;
+        let row_end = row_start + bytes_per_row as usize;
+        if row_end <= char_data.len() {
+            let row_data = &char_data[row_start..row_end];
+            let hex_str = row_data
+                .iter()
+                .map(|b| format!("{:02x}", b))
+                .collect::<Vec<_>>()
+                .join(" ");
+            eprintln!("行 {:2}: {}", y, hex_str);
+        }
+    }
+    eprintln!();
+}
+
 // 渲染全角字体（FONT_SIZE × FONT_SIZE）
 fn render_full_width_font(chars: &[char]) -> Result<(Vec<u8>, BTreeMap<char, u32>)> {
     let lib = Library::init().map_err(|e| anyhow!("初始化freetype库失败: {}", e))?;
@@ -221,9 +267,13 @@ fn render_full_width_font(chars: &[char]) -> Result<(Vec<u8>, BTreeMap<char, u32
     let bytes_per_row = (FONT_SIZE + 7) / 8;
     let char_data_size = (bytes_per_row * FONT_SIZE) as usize;
 
-    for &c in chars {
-        let glyph_index = face.get_char_index((c as u32).try_into().unwrap());
-        if glyph_index.is_none() {
+    // 抽样预览的字符索引
+    let preview_indices = vec![0, 1, 2, chars.len() / 4, chars.len() / 2];
+    let mut preview_count = 0;
+
+    for (index, &c) in chars.iter().enumerate() {
+        let glyph_index = face.get_char_index(c as usize);
+        if glyph_index.is_none() || glyph_index.unwrap() == 0 {
             eprintln!(
                 "警告: 字符 '{}' (U+{:04X}) 没有对应的字形索引，已过滤",
                 c, c as u32
@@ -231,12 +281,20 @@ fn render_full_width_font(chars: &[char]) -> Result<(Vec<u8>, BTreeMap<char, u32
             continue;
         }
 
-        face.load_glyph(glyph_index.unwrap(), freetype::face::LoadFlag::RENDER)
+        let glyph_index = glyph_index.unwrap();
+
+        face.load_glyph(glyph_index, freetype::face::LoadFlag::RENDER)
             .map_err(|e| anyhow!("加载字形失败 '{}': {}", c, e))?;
 
-        let bitmap = face.glyph().bitmap();
-        let bitmap_width: u32 = bitmap.width().try_into().unwrap();
-        let bitmap_rows: u32 = bitmap.rows().try_into().unwrap();
+        let glyph = face.glyph();
+        let bitmap = glyph.bitmap();
+        
+        let bitmap_width = bitmap.width();
+        let bitmap_rows = bitmap.rows();
+        let bitmap_pitch = bitmap.pitch();
+
+        eprintln!("调试: 字符 '{}' 位图尺寸: {}x{}, pitch: {}, 像素模式: {:?}", 
+                 c, bitmap_width, bitmap_rows, bitmap_pitch, bitmap.pixel_mode());
 
         // 记录字符映射
         char_mapping.insert(c, (result.len() / char_data_size) as u32);
@@ -247,37 +305,99 @@ fn render_full_width_font(chars: &[char]) -> Result<(Vec<u8>, BTreeMap<char, u32
 
         let char_data = &mut result[current_len..current_len + char_data_size];
 
-        // 计算缩放比例
-        let scale_x = bitmap_width as f32 / FONT_SIZE as f32;
-        let scale_y = bitmap_rows as f32 / FONT_SIZE as f32;
+        // 重置字符数据为全0
+        for byte in char_data.iter_mut() {
+            *byte = 0;
+        }
 
-        // 将位图数据转换为指定大小的黑白数据
-        for y in 0..FONT_SIZE {
-            for x in 0..FONT_SIZE {
-                let src_x = (x as f32 * scale_x) as u32;
-                let src_y = (y as f32 * scale_y) as u32;
+        // 直接复制位图数据，不进行缩放
+        // 计算偏移量使字符居中
+        let x_offset = if (bitmap_width as u32) < FONT_SIZE {
+            (FONT_SIZE - bitmap_width as u32) / 2
+        } else {
+            0
+        };
+        
+        let y_offset = if (bitmap_rows as u32) < FONT_SIZE {
+            (FONT_SIZE - bitmap_rows as u32) / 2
+        } else {
+            0
+        };
 
-                let pixel_value = if src_x < bitmap_width && src_y < bitmap_rows {
-                    let row_start = src_y as usize * bitmap.pitch() as usize;
-                    let pixel_index = row_start + src_x as usize;
-                    if pixel_index < bitmap.buffer().len() {
-                        bitmap.buffer()[pixel_index]
-                    } else {
+        eprintln!("偏移量: x={}, y={}", x_offset, y_offset);
+
+        // 新的位图数据提取方法
+        for y in 0..(bitmap_rows as u32) {
+            let target_y = y + y_offset;
+            if target_y >= FONT_SIZE {
+                break;
+            }
+            
+            for x in 0..(bitmap_width as u32) {
+                let target_x = x + x_offset;
+                if target_x >= FONT_SIZE {
+                    break;
+                }
+                
+                // 计算在原始位图中的索引 - 使用更安全的方法
+                let src_x = x as i32;
+                let src_y = y as i32;
+                
+                // 根据像素模式处理
+                let pixel_value = match bitmap.pixel_mode() {
+                    Ok(PixelMode::Mono) => {
+                        // 单色位图，每个像素1位
+                        let byte_index = (src_y * bitmap_pitch.abs() + src_x / 8) as usize;
+                        if byte_index < bitmap.buffer().len() {
+                            let byte = bitmap.buffer()[byte_index];
+                            let bit_index = 7 - (src_x % 8); // MSB 优先
+                            (byte >> bit_index) & 1
+                        } else {
+                            0
+                        }
+                    }
+                    Ok(PixelMode::Gray) => {
+                        // 灰度位图，每个像素8位
+                        let pixel_index = (src_y * bitmap_pitch.abs() + src_x) as usize;
+                        if pixel_index < bitmap.buffer().len() {
+                            bitmap.buffer()[pixel_index]
+                        } else {
+                            0
+                        }
+                    }
+                    _ => {
+                        eprintln!("警告: 不支持的像素模式: {:?}", bitmap.pixel_mode());
                         0
                     }
-                } else {
-                    0
                 };
 
-                if pixel_value > 128 {
-                    let byte_index = (y * bytes_per_row + x / 8) as usize;
-                    let bit_offset = 7 - (x % 8);
-                    char_data[byte_index] |= 1 << bit_offset;
+                // 转换为黑白像素
+                let is_black = match bitmap.pixel_mode() {
+                    Ok(PixelMode::Mono) => pixel_value == 1,
+                    Ok(PixelMode::Gray) => pixel_value > 128,
+                    _ => false,
+                };
+
+                if is_black {
+                    let byte_index = (target_y * bytes_per_row + target_x / 8) as usize;
+                    let bit_offset = 7 - (target_x % 8); // MSB 优先
+                    
+                    if byte_index < char_data.len() {
+                        char_data[byte_index] |= 1 << bit_offset;
+                    }
                 }
             }
         }
+
+        // 抽样预览
+        if preview_indices.contains(&index) && preview_count < 5 {
+            eprintln!("=== 字符 '{}' (索引 {}) 预览 ===", c, index);
+            preview_char_bitmap(char_data, FONT_SIZE, FONT_SIZE, c);
+            preview_count += 1;
+        }
     }
 
+    eprintln!("全角字体渲染完成，共渲染字符：{}个", char_mapping.len());
     Ok((result, char_mapping))
 }
 
@@ -299,9 +419,14 @@ fn render_half_width_font(chars: &[char]) -> Result<(Vec<u8>, BTreeMap<char, u32
     let bytes_per_row = (target_width + 7) / 8;
     let char_data_size = (bytes_per_row * FONT_SIZE) as usize;
 
-    for &c in chars {
-        let glyph_index = face.get_char_index((c as u32).try_into().unwrap());
-        if glyph_index.is_none() {
+    // 抽样预览的字符索引
+    let preview_indices = vec![0, 1, 2, chars.len() / 4, chars.len() / 2];
+    let mut preview_count = 0;
+
+    for (index, &c) in chars.iter().enumerate() {
+        // 修复：get_char_index 需要 usize 参数，返回 Option<u32>
+        let glyph_index = face.get_char_index(c as usize);
+        if glyph_index.is_none() || glyph_index.unwrap() == 0 {
             eprintln!(
                 "警告: 字符 '{}' (U+{:04X}) 没有对应的字形索引，已过滤",
                 c, c as u32
@@ -309,12 +434,22 @@ fn render_half_width_font(chars: &[char]) -> Result<(Vec<u8>, BTreeMap<char, u32
             continue;
         }
 
-        face.load_glyph(glyph_index.unwrap(), freetype::face::LoadFlag::RENDER)
+        let glyph_index = glyph_index.unwrap();
+
+        face.load_glyph(glyph_index, freetype::face::LoadFlag::RENDER)
             .map_err(|e| anyhow!("加载字形失败 '{}': {}", c, e))?;
 
-        let bitmap = face.glyph().bitmap();
-        let bitmap_width: u32 = bitmap.width().try_into().unwrap();
-        let bitmap_rows: u32 = bitmap.rows().try_into().unwrap();
+        let glyph = face.glyph();
+        let bitmap = glyph.bitmap();
+
+        let bitmap_width = bitmap.width();
+        let bitmap_rows = bitmap.rows();
+        let bitmap_pitch = bitmap.pitch();
+
+        eprintln!(
+            "调试: 字符 '{}' 位图尺寸: {}x{}, pitch: {}",
+            c, bitmap_width, bitmap_rows, bitmap_pitch
+        );
 
         // 记录字符映射
         char_mapping.insert(c, (result.len() / char_data_size) as u32);
@@ -325,37 +460,73 @@ fn render_half_width_font(chars: &[char]) -> Result<(Vec<u8>, BTreeMap<char, u32
 
         let char_data = &mut result[current_len..current_len + char_data_size];
 
-        // 计算缩放比例
-        let scale_x = bitmap_width as f32 / target_width as f32;
-        let scale_y = bitmap_rows as f32 / FONT_SIZE as f32;
+        // 重置字符数据为全0
+        for byte in char_data.iter_mut() {
+            *byte = 0;
+        }
 
-        // 将位图数据转换为指定大小的黑白数据
-        for y in 0..FONT_SIZE {
-            for x in 0..target_width {
-                let src_x = (x as f32 * scale_x) as u32;
-                let src_y = (y as f32 * scale_y) as u32;
+        // 直接复制位图数据，不进行缩放
+        // 计算偏移量使字符居中
+        let x_offset = if (bitmap_width as u32) < target_width {
+            (target_width - bitmap_width as u32) / 2
+        } else {
+            0
+        };
 
-                let pixel_value = if src_x < bitmap_width && src_y < bitmap_rows {
-                    let row_start = src_y as usize * bitmap.pitch() as usize;
-                    let pixel_index = row_start + src_x as usize;
-                    if pixel_index < bitmap.buffer().len() {
-                        bitmap.buffer()[pixel_index]
-                    } else {
-                        0
-                    }
-                } else {
-                    0
-                };
+        let y_offset = if (bitmap_rows as u32) < FONT_SIZE {
+            (FONT_SIZE - bitmap_rows as u32) / 2
+        } else {
+            0
+        };
 
+        eprintln!("偏移量: x={}, y={}", x_offset, y_offset);
+
+        // 复制位图数据 - 使用更简单直接的方法
+        for y in 0..(bitmap_rows as u32) {
+            let target_y = y + y_offset;
+            if target_y >= FONT_SIZE {
+                break;
+            }
+
+            for x in 0..(bitmap_width as u32) {
+                let target_x = x + x_offset;
+                if target_x >= target_width {
+                    break;
+                }
+
+                // 计算源像素位置
+                let src_x = x as i32;
+                let src_y = y as i32;
+
+                // 计算在原始位图中的索引
+                let pixel_index = (src_y * bitmap_pitch.abs()) + src_x;
+                if pixel_index < 0 || (pixel_index as usize) >= bitmap.buffer().len() {
+                    continue;
+                }
+
+                let pixel_value = bitmap.buffer()[pixel_index as usize];
+
+                // 转换为黑白像素（阈值设为128）
                 if pixel_value > 128 {
-                    let byte_index = (y * bytes_per_row + x / 8) as usize;
-                    let bit_offset = 7 - (x % 8);
-                    char_data[byte_index] |= 1 << bit_offset;
+                    let byte_index = (target_y * bytes_per_row + target_x / 8) as usize;
+                    let bit_offset = 7 - (target_x % 8); // MSB 优先
+
+                    if byte_index < char_data.len() {
+                        char_data[byte_index] |= 1 << bit_offset;
+                    }
                 }
             }
         }
+
+        // 抽样预览
+        if preview_indices.contains(&index) && preview_count < 5 {
+            eprintln!("=== 字符 '{}' (索引 {}) 预览 ===", c, index);
+            preview_char_bitmap(char_data, target_width, FONT_SIZE, c);
+            preview_count += 1;
+        }
     }
 
+    eprintln!("半角字体渲染完成，共渲染字符：{}个", char_mapping.len());
     Ok((result, char_mapping))
 }
 
