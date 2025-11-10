@@ -1,14 +1,21 @@
-use bitbang_hal::spi_halfduplex::{SPIDevice, SpiConfig};
+use embedded_storage_async::nor_flash::NorFlash;
+use embedded_storage_std_async_mock::FlashMock;
 use epd_waveshare::epd7in5_yrd0750ryf665f60::{Display7in5, Epd7in5 as Epd};
 use epd_waveshare::prelude::WaveshareDisplay;
 use linux_embedded_hal::{Delay, SysfsPin, sysfs_gpio::Direction};
 use log::info;
-use embedded_storage_async::nor_flash::NorFlash;
-use embedded_storage_std_async_mock::FlashMock;
 use sequential_storage::map::{Value, fetch_item, store_item};
 use sequential_storage::{
     cache::{KeyCacheImpl, NoCache},
     map::Key,
+};
+
+#[cfg(feature = "spi_bitbang")]
+use bitbang_hal::spi_halfduplex::{SPIDevice, SpiConfig};
+#[cfg(not(feature = "spi_bitbang"))]
+use linux_embedded_hal::{
+    SpidevDevice,
+    spidev::{SpiModeFlags, Spidev, SpidevOptions},
 };
 
 pub struct KVStorage<F, C, K>
@@ -60,9 +67,12 @@ where
 }
 
 pub struct Board {
+    #[cfg(feature = "spi_bitbang")]
     pub epd_spi: SPIDevice<SysfsPin, SysfsPin, SysfsPin, Delay>,
-    pub epd:
-        Epd<SPIDevice<SysfsPin, SysfsPin, SysfsPin, Delay>, SysfsPin, SysfsPin, SysfsPin, Delay>,
+    #[cfg(not(feature = "spi_bitbang"))]
+    pub epd_spi: SpidevDevice,
+    #[cfg(not(feature = "spi_bitbang"))]
+    pub epd: Epd<SpidevDevice, SysfsPin, SysfsPin, SysfsPin, Delay>,
     pub epd_display: Display7in5,
     pub delay: Delay,
     pub storage: KVStorage<FlashMock<32, 32, 512>, NoCache, u8>,
@@ -91,30 +101,54 @@ impl Board {
             .expect("rst Direction");
         epd_rst.set_value(1).expect("rst Value set to 1");
 
-        let mosi = SysfsPin::new(147);
-        mosi.export().expect("miso export");
-        while !mosi.is_exported() {}
-        mosi.set_direction(Direction::Out).expect("MISO Direction");
-        mosi.set_value(1).expect("MOSI Value set to 1");
+        #[cfg(feature = "spi_bitbang")]
+        let (mut epd_spi, mut epd) = {
+            let mosi = SysfsPin::new(147);
+            mosi.export().expect("miso export");
+            while !mosi.is_exported() {}
+            mosi.set_direction(Direction::Out).expect("MISO Direction");
+            mosi.set_value(1).expect("MOSI Value set to 1");
 
-        let sck = SysfsPin::new(146);
-        sck.export().expect("sck export");
-        while !sck.is_exported() {}
-        sck.set_direction(Direction::Out).expect("SCK Direction");
-        sck.set_value(1).expect("SCK Value set to 1");
+            let sck = SysfsPin::new(146);
+            sck.export().expect("sck export");
+            while !sck.is_exported() {}
+            sck.set_direction(Direction::Out).expect("SCK Direction");
+            sck.set_value(1).expect("SCK Value set to 1");
 
-        let cs = SysfsPin::new(150);
-        cs.export().expect("cs export");
-        while !cs.is_exported() {}
-        cs.set_direction(Direction::Out).expect("CS Direction");
-        cs.set_value(1).expect("CS Value set to 1");
+            let cs = SysfsPin::new(150);
+            cs.export().expect("cs export");
+            while !cs.is_exported() {}
+            cs.set_direction(Direction::Out).expect("CS Direction");
+            cs.set_value(1).expect("CS Value set to 1");
 
-        let config = SpiConfig::default();
+            let config = SpiConfig::default();
 
-        let mut epd_spi = SPIDevice::new(embedded_hal::spi::MODE_0, mosi, sck, cs, Delay, config);
+            let mut epd_spi =
+                SPIDevice::new(embedded_hal::spi::MODE_0, mosi, sck, cs, Delay, config);
 
-        let epd = Epd::new(&mut epd_spi, epd_busy, epd_dc, epd_rst, &mut Delay, None)
-            .expect("eink initalize error");
+            let epd = Epd::new(&mut epd_spi, epd_busy, epd_dc, epd_rst, &mut Delay, None)
+                .expect("eink initalize error");
+
+            (epd_spi, epd)
+        };
+
+        #[cfg(not(feature = "spi_bitbang"))]
+        let (mut epd_spi, mut epd) = {
+            // let mut spi = Spidev::open().unwrap();
+            // let options = SpidevOptions::new()
+            //     .bits_per_word(8)
+            //     .max_speed_hz(20_000)
+            //     .mode(SpiModeFlags::SPI_MODE_0)
+            //     .build();
+            // spi.configure(&options).unwrap();
+            let mut epd_spi = SpidevDevice::open("/dev/spidev3.0").unwrap();
+            // spi.configure(&options);
+
+            let epd = Epd::new(&mut epd_spi, epd_busy, epd_dc, epd_rst, &mut Delay, None)
+                .expect("eink initalize error");
+
+            (epd_spi, epd)
+        };
 
         let epd_display = Display7in5::default();
 

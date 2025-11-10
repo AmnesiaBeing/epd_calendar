@@ -21,7 +21,6 @@ simulator = [
 embedded_linux = [
     "linux-embedded-hal",
     "embedded-storage-std-async-mock",
-    "bitbang-hal",
     "embassy-sync/log",
     "embassy-executor/arch-std",
     "embassy-executor/executor-thread",
@@ -32,6 +31,7 @@ embedded_linux = [
     "env_logger",
 ]
 embedded_esp = []
+spi_bitbang = ["bitbang-hal"]
 
 [profile.release]
 # 优化编译大小

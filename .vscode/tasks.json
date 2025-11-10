@@ -1,0 +1,70 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    // 任务1：编译 Rust 项目
+    {
+      "label": "cargo-build",
+      "type": "shell",
+      "command": "cargo",
+      "args": [
+        "bel"
+      ],
+      "group": "build",
+      "problemMatcher": ["$rustc"],
+      "detail": "编译开发板的调试版本"
+    },
+
+    // 任务2：通过 ADB 将编译产物推送到开发板根目录
+    {
+      "label": "adb-push",
+      "type": "shell",
+      "command": "adb",
+      "args": [
+        "push",
+        "target/aarch64-unknown-linux-gnu/debug/epd_calendar",
+        "/"
+      ],
+      "dependsOn": ["cargo-build"], // 依赖编译任务完成后执行
+      "detail": "通过 ADB 推送程序到开发板根目录"
+    },
+
+    // 任务3：通过 ADB 建立端口转发（开发板 1234 端口 → 上位机 1234 端口）
+    {
+      "label": "adb-forward",
+      "type": "shell",
+      "command": "adb",
+      "args": [
+        "forward",
+        "tcp:1234", // 上位机本地端口
+        "tcp:1234" // 开发板端口（需与 lldb-server 监听端口一致）
+      ],
+      "detail": "建立 ADB 端口转发"
+    },
+
+    // 任务4：通过 ADB 在开发板上启动 lldb-server
+    {
+      "label": "start-lldb-server",
+      "type": "shell",
+      "command": "adb",
+      "args": [
+        "shell",
+        // 开发板上启动 lldb-server，监听 1234 端口，执行根目录下的程序
+        "RUST_LOG=verbose RUST_BACKTRACE=1 lldb-server platform --server --listen *:1234 /epd_calendar"
+      ],
+      "dependsOn": ["adb-push", "adb-forward"], // 依赖推送和端口转发完成
+      "detail": "在开发板上启动 lldb-server"
+    },
+
+    // 复合任务：一键执行所有前置步骤
+    {
+      "label": "pre-debug",
+      "dependsOn": [
+        "cargo-build",
+        "adb-push",
+        "adb-forward",
+        "start-lldb-server"
+      ],
+      "detail": "调试前的所有准备工作"
+    }
+  ]
+}

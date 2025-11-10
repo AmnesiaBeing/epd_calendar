@@ -1,45 +1,27 @@
 {
-    // 使用 IntelliSense 了解相关属性。 
-    // 悬停以查看现有属性的描述。
-    // 欲了解更多信息，请访问: https://go.microsoft.com/fwlink/?linkid=830387
-    "version": "0.2.0",
-    "configurations": [
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Debug executable 'epd_calendar'",
-            "cargo": {
-                "args": [
-                    "build",
-                    "--bin=epd_calendar",
-                    "--package=epd_calendar"
-                ],
-                "filter": {
-                    "name": "epd_calendar",
-                    "kind": "bin"
-                }
-            },
-            "args": [],
-            "cwd": "${workspaceFolder}"
-        },
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Debug unit tests in executable 'epd_calendar'",
-            "cargo": {
-                "args": [
-                    "test",
-                    "--no-run",
-                    "--bin=epd_calendar",
-                    "--package=epd_calendar"
-                ],
-                "filter": {
-                    "name": "epd_calendar",
-                    "kind": "bin"
-                }
-            },
-            "args": [],
-            "cwd": "${workspaceFolder}"
-        }
-    ]
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Rust Remote Debug (ADB + LLDB)",
+      "type": "lldb", // 使用 CodeLLDB 插件
+      "request": "launch",
+      // 本地编译产物路径（带调试符号，用于加载源码和符号）
+      "program": "${workspaceFolder}/target/aarch64-unknown-linux-gnu/debug/epd_calendar", // 若为 release 则改路径
+      // 调试前执行的前置任务（即上面定义的复合任务）
+      "preLaunchTask": "pre-debug",
+      // 连接到开发板的 lldb-server（通过 ADB 转发的本地端口）
+      "initCommands": [
+        // 告诉 LLDB 连接到本地转发的端口（对应开发板的 1234 端口）
+        "platform select remote-linux",
+        "platform connect connect://localhost:1234"
+      ],
+      // 开发板上的程序路径（用于 LLDB 定位远端程序）
+      // 源码路径映射（若本地与开发板路径不同，需配置，一般无需修改）
+      "sourceMap": {
+        "${workspaceFolder}": "${workspaceFolder}"
+      },
+      // 工作目录（项目根目录）
+      "cwd": "${workspaceFolder}",
+    }
+  ]
 }
