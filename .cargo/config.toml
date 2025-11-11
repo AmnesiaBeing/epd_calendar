@@ -2,9 +2,9 @@
 linker = "aarch64-linux-gnu-gcc"
 
 [alias]
-bel = "build --target aarch64-unknown-linux-gnu --features embedded_linux"
-belr = "build --release --target aarch64-unknown-linux-gnu --features embedded_linux"
-bs = "build --features simulator"
-bsr = "build --release --features simulator"
-rs = "run --features simulator"
-rrs = "run --release --features simulator"
+bel = "build --target aarch64-unknown-linux-gnu --no-default-features --features embedded_linux"
+belr = "build --release --target aarch64-unknown-linux-gnu --no-default-features --features embedded_linux"
+bs = "build --no-default-features --features simulator"
+bsr = "build --no-default-features --release --features simulator"
+rs = "run --no-default-features --features simulator"
+rrs = "run --no-default-features --release --features simulator"

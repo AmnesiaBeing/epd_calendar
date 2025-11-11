@@ -7,16 +7,12 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use unicode_normalization::UnicodeNormalization;
 
-// 字体大小，这里只制作FONT_SIZE*FONT_SIZE的中文等宽字体，以及FONT_SIZE/2*FONT_SIZE的英文等宽字体
-const FONT_SIZE: u32 = 16;
-
-// 相关目录
+const FONT_SIZE: u32 = 24;
 const OUTPUT_DIR: &str = "src/app";
 const SENTENCES_DIR: &str = "../sentences-bundle/sentences";
 const CATEGORIES_PATH: &str = "../sentences-bundle/categories.json";
-const FONT_PATH: &str = "assets/SimSun.ttf";
+const FONT_PATH: &str = "assets/NotoSansMonoCJKsc-Regular.otf";
 
-// sentences-bundle 数据 JSON解析结构
 #[derive(Debug, Deserialize, Clone)]
 struct Hitokoto {
     hitokoto: String,
@@ -24,48 +20,40 @@ struct Hitokoto {
     from_who: Option<String>,
 }
 
-// sentences-bundle 分类 JSON解析结构
 #[derive(Debug, Deserialize)]
 struct HitokotoCategory {
-    id: u32,      // 要把Hitokoto中的type通过key转换为id，方便存储
-    name: String, // 分类名称
-    key: String,  // 分类缩写，abcde……
+    id: u32,
+    #[allow(dead_code)]
+    name: String,
+    key: String,
 }
 
 fn main() -> Result<()> {
-    // 1. 解析分类
+    println!("cargo:warning=开始构建字体数据...");
+
     let categories = parse_categories()?;
-
-    // 2. 解析一言数据
     let hitokotos = parse_all_json_files(&categories)?;
-
-    // 3. 收集并过滤字符（ASCII、控制字符、非BMP字符）
     let all_chars: Vec<Hitokoto> = hitokotos.clone().into_iter().flat_map(|(_, v)| v).collect();
     let all_chars = collect_and_validate_chars(&all_chars)?;
-    eprintln!("共收集有效字符：{}个", all_chars.len());
 
-    // 4. 分离全角和半角字符
+    println!("cargo:warning=共收集有效字符：{}个", all_chars.len());
+
     let (full_width_chars, half_width_chars) = separate_full_half_width_chars(&all_chars);
-    eprintln!("全角字符：{}个", full_width_chars.len());
-    eprintln!("半角字符：{}个", half_width_chars.len());
-
-    // 5. 补充ASCII可见字符到半角字符集
     let half_width_chars = add_ascii_chars(half_width_chars);
-    eprintln!("补充ASCII后半角字符：{}个", half_width_chars.len());
-
-    // 6. 确保"佚名"两个字在全角字符集中
     let full_width_chars = ensure_yiming_chars(full_width_chars);
 
-    // 7. 渲染字体点阵
+    println!(
+        "cargo:warning=全角字符：{}个，半角字符：{}个",
+        full_width_chars.len(),
+        half_width_chars.len()
+    );
+
     let (full_width_glyph_data, full_width_char_mapping) =
         render_full_width_font(&full_width_chars)?;
     let (half_width_glyph_data, half_width_char_mapping) =
         render_half_width_font(&half_width_chars)?;
 
-    // 8. 生成格言数据（去重存储作者和来源，None的作者统一为"佚名"）
     generate_hitokoto_data(&hitokotos)?;
-
-    // 9. 生成字体文件
     generate_font_files(
         &full_width_glyph_data,
         &full_width_char_mapping,
@@ -73,28 +61,23 @@ fn main() -> Result<()> {
         &half_width_char_mapping,
     )?;
 
-    // 触发重编译的条件
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed={}", SENTENCES_DIR);
     println!("cargo:rerun-if-changed={}", CATEGORIES_PATH);
     println!("cargo:rerun-if-changed={}", FONT_PATH);
 
+    println!("cargo:warning=字体数据构建完成！");
     Ok(())
 }
 
-// 解析分类文件
 fn parse_categories() -> Result<Vec<HitokotoCategory>> {
-    let categories: Vec<HitokotoCategory> = serde_json::from_str(
-        &fs::read_to_string(CATEGORIES_PATH)
-            .with_context(|| format!("读取分类文件失败: {}", CATEGORIES_PATH))?,
-    )
-    .context("解析categories.json失败")?;
-
+    let content = fs::read_to_string(CATEGORIES_PATH)
+        .with_context(|| format!("读取分类文件失败: {}", CATEGORIES_PATH))?;
+    let categories: Vec<HitokotoCategory> =
+        serde_json::from_str(&content).context("解析categories.json失败")?;
     Ok(categories)
 }
 
-// 解析一言JSON文件
-// 返回值：type + 不同type格言数组
 fn parse_all_json_files(categories: &[HitokotoCategory]) -> Result<Vec<(u32, Vec<Hitokoto>)>> {
     let mut vec_hitokotos = Vec::new();
 
@@ -103,8 +86,8 @@ fn parse_all_json_files(categories: &[HitokotoCategory]) -> Result<Vec<(u32, Vec
         sentences_path.push(entry.key.clone());
         sentences_path.set_extension("json");
 
-        let content = fs::read_to_string(sentences_path.as_path())
-            .with_context(|| format!("读取JSON文件失败: {}", sentences_path.clone().display()))?;
+        let content = fs::read_to_string(&sentences_path)
+            .with_context(|| format!("读取JSON文件失败: {}", sentences_path.display()))?;
 
         let hitokotos: Vec<Hitokoto> = serde_json::from_str(&content)
             .with_context(|| format!("解析JSON失败: {}", sentences_path.display()))?;
@@ -115,7 +98,6 @@ fn parse_all_json_files(categories: &[HitokotoCategory]) -> Result<Vec<(u32, Vec
     Ok(vec_hitokotos)
 }
 
-// 收集并过滤字符（ASCII、控制字符、非BMP字符）
 fn collect_and_validate_chars(hitokotos: &[Hitokoto]) -> Result<Vec<char>> {
     let mut char_set = BTreeSet::new();
 
@@ -123,7 +105,12 @@ fn collect_and_validate_chars(hitokotos: &[Hitokoto]) -> Result<Vec<char>> {
         for c in h.from.nfc() {
             char_set.insert(c);
         }
-        for c in h.from_who.clone().unwrap_or("佚名".to_string()).nfc() {
+        for c in h
+            .from_who
+            .clone()
+            .unwrap_or_else(|| "佚名".to_string())
+            .nfc()
+        {
             char_set.insert(c);
         }
         for c in h.hitokoto.nfc() {
@@ -131,7 +118,6 @@ fn collect_and_validate_chars(hitokotos: &[Hitokoto]) -> Result<Vec<char>> {
         }
     }
 
-    // 过滤不可见字符
     let filtered_chars: Vec<char> = char_set
         .into_iter()
         .filter(|&c| !is_invisible_char(c))
@@ -140,20 +126,15 @@ fn collect_and_validate_chars(hitokotos: &[Hitokoto]) -> Result<Vec<char>> {
     Ok(filtered_chars)
 }
 
-// 判断是否为不可见字符
 fn is_invisible_char(c: char) -> bool {
     match c as u32 {
-        // 空格、换行、制表符等
         0x20 | 0x09 | 0x0A | 0x0D => true,
-        // 不换行空格、软连字符、表意空格
         0xA0 | 0xAD | 0x3000 => true,
-        // 其他控制字符
         n if n <= 0x1F || (n >= 0x7F && n <= 0x9F) => true,
         _ => false,
     }
 }
 
-// 分离全角和半角字符
 fn separate_full_half_width_chars(chars: &[char]) -> (Vec<char>, Vec<char>) {
     let mut full_width_chars = Vec::new();
     let mut half_width_chars = Vec::new();
@@ -169,33 +150,21 @@ fn separate_full_half_width_chars(chars: &[char]) -> (Vec<char>, Vec<char>) {
     (full_width_chars, half_width_chars)
 }
 
-// 确保"佚名"两个字在全角字符集中
-fn ensure_yiming_chars(mut full_width_chars: Vec<char>) -> Vec<char> {
+fn ensure_yiming_chars(full_width_chars: Vec<char>) -> Vec<char> {
     let mut char_set: BTreeSet<char> = full_width_chars.into_iter().collect();
-
-    // 添加"佚名"两个字
     char_set.insert('佚');
     char_set.insert('名');
-
     char_set.into_iter().collect()
 }
 
-// 判断是否为半角字符
 fn if_half_width_char(c: char) -> bool {
-    // ASCII字符（除了控制字符）
-    if c.is_ascii() && !c.is_ascii_control() {
-        return true;
-    }
-
-    // 常见的中文半角标点符号
-    r#"，。！？；：""''（）【】《》""''""''"#.to_string().find(c).is_some()
+    // 只保留英文字母、数字、标点符号为半角
+    c.is_ascii() && !c.is_ascii_control()
 }
 
-// 补充ASCII可见字符到半角字符集
 fn add_ascii_chars(existing_chars: Vec<char>) -> Vec<char> {
     let mut all_chars: BTreeSet<char> = existing_chars.into_iter().collect();
 
-    // 添加所有ASCII可见字符 (0x21-0x7E)
     for code in 0x21..=0x7E {
         if let Some(c) = std::char::from_u32(code) {
             all_chars.insert(c);
@@ -205,52 +174,49 @@ fn add_ascii_chars(existing_chars: Vec<char>) -> Vec<char> {
     all_chars.into_iter().collect()
 }
 
-// 在编译期预览字符点阵
-fn preview_char_bitmap(char_data: &[u8], char_width: u32, char_height: u32, c: char) {
+fn preview_string(
+    s: &str,
+    glyph_data: &[u8],
+    char_mapping: &BTreeMap<char, u32>,
+    char_width: u32,
+    char_height: u32,
+    font_type: &str,
+) {
     let bytes_per_row = (char_width + 7) / 8;
+    let char_data_size = (bytes_per_row * char_height) as usize;
 
-    eprintln!("字符 '{}' (U+{:04X}) 点阵预览:", c, c as u32);
-    eprintln!("+{}+", "-".repeat(char_width as usize));
+    println!("cargo:warning={}字体预览 '{}':", font_type, s);
 
-    for y in 0..char_height {
-        let mut line = String::from("|");
-        for x in 0..char_width {
-            let byte_index = (y * bytes_per_row + x / 8) as usize;
-            let bit_offset = 7 - (x % 8);
+    // 按行预览
+    for row in 0..char_height {
+        let mut line = String::new();
+        for c in s.chars() {
+            if let Some(&char_index) = char_mapping.get(&c) {
+                let start = (char_index as usize) * char_data_size;
+                let char_data = &glyph_data[start..start + char_data_size];
 
-            let pixel = if byte_index < char_data.len() {
-                (char_data[byte_index] >> bit_offset) & 1
+                for x in 0..char_width {
+                    let byte_index = (row * bytes_per_row + x / 8) as usize;
+                    let bit_offset = 7 - (x % 8);
+
+                    let pixel = if byte_index < char_data.len() {
+                        (char_data[byte_index] >> bit_offset) & 1
+                    } else {
+                        0
+                    };
+
+                    line.push(if pixel == 1 { '█' } else { ' ' });
+                }
             } else {
-                0
-            };
-
-            line.push(if pixel == 1 { '█' } else { ' ' });
+                // 字符不在映射中，显示空格
+                line.push_str(&" ".repeat(char_width as usize));
+            }
         }
-        line.push('|');
-        eprintln!("{}", line);
+        println!("cargo:warning={}", line);
     }
-
-    eprintln!("+{}+", "-".repeat(char_width as usize));
-
-    // 打印字节数据用于调试
-    eprintln!("原始字节数据:");
-    for y in 0..char_height {
-        let row_start = (y * bytes_per_row) as usize;
-        let row_end = row_start + bytes_per_row as usize;
-        if row_end <= char_data.len() {
-            let row_data = &char_data[row_start..row_end];
-            let hex_str = row_data
-                .iter()
-                .map(|b| format!("{:02x}", b))
-                .collect::<Vec<_>>()
-                .join(" ");
-            eprintln!("行 {:2}: {}", y, hex_str);
-        }
-    }
-    eprintln!();
+    println!("cargo:warning=");
 }
 
-// 渲染全角字体（FONT_SIZE × FONT_SIZE）
 fn render_full_width_font(chars: &[char]) -> Result<(Vec<u8>, BTreeMap<char, u32>)> {
     let lib = Library::init().map_err(|e| anyhow!("初始化freetype库失败: {}", e))?;
     let face = lib
@@ -263,101 +229,83 @@ fn render_full_width_font(chars: &[char]) -> Result<(Vec<u8>, BTreeMap<char, u32
     let mut result = Vec::new();
     let mut char_mapping = BTreeMap::new();
 
-    // 计算每个全角字符需要的字节数
     let bytes_per_row = (FONT_SIZE + 7) / 8;
     let char_data_size = (bytes_per_row * FONT_SIZE) as usize;
 
-    // 抽样预览的字符索引
-    let preview_indices = vec![0, 1, 2, chars.len() / 4, chars.len() / 2];
-    let mut preview_count = 0;
-
     for (index, &c) in chars.iter().enumerate() {
-        let glyph_index = face.get_char_index(c as usize);
-        if glyph_index.is_none() || glyph_index.unwrap() == 0 {
-            eprintln!(
-                "警告: 字符 '{}' (U+{:04X}) 没有对应的字形索引，已过滤",
+        let Some(glyph_index) = face.get_char_index(c as usize) else {
+            println!(
+                "cargo:warning=字符 '{}' (U+{:04X}) 没有对应的字形索引，已过滤",
+                c, c as u32
+            );
+            continue;
+        };
+
+        if glyph_index == 0 {
+            println!(
+                "cargo:warning=字符 '{}' (U+{:04X}) 没有对应的字形索引，已过滤",
                 c, c as u32
             );
             continue;
         }
-
-        let glyph_index = glyph_index.unwrap();
 
         face.load_glyph(glyph_index, freetype::face::LoadFlag::RENDER)
             .map_err(|e| anyhow!("加载字形失败 '{}': {}", c, e))?;
 
         let glyph = face.glyph();
         let bitmap = glyph.bitmap();
-        
+
         let bitmap_width = bitmap.width();
         let bitmap_rows = bitmap.rows();
         let bitmap_pitch = bitmap.pitch();
 
-        eprintln!("调试: 字符 '{}' 位图尺寸: {}x{}, pitch: {}, 像素模式: {:?}", 
-                 c, bitmap_width, bitmap_rows, bitmap_pitch, bitmap.pixel_mode());
-
-        // 记录字符映射
         char_mapping.insert(c, (result.len() / char_data_size) as u32);
 
-        // 扩展结果向量以容纳新字符
         let current_len = result.len();
         result.resize(current_len + char_data_size, 0);
 
         let char_data = &mut result[current_len..current_len + char_data_size];
+        char_data.fill(0);
 
-        // 重置字符数据为全0
-        for byte in char_data.iter_mut() {
-            *byte = 0;
-        }
-
-        // 直接复制位图数据，不进行缩放
-        // 计算偏移量使字符居中
         let x_offset = if (bitmap_width as u32) < FONT_SIZE {
             (FONT_SIZE - bitmap_width as u32) / 2
         } else {
             0
         };
-        
+
         let y_offset = if (bitmap_rows as u32) < FONT_SIZE {
             (FONT_SIZE - bitmap_rows as u32) / 2
         } else {
             0
         };
 
-        eprintln!("偏移量: x={}, y={}", x_offset, y_offset);
-
-        // 新的位图数据提取方法
         for y in 0..(bitmap_rows as u32) {
             let target_y = y + y_offset;
             if target_y >= FONT_SIZE {
                 break;
             }
-            
+
             for x in 0..(bitmap_width as u32) {
                 let target_x = x + x_offset;
                 if target_x >= FONT_SIZE {
                     break;
                 }
-                
-                // 计算在原始位图中的索引 - 使用更安全的方法
+
                 let src_x = x as i32;
                 let src_y = y as i32;
-                
-                // 根据像素模式处理
+
                 let pixel_value = match bitmap.pixel_mode() {
                     Ok(PixelMode::Mono) => {
-                        // 单色位图，每个像素1位
                         let byte_index = (src_y * bitmap_pitch.abs() + src_x / 8) as usize;
                         if byte_index < bitmap.buffer().len() {
                             let byte = bitmap.buffer()[byte_index];
-                            let bit_index = 7 - (src_x % 8); // MSB 优先
+                            let bit_index = 7 - (src_x % 8);
                             (byte >> bit_index) & 1
                         } else {
                             0
                         }
                     }
                     Ok(PixelMode::Gray) => {
-                        // 灰度位图，每个像素8位
                         let pixel_index = (src_y * bitmap_pitch.abs() + src_x) as usize;
                         if pixel_index < bitmap.buffer().len() {
                             bitmap.buffer()[pixel_index]
@@ -365,13 +313,9 @@ fn render_full_width_font(chars: &[char]) -> Result<(Vec<u8>, BTreeMap<char, u32
                             0
                         }
                     }
-                    _ => {
-                        eprintln!("警告: 不支持的像素模式: {:?}", bitmap.pixel_mode());
-                        0
-                    }
+                    _ => 0,
                 };
 
-                // 转换为黑白像素
                 let is_black = match bitmap.pixel_mode() {
                     Ok(PixelMode::Mono) => pixel_value == 1,
                     Ok(PixelMode::Gray) => pixel_value > 128,
@@ -380,8 +324,8 @@ fn render_full_width_font(chars: &[char]) -> Result<(Vec<u8>, BTreeMap<char, u32
 
                 if is_black {
                     let byte_index = (target_y * bytes_per_row + target_x / 8) as usize;
-                    let bit_offset = 7 - (target_x % 8); // MSB 优先
-                    
+                    let bit_offset = 7 - (target_x % 8);
+
                     if byte_index < char_data.len() {
                         char_data[byte_index] |= 1 << bit_offset;
                     }
@@ -389,19 +333,29 @@ fn render_full_width_font(chars: &[char]) -> Result<(Vec<u8>, BTreeMap<char, u32
             }
         }
 
-        // 抽样预览
-        if preview_indices.contains(&index) && preview_count < 5 {
-            eprintln!("=== 字符 '{}' (索引 {}) 预览 ===", c, index);
-            preview_char_bitmap(char_data, FONT_SIZE, FONT_SIZE, c);
-            preview_count += 1;
+        // 显示进度
+        if index % 100 == 0 {
+            println!("cargo:warning=全角字体渲染进度: {}/{}", index, chars.len());
         }
     }
 
-    eprintln!("全角字体渲染完成，共渲染字符：{}个", char_mapping.len());
+    // 预览指定字符串
+    preview_string(
+        "你好，世界！",
+        &result,
+        &char_mapping,
+        FONT_SIZE,
+        FONT_SIZE,
+        "全角",
+    );
+
+    println!(
+        "cargo:warning=全角字体渲染完成，共渲染字符：{}个",
+        char_mapping.len()
+    );
     Ok((result, char_mapping))
 }
 
-// 渲染半角字体（FONT_SIZE/2 × FONT_SIZE）
 fn render_half_width_font(chars: &[char]) -> Result<(Vec<u8>, BTreeMap<char, u32>)> {
     let lib = Library::init().map_err(|e| anyhow!("初始化freetype库失败: {}", e))?;
     let face = lib
@@ -414,27 +368,26 @@ fn render_half_width_font(chars: &[char]) -> Result<(Vec<u8>, BTreeMap<char, u32
     let mut result = Vec::new();
     let mut char_mapping = BTreeMap::new();
 
-    // 计算每个半角字符需要的字节数
     let target_width = FONT_SIZE / 2;
     let bytes_per_row = (target_width + 7) / 8;
     let char_data_size = (bytes_per_row * FONT_SIZE) as usize;
 
-    // 抽样预览的字符索引
-    let preview_indices = vec![0, 1, 2, chars.len() / 4, chars.len() / 2];
-    let mut preview_count = 0;
-
     for (index, &c) in chars.iter().enumerate() {
-        // 修复：get_char_index 需要 usize 参数，返回 Option<u32>
-        let glyph_index = face.get_char_index(c as usize);
-        if glyph_index.is_none() || glyph_index.unwrap() == 0 {
-            eprintln!(
-                "警告: 字符 '{}' (U+{:04X}) 没有对应的字形索引，已过滤",
+        let Some(glyph_index) = face.get_char_index(c as usize) else {
+            println!(
+                "cargo:warning=字符 '{}' (U+{:04X}) 没有对应的字形索引，已过滤",
+                c, c as u32
+            );
+            continue;
+        };
+
+        if glyph_index == 0 {
+            println!(
+                "cargo:warning=字符 '{}' (U+{:04X}) 没有对应的字形索引，已过滤",
                 c, c as u32
             );
             continue;
         }
-
-        let glyph_index = glyph_index.unwrap();
 
         face.load_glyph(glyph_index, freetype::face::LoadFlag::RENDER)
             .map_err(|e| anyhow!("加载字形失败 '{}': {}", c, e))?;
@@ -446,27 +399,14 @@ fn render_half_width_font(chars: &[char]) -> Result<(Vec<u8>, BTreeMap<char, u32
         let bitmap_rows = bitmap.rows();
         let bitmap_pitch = bitmap.pitch();
 
-        eprintln!(
-            "调试: 字符 '{}' 位图尺寸: {}x{}, pitch: {}",
-            c, bitmap_width, bitmap_rows, bitmap_pitch
-        );
-
-        // 记录字符映射
         char_mapping.insert(c, (result.len() / char_data_size) as u32);
 
-        // 扩展结果向量以容纳新字符
         let current_len = result.len();
         result.resize(current_len + char_data_size, 0);
 
         let char_data = &mut result[current_len..current_len + char_data_size];
+        char_data.fill(0);
 
-        // 重置字符数据为全0
-        for byte in char_data.iter_mut() {
-            *byte = 0;
-        }
-
-        // 直接复制位图数据，不进行缩放
-        // 计算偏移量使字符居中
         let x_offset = if (bitmap_width as u32) < target_width {
             (target_width - bitmap_width as u32) / 2
         } else {
@@ -479,9 +419,6 @@ fn render_half_width_font(chars: &[char]) -> Result<(Vec<u8>, BTreeMap<char, u32
             0
         };
 
-        eprintln!("偏移量: x={}, y={}", x_offset, y_offset);
-
-        // 复制位图数据 - 使用更简单直接的方法
         for y in 0..(bitmap_rows as u32) {
             let target_y = y + y_offset;
             if target_y >= FONT_SIZE {
@@ -494,11 +431,9 @@ fn render_half_width_font(chars: &[char]) -> Result<(Vec<u8>, BTreeMap<char, u32
                     break;
                 }
 
-                // 计算源像素位置
                 let src_x = x as i32;
                 let src_y = y as i32;
 
-                // 计算在原始位图中的索引
                 let pixel_index = (src_y * bitmap_pitch.abs()) + src_x;
                 if pixel_index < 0 || (pixel_index as usize) >= bitmap.buffer().len() {
                     continue;
@@ -506,10 +441,9 @@ fn render_half_width_font(chars: &[char]) -> Result<(Vec<u8>, BTreeMap<char, u32
 
                 let pixel_value = bitmap.buffer()[pixel_index as usize];
 
-                // 转换为黑白像素（阈值设为128）
                 if pixel_value > 128 {
                     let byte_index = (target_y * bytes_per_row + target_x / 8) as usize;
-                    let bit_offset = 7 - (target_x % 8); // MSB 优先
+                    let bit_offset = 7 - (target_x % 8);
 
                     if byte_index < char_data.len() {
                         char_data[byte_index] |= 1 << bit_offset;
@@ -518,35 +452,42 @@ fn render_half_width_font(chars: &[char]) -> Result<(Vec<u8>, BTreeMap<char, u32
             }
         }
 
-        // 抽样预览
-        if preview_indices.contains(&index) && preview_count < 5 {
-            eprintln!("=== 字符 '{}' (索引 {}) 预览 ===", c, index);
-            preview_char_bitmap(char_data, target_width, FONT_SIZE, c);
-            preview_count += 1;
+        // 显示进度
+        if index % 100 == 0 {
+            println!("cargo:warning=半角字体渲染进度: {}/{}", index, chars.len());
         }
     }
 
-    eprintln!("半角字体渲染完成，共渲染字符：{}个", char_mapping.len());
+    // 预览指定字符串
+    preview_string(
+        "Hello World!",
+        &result,
+        &char_mapping,
+        FONT_SIZE / 2,
+        FONT_SIZE,
+        "半角",
+    );
+
+    println!(
+        "cargo:warning=半角字体渲染完成，共渲染字符：{}个",
+        char_mapping.len()
+    );
     Ok((result, char_mapping))
 }
 
-// 生成格言数据文件（去重存储作者和来源，None的作者统一为"佚名"）
 fn generate_hitokoto_data(hitokotos: &[(u32, Vec<Hitokoto>)]) -> Result<()> {
     let output_path = Path::new(OUTPUT_DIR).join("hitokoto_data.rs");
 
-    // 收集所有不重复的from和from_who字符串
     let mut from_strings = BTreeSet::new();
     let mut from_who_strings = BTreeSet::new();
     let mut all_hitokotos = Vec::new();
 
-    // 确保"佚名"在作者字符串中
     from_who_strings.insert("佚名".to_string());
 
     for (category_id, hitokoto_list) in hitokotos {
         for hitokoto in hitokoto_list {
             from_strings.insert(hitokoto.from.clone());
 
-            // 对于None的作者，统一使用"佚名"
             if let Some(from_who) = &hitokoto.from_who {
                 from_who_strings.insert(from_who.clone());
             }
@@ -555,7 +496,6 @@ fn generate_hitokoto_data(hitokotos: &[(u32, Vec<Hitokoto>)]) -> Result<()> {
         }
     }
 
-    // 转换为向量并建立索引映射
     let from_vec: Vec<String> = from_strings.into_iter().collect();
     let from_who_vec: Vec<String> = from_who_strings.into_iter().collect();
 
@@ -571,52 +511,36 @@ fn generate_hitokoto_data(hitokotos: &[(u32, Vec<Hitokoto>)]) -> Result<()> {
         .map(|(i, s)| (s.as_str(), i))
         .collect();
 
-    // 获取"佚名"的索引
     let yiming_index = from_who_index_map["佚名"];
 
     let mut content = String::new();
 
-    // 添加文件头
-    content.push_str("// 自动生成的格言数据文件\n");
-    content.push_str("// 不要手动修改此文件\n\n");
-
-    // 生成来源字符串表
+    content.push_str("// 自动生成的格言数据文件\n// 不要手动修改此文件\n\n");
     content.push_str("pub const FROM_STRINGS: &[&str] = &[\n");
     for from_str in &from_vec {
         content.push_str(&format!("    \"{}\",\n", escape_string(from_str)));
     }
     content.push_str("];\n\n");
 
-    // 生成作者字符串表
     content.push_str("pub const FROM_WHO_STRINGS: &[&str] = &[\n");
     for from_who_str in &from_who_vec {
         content.push_str(&format!("    \"{}\",\n", escape_string(from_who_str)));
     }
     content.push_str("];\n\n");
 
-    // 定义Hitokoto结构体
-    content.push_str("#[derive(Debug, Clone, Copy)]\n");
-    content.push_str("pub struct Hitokoto {\n");
-    content.push_str("    pub hitokoto: &'static str,\n");
-    content.push_str("    pub from: usize,\n");
-    content.push_str("    pub from_who: usize,\n"); // 不再是Option，统一使用索引
-    content.push_str("    pub category: u32,\n");
-    content.push_str("}\n\n");
+    content.push_str("#[derive(Debug, Clone, Copy)]\npub struct Hitokoto {\n    pub hitokoto: &'static str,\n    pub from: usize,\n    pub from_who: usize,\n    pub category: u32,\n}\n\n");
 
-    // 生成格言数据
     content.push_str("pub const HITOKOTOS: &[Hitokoto] = &[\n");
 
     for (category_id, hitokoto) in &all_hitokotos {
         let from_index = from_index_map[hitokoto.from.as_str()];
-
-        // 对于None的作者，使用"佚名"的索引
         let from_who_index = if let Some(from_who) = &hitokoto.from_who {
             from_who_index_map[from_who.as_str()]
         } else {
             yiming_index
         };
 
-        content.push_str(&format!("    Hitokoto {{\n"));
+        content.push_str("    Hitokoto {\n");
         content.push_str(&format!(
             "        hitokoto: \"{}\",\n",
             escape_string(&hitokoto.hitokoto)
@@ -624,7 +548,7 @@ fn generate_hitokoto_data(hitokotos: &[(u32, Vec<Hitokoto>)]) -> Result<()> {
         content.push_str(&format!("        from: {},\n", from_index));
         content.push_str(&format!("        from_who: {},\n", from_who_index));
         content.push_str(&format!("        category: {},\n", category_id));
-        content.push_str(&format!("    }},\n"));
+        content.push_str("    },\n");
     }
 
     content.push_str("];\n");
@@ -632,22 +556,26 @@ fn generate_hitokoto_data(hitokotos: &[(u32, Vec<Hitokoto>)]) -> Result<()> {
     fs::write(&output_path, content)
         .with_context(|| format!("写入格言数据文件失败: {}", output_path.display()))?;
 
-    eprintln!("格言数据文件生成成功: {}", output_path.display());
-    eprintln!("来源字符串数量: {}", from_vec.len());
-    eprintln!("作者字符串数量: {}", from_who_vec.len());
-    eprintln!("格言总数: {}", all_hitokotos.len());
+    println!(
+        "cargo:warning=格言数据文件生成成功: {}",
+        output_path.display()
+    );
+    println!(
+        "cargo:warning=来源字符串数量: {}, 作者字符串数量: {}, 格言总数: {}",
+        from_vec.len(),
+        from_who_vec.len(),
+        all_hitokotos.len()
+    );
 
     Ok(())
 }
 
-// 生成字体文件
 fn generate_font_files(
     full_width_glyph_data: &[u8],
     full_width_char_mapping: &BTreeMap<char, u32>,
     half_width_glyph_data: &[u8],
     half_width_char_mapping: &BTreeMap<char, u32>,
 ) -> Result<()> {
-    // 1. 生成全角字体二进制文件
     let full_width_bin_path = Path::new(OUTPUT_DIR).join("full_width_font.bin");
     fs::write(&full_width_bin_path, full_width_glyph_data).with_context(|| {
         format!(
@@ -655,13 +583,7 @@ fn generate_font_files(
             full_width_bin_path.display()
         )
     })?;
-    eprintln!(
-        "全角字体二进制文件生成成功: {} ({}字节)",
-        full_width_bin_path.display(),
-        full_width_glyph_data.len()
-    );
 
-    // 2. 生成半角字体二进制文件
     let half_width_bin_path = Path::new(OUTPUT_DIR).join("half_width_font.bin");
     fs::write(&half_width_bin_path, half_width_glyph_data).with_context(|| {
         format!(
@@ -669,62 +591,43 @@ fn generate_font_files(
             half_width_bin_path.display()
         )
     })?;
-    eprintln!(
-        "半角字体二进制文件生成成功: {} ({}字节)",
-        half_width_bin_path.display(),
-        half_width_glyph_data.len()
-    );
 
-    // 3. 生成合并的字体描述文件
     let fonts_rs_path = Path::new(OUTPUT_DIR).join("hitokoto_fonts.rs");
 
     let mut content = String::new();
 
-    content.push_str("// 自动生成的字体描述文件\n");
-    content.push_str("// 不要手动修改此文件\n\n");
+    content.push_str("// 自动生成的字体描述文件\n// 不要手动修改此文件\n\n");
+    content.push_str("use embedded_graphics::{\n    image::ImageRaw,\n    mono_font::{DecorationDimensions, MonoFont, mapping::GlyphMapping},\n    pixelcolor::BinaryColor,\n    prelude::Size,\n};\n\n");
 
-    content.push_str("use embedded_graphics::{\n");
-    content.push_str("    image::ImageRaw,\n");
-    content.push_str("    mono_font::{DecorationDimensions, MonoFont, mapping::GlyphMapping},\n");
-    content.push_str("    pixelcolor::BinaryColor,\n");
-    content.push_str("    prelude::Size,\n");
-    content.push_str("};\n\n");
+    content.push_str("struct BinarySearchGlyphMapping {\n    chars: &'static [u16],\n    offsets: &'static [u32],\n}\n\n");
 
-    // 定义二分查找的字符映射实现
-    content.push_str("struct BinarySearchGlyphMapping {\n");
-    content.push_str("    chars: &'static [u16],\n");
-    content.push_str("    offsets: &'static [u32],\n");
-    content.push_str("}\n\n");
+    content.push_str("impl GlyphMapping for BinarySearchGlyphMapping {\n    fn index(&self, c: char) -> usize {\n        let target = c as u16;\n        let mut left = 0;\n        let mut right = self.chars.len();\n        \n        while left < right {\n            let mid = left + (right - left) / 2;\n            if self.chars[mid] < target {\n                left = mid + 1;\n            } else if self.chars[mid] > target {\n                right = mid;\n            } else {\n                return self.offsets[mid] as usize;\n            }\n        }\n        \n        0\n    }\n}\n\n");
 
-    content.push_str("impl GlyphMapping for BinarySearchGlyphMapping {\n");
-    content.push_str("    fn index(&self, c: char) -> usize {\n");
-    content.push_str("        let target = c as u16;\n");
-    content.push_str("        let mut left = 0;\n");
-    content.push_str("        let mut right = self.chars.len();\n");
-    content.push_str("        \n");
-    content.push_str("        while left < right {\n");
-    content.push_str("            let mid = left + (right - left) / 2;\n");
-    content.push_str("            if self.chars[mid] < target {\n");
-    content.push_str("                left = mid + 1;\n");
-    content.push_str("            } else if self.chars[mid] > target {\n");
-    content.push_str("                right = mid;\n");
-    content.push_str("            } else {\n");
-    content.push_str("                return self.offsets[mid] as usize;\n");
-    content.push_str("            }\n");
-    content.push_str("        }\n");
-    content.push_str("        \n");
-    content.push_str("        // 如果没有找到，返回0（显示错了就错了）\n");
-    content.push_str("        0\n");
-    content.push_str("    }\n");
-    content.push_str("}\n\n");
-
-    // 生成全角字体字符映射数组
-    let full_width_chars: Vec<u16> = full_width_char_mapping.keys().map(|&c| c as u16).collect();
+    // 生成带注释的全角字符映射
     let full_width_offsets: Vec<u32> = full_width_char_mapping.values().cloned().collect();
 
     content.push_str("const FULL_WIDTH_CHARS: &[u16] = &[\n");
-    for &c in &full_width_chars {
-        content.push_str(&format!("    {},\n", c));
+    for (&c, _) in full_width_char_mapping.iter().take(50) {
+        // 只显示前50个字符的注释，避免文件过大
+        let char_display = match c {
+            '\n' => "\\n".to_string(),
+            '\r' => "\\r".to_string(),
+            '\t' => "\\t".to_string(),
+            '\\' => "\\\\".to_string(),
+            '"' => "\\\"".to_string(),
+            _ if c.is_control() => format!("\\u{:04X}", c as u32),
+            _ => c.to_string(),
+        };
+        content.push_str(&format!(
+            "    {}, // '{}' (U+{:04X})\n",
+            c as u16, char_display, c as u32
+        ));
+    }
+    if full_width_char_mapping.len() > 50 {
+        content.push_str(&format!(
+            "    // ... 还有 {} 个字符\n",
+            full_width_char_mapping.len() - 50
+        ));
     }
     content.push_str("];\n\n");
 
@@ -734,13 +637,31 @@ fn generate_font_files(
     }
     content.push_str("];\n\n");
 
-    // 生成半角字体字符映射数组
-    let half_width_chars: Vec<u16> = half_width_char_mapping.keys().map(|&c| c as u16).collect();
+    // 生成带注释的半角字符映射
     let half_width_offsets: Vec<u32> = half_width_char_mapping.values().cloned().collect();
 
     content.push_str("const HALF_WIDTH_CHARS: &[u16] = &[\n");
-    for &c in &half_width_chars {
-        content.push_str(&format!("    {},\n", c));
+    for (&c, _) in half_width_char_mapping.iter().take(50) {
+        // 只显示前50个字符的注释
+        let char_display = match c {
+            '\n' => "\\n".to_string(),
+            '\r' => "\\r".to_string(),
+            '\t' => "\\t".to_string(),
+            '\\' => "\\\\".to_string(),
+            '"' => "\\\"".to_string(),
+            _ if c.is_control() => format!("\\u{:04X}", c as u32),
+            _ => c.to_string(),
+        };
+        content.push_str(&format!(
+            "    {}, // '{}' (U+{:04X})\n",
+            c as u16, char_display, c as u32
+        ));
+    }
+    if half_width_char_mapping.len() > 50 {
+        content.push_str(&format!(
+            "    // ... 还有 {} 个字符\n",
+            half_width_char_mapping.len() - 50
+        ));
     }
     content.push_str("];\n\n");
 
@@ -750,73 +671,30 @@ fn generate_font_files(
     }
     content.push_str("];\n\n");
 
-    // 创建静态实例
-    content.push_str(
-        "static FULL_WIDTH_GLYPH_MAPPING: BinarySearchGlyphMapping = BinarySearchGlyphMapping {\n",
-    );
-    content.push_str("    chars: FULL_WIDTH_CHARS,\n");
-    content.push_str("    offsets: FULL_WIDTH_OFFSETS,\n");
-    content.push_str("};\n\n");
+    content.push_str("static FULL_WIDTH_GLYPH_MAPPING: BinarySearchGlyphMapping = BinarySearchGlyphMapping {\n    chars: FULL_WIDTH_CHARS,\n    offsets: FULL_WIDTH_OFFSETS,\n};\n\n");
 
-    content.push_str(
-        "static HALF_WIDTH_GLYPH_MAPPING: BinarySearchGlyphMapping = BinarySearchGlyphMapping {\n",
-    );
-    content.push_str("    chars: HALF_WIDTH_CHARS,\n");
-    content.push_str("    offsets: HALF_WIDTH_OFFSETS,\n");
-    content.push_str("};\n\n");
+    content.push_str("static HALF_WIDTH_GLYPH_MAPPING: BinarySearchGlyphMapping = BinarySearchGlyphMapping {\n    chars: HALF_WIDTH_CHARS,\n    offsets: HALF_WIDTH_OFFSETS,\n};\n\n");
 
-    // 生成全角字体常量（优化格式）
     content.push_str(&format!(
-        "pub const FULL_WIDTH_FONT: MonoFont<'static> = MonoFont {{\n\
-             image: ImageRaw::<BinaryColor>::new(\n\
-                 include_bytes!(\"full_width_font.bin\"),\n\
-                 {}\n\
-             ),\n\
-             glyph_mapping: &FULL_WIDTH_GLYPH_MAPPING,\n\
-             character_size: Size::new({}, {}),\n\
-             character_spacing: 0,\n\
-             baseline: {},\n\
-             underline: DecorationDimensions::new({} + 2, 1),\n\
-             strikethrough: DecorationDimensions::new({} / 2, 1),\n\
-        }};\n\n",
-        FONT_SIZE, // 图像宽度
-        FONT_SIZE, // 字符宽度
-        FONT_SIZE, // 字符高度
-        FONT_SIZE, // baseline
-        FONT_SIZE,
-        FONT_SIZE
+        "pub const FULL_WIDTH_FONT: MonoFont<'static> = MonoFont {{\n    image: ImageRaw::<BinaryColor>::new(\n        include_bytes!(\"full_width_font.bin\"),\n        {}\n    ),\n    glyph_mapping: &FULL_WIDTH_GLYPH_MAPPING,\n    character_size: Size::new({}, {}),\n    character_spacing: 0,\n    baseline: {},\n    underline: DecorationDimensions::new({} + 2, 1),\n    strikethrough: DecorationDimensions::new({} / 2, 1),\n}};\n\n",
+        FONT_SIZE, FONT_SIZE, FONT_SIZE, FONT_SIZE, FONT_SIZE, FONT_SIZE
     ));
 
-    // 生成半角字体常量（优化格式）
     content.push_str(&format!(
-        "pub const HALF_WIDTH_FONT: MonoFont<'static> = MonoFont {{\n\
-             image: ImageRaw::<BinaryColor>::new(\n\
-                 include_bytes!(\"half_width_font.bin\"),\n\
-                 {}\n\
-             ),\n\
-             glyph_mapping: &HALF_WIDTH_GLYPH_MAPPING,\n\
-             character_size: Size::new({}, {}),\n\
-             character_spacing: 0,\n\
-             baseline: {},\n\
-             underline: DecorationDimensions::new({} + 2, 1),\n\
-             strikethrough: DecorationDimensions::new({} / 2, 1),\n\
-        }};\n",
-        FONT_SIZE / 2, // 图像宽度
-        FONT_SIZE / 2, // 字符宽度
-        FONT_SIZE,     // 字符高度
-        FONT_SIZE,     // baseline
-        FONT_SIZE / 2,
-        FONT_SIZE
+        "pub const HALF_WIDTH_FONT: MonoFont<'static> = MonoFont {{\n    image: ImageRaw::<BinaryColor>::new(\n        include_bytes!(\"half_width_font.bin\"),\n        {}\n    ),\n    glyph_mapping: &HALF_WIDTH_GLYPH_MAPPING,\n    character_size: Size::new({}, {}),\n    character_spacing: 0,\n    baseline: {},\n    underline: DecorationDimensions::new({} + 2, 1),\n    strikethrough: DecorationDimensions::new({} / 2, 1),\n}};\n",
+        FONT_SIZE / 2, FONT_SIZE / 2, FONT_SIZE, FONT_SIZE, FONT_SIZE / 2, FONT_SIZE
     ));
 
     fs::write(&fonts_rs_path, content)
         .with_context(|| format!("写入字体描述文件失败: {}", fonts_rs_path.display()))?;
 
-    eprintln!("字体描述文件生成成功: {}", fonts_rs_path.display());
+    println!(
+        "cargo:warning=字体描述文件生成成功: {}",
+        fonts_rs_path.display()
+    );
     Ok(())
 }
 
-// 转义字符串中的特殊字符
 fn escape_string(s: &str) -> String {
     s.replace('\\', "\\\\")
         .replace('\"', "\\\"")
