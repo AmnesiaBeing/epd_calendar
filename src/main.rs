@@ -7,7 +7,7 @@ use embassy_executor::Spawner;
 use embedded_graphics::{
     mono_font::MonoTextStyle,
     prelude::*,
-    primitives::{Circle, CornerRadii, Line, PrimitiveStyle, Rectangle, RoundedRectangle},
+    primitives::{CornerRadii, Line, PrimitiveStyle, Rectangle, RoundedRectangle},
     text::Text,
 };
 
@@ -22,6 +22,273 @@ const BACKGROUND_COLOR: QuadColor = QuadColor::White;
 const TEXT_COLOR: QuadColor = QuadColor::Black;
 const PANEL_BG_COLOR: QuadColor = QuadColor::White;
 const PANEL_TEXT_COLOR: QuadColor = QuadColor::Black;
+
+// 智能文本渲染器
+pub struct SmartTextRenderer {
+    full_width_style: MonoTextStyle<'static, QuadColor>,
+    half_width_style: MonoTextStyle<'static, QuadColor>,
+    current_x: i32,
+    current_y: i32,
+    line_height: i32,
+}
+
+impl SmartTextRenderer {
+    pub fn new(position: Point) -> Self {
+        Self {
+            full_width_style: MonoTextStyle::new(&FULL_WIDTH_FONT, TEXT_COLOR),
+            half_width_style: MonoTextStyle::new(&HALF_WIDTH_FONT, TEXT_COLOR),
+            current_x: position.x,
+            current_y: position.y,
+            line_height: FULL_WIDTH_FONT.character_size.height as i32 + 2,
+        }
+    }
+
+    pub fn with_color(mut self, color: QuadColor) -> Self {
+        self.full_width_style = MonoTextStyle::new(&FULL_WIDTH_FONT, color);
+        self.half_width_style = MonoTextStyle::new(&HALF_WIDTH_FONT, color);
+        self
+    }
+
+    pub fn with_line_height(mut self, line_height: i32) -> Self {
+        self.line_height = line_height;
+        self
+    }
+
+    // 判断字符是否为半角字符
+    fn is_half_width_char(c: char) -> bool {
+        c.is_ascii() && !c.is_ascii_control()
+    }
+
+    // 渲染单行文本（自动处理全角半角混合）
+    pub fn draw_text<D>(&mut self, display: &mut D, text: &str) -> Result<(), D::Error>
+    where
+        D: DrawTarget<Color = QuadColor>,
+    {
+        let start_x = self.current_x;
+
+        for c in text.chars() {
+            if Self::is_half_width_char(c) {
+                // 半角字符
+                Text::new(
+                    &c.to_string(),
+                    Point::new(self.current_x, self.current_y),
+                    self.half_width_style,
+                )
+                .draw(display)?;
+                self.current_x += (FULL_WIDTH_FONT.character_size.width / 2) as i32;
+            } else {
+                // 全角字符
+                Text::new(
+                    &c.to_string(),
+                    Point::new(self.current_x, self.current_y),
+                    self.full_width_style,
+                )
+                .draw(display)?;
+                self.current_x += FULL_WIDTH_FONT.character_size.width as i32;
+            }
+        }
+
+        // 移动到下一行
+        self.current_x = start_x;
+        self.current_y += self.line_height;
+
+        Ok(())
+    }
+
+    // 渲染文本并限制最大宽度（自动换行）
+    pub fn draw_text_wrapped<D>(
+        &mut self,
+        display: &mut D,
+        text: &str,
+        max_width: u32,
+    ) -> Result<(), D::Error>
+    where
+        D: DrawTarget<Color = QuadColor>,
+    {
+        let start_x = self.current_x;
+        let mut line_width = 0;
+        let mut current_line = String::new();
+
+        for c in text.chars() {
+            let char_width = if Self::is_half_width_char(c) {
+                (FULL_WIDTH_FONT.character_size.width / 2) as i32
+            } else {
+                FULL_WIDTH_FONT.character_size.width as i32
+            };
+
+            // 检查是否需要换行
+            if line_width + char_width > max_width as i32 && !current_line.is_empty() {
+                // 绘制当前行
+                self.draw_text(display, &current_line)?;
+                current_line.clear();
+                line_width = 0;
+            }
+
+            current_line.push(c);
+            line_width += char_width;
+        }
+
+        // 绘制最后一行
+        if !current_line.is_empty() {
+            self.draw_text(display, &current_line)?;
+        }
+
+        self.current_x = start_x;
+        Ok(())
+    }
+
+    // 移动到指定位置
+    pub fn move_to(&mut self, position: Point) {
+        self.current_x = position.x;
+        self.current_y = position.y;
+    }
+
+    // 相对移动
+    pub fn move_by(&mut self, dx: i32, dy: i32) {
+        self.current_x += dx;
+        self.current_y += dy;
+    }
+
+    // 获取当前位置
+    pub fn current_position(&self) -> Point {
+        Point::new(self.current_x, self.current_y)
+    }
+
+    // 计算文本宽度（用于居中计算）
+    pub fn calculate_text_width(text: &str) -> u32 {
+        let mut width = 0;
+        for c in text.chars() {
+            if Self::is_half_width_char(c) {
+                width += FULL_WIDTH_FONT.character_size.width / 2;
+            } else {
+                width += FULL_WIDTH_FONT.character_size.width;
+            }
+        }
+        width
+    }
+
+    // 创建居中对齐的文本渲染器
+    pub fn centered_at(position: Point, container_width: u32) -> Self {
+        let mut renderer = Self::new(position);
+        renderer.current_x = position.x + (container_width / 2) as i32;
+        renderer
+    }
+
+    // 绘制居中对齐的文本
+    pub fn draw_centered_text<D>(&mut self, display: &mut D, text: &str) -> Result<(), D::Error>
+    where
+        D: DrawTarget<Color = QuadColor>,
+    {
+        let text_width = Self::calculate_text_width(text);
+        let start_x = self.current_x - (text_width as i32 / 2);
+
+        let temp_x = self.current_x;
+        self.current_x = start_x;
+        let result = self.draw_text(display, text);
+        self.current_x = temp_x;
+
+        result
+    }
+}
+
+// 简化的文本样式
+pub struct TextStyle {
+    pub color: QuadColor,
+    pub is_centered: bool,
+    pub max_width: Option<u32>,
+}
+
+impl Default for TextStyle {
+    fn default() -> Self {
+        Self {
+            color: TEXT_COLOR,
+            is_centered: false,
+            max_width: None,
+        }
+    }
+}
+
+impl TextStyle {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_color(mut self, color: QuadColor) -> Self {
+        self.color = color;
+        self
+    }
+
+    pub fn centered(mut self) -> Self {
+        self.is_centered = true;
+        self
+    }
+
+    pub fn with_max_width(mut self, max_width: u32) -> Self {
+        self.max_width = Some(max_width);
+        self
+    }
+}
+
+// 简化的文本绘制函数
+pub fn draw_smart_text<D>(
+    display: &mut D,
+    text: &str,
+    position: Point,
+    style: TextStyle,
+) -> Result<Point, D::Error>
+where
+    D: DrawTarget<Color = QuadColor>,
+{
+    let mut renderer = SmartTextRenderer::new(position).with_color(style.color);
+
+    if let Some(max_width) = style.max_width {
+        if style.is_centered {
+            // 对于居中的换行文本，需要特殊处理
+            let lines = wrap_text(text, max_width);
+            for line in lines {
+                renderer.draw_centered_text(display, &line)?;
+            }
+        } else {
+            renderer.draw_text_wrapped(display, text, max_width)?;
+        }
+    } else if style.is_centered {
+        renderer.draw_centered_text(display, text)?;
+    } else {
+        renderer.draw_text(display, text)?;
+    }
+
+    Ok(renderer.current_position())
+}
+
+// 文本换行辅助函数
+fn wrap_text(text: &str, max_width: u32) -> Vec<String> {
+    let mut lines = Vec::new();
+    let mut current_line = String::new();
+    let mut line_width = 0;
+
+    for c in text.chars() {
+        let char_width = if SmartTextRenderer::is_half_width_char(c) {
+            FULL_WIDTH_FONT.character_size.width / 2
+        } else {
+            FULL_WIDTH_FONT.character_size.width
+        };
+
+        if line_width + char_width > max_width && !current_line.is_empty() {
+            lines.push(current_line.clone());
+            current_line.clear();
+            line_width = 0;
+        }
+
+        current_line.push(c);
+        line_width += char_width;
+    }
+
+    if !current_line.is_empty() {
+        lines.push(current_line);
+    }
+
+    lines
+}
 
 pub struct InkDisplay {
     pub time: String,
@@ -101,24 +368,32 @@ impl InkDisplay {
     where
         D: DrawTarget<Color = QuadColor>,
     {
-        let style = MonoTextStyle::new(&HALF_WIDTH_FONT, TEXT_COLOR);
-
         // 左侧：Wi-Fi状态
         let wifi_text = if self.wifi_connected {
             "Wi-Fi ●"
         } else {
             "Wi-Fi ○"
         };
-        Text::new(wifi_text, Point::new(20, 20), style).draw(display)?;
+        draw_smart_text(display, wifi_text, Point::new(20, 20), TextStyle::new())?;
 
         // 中间：日期和星期
-        let date_style = MonoTextStyle::new(&FULL_WIDTH_FONT, TEXT_COLOR);
         let date_text = format!("{} {}", self.date, self.weekday);
-        Text::new(&date_text, Point::new(300, 20), date_style).draw(display)?;
+        draw_smart_text(
+            display,
+            &date_text,
+            Point::new(300, 20),
+            TextStyle::new().centered(),
+        )?;
 
         // 右侧：电池电量
         let battery_text = format!("电池 {}%", self.battery_level);
-        Text::new(&battery_text, Point::new(650, 20), style).draw(display)?;
+        let battery_width = SmartTextRenderer::calculate_text_width(&battery_text);
+        draw_smart_text(
+            display,
+            &battery_text,
+            Point::new(800 - 20 - battery_width as i32, 20),
+            TextStyle::new(),
+        )?;
 
         // 分隔线
         Line::new(Point::new(0, 40), Point::new(800, 40))
@@ -140,9 +415,13 @@ impl InkDisplay {
         .into_styled(PrimitiveStyle::with_fill(PANEL_BG_COLOR))
         .draw(display)?;
 
-        // 时间文字
-        let time_style = MonoTextStyle::new(&FULL_WIDTH_FONT, PANEL_TEXT_COLOR);
-        Text::new(&self.time, Point::new(400, 140), time_style).draw(display)?;
+        // 时间文字（居中）
+        draw_smart_text(
+            display,
+            &self.time,
+            Point::new(400, 140),
+            TextStyle::new().with_color(PANEL_TEXT_COLOR).centered(),
+        )?;
 
         Ok(())
     }
@@ -159,10 +438,20 @@ impl InkDisplay {
         self.draw_temperature_panel(display, 50, y_start, panel_width)?;
 
         // 天气图标面板
-        self.draw_weather_icon_panel(display, (50 + panel_width + gap).try_into().unwrap(), y_start, panel_width)?;
+        self.draw_weather_icon_panel(
+            display,
+            (50 + panel_width + gap) as i32,
+            y_start,
+            panel_width,
+        )?;
 
         // 湿度面板
-        self.draw_humidity_panel(display, (50 + 2 * (panel_width + gap)).try_into().unwrap(), y_start, panel_width)?;
+        self.draw_humidity_panel(
+            display,
+            (50 + 2 * (panel_width + gap)) as i32,
+            y_start,
+            panel_width,
+        )?;
 
         Ok(())
     }
@@ -184,13 +473,20 @@ impl InkDisplay {
         .into_styled(PrimitiveStyle::with_fill(PANEL_BG_COLOR));
         panel.draw(display)?;
 
-        let temp_style = MonoTextStyle::new(&FULL_WIDTH_FONT, PANEL_TEXT_COLOR);
-        let label_style = MonoTextStyle::new(&HALF_WIDTH_FONT, PANEL_TEXT_COLOR);
-
-        Text::new("温度", Point::new(x + 20, y + 25), label_style).draw(display)?;
+        draw_smart_text(
+            display,
+            "温度",
+            Point::new(x + 20, y + 25),
+            TextStyle::new().with_color(PANEL_TEXT_COLOR),
+        )?;
 
         let temp_text = format!("{}°C", self.temperature);
-        Text::new(&temp_text, Point::new(x + 20, y + 65), temp_style).draw(display)?;
+        draw_smart_text(
+            display,
+            &temp_text,
+            Point::new(x + 20, y + 65),
+            TextStyle::new().with_color(PANEL_TEXT_COLOR),
+        )?;
 
         Ok(())
     }
@@ -212,28 +508,28 @@ impl InkDisplay {
         .into_styled(PrimitiveStyle::with_fill(PANEL_BG_COLOR));
         panel.draw(display)?;
 
-        let style = MonoTextStyle::new(&FULL_WIDTH_FONT, PANEL_TEXT_COLOR);
-        let small_style = MonoTextStyle::new(&HALF_WIDTH_FONT, PANEL_TEXT_COLOR);
-
         // 天气图标（用文字符号表示）
-        let weather_icon = match self.weather_condition {
-            WeatherCondition::Sunny => "☀",
-            WeatherCondition::Cloudy => "☁",
-            WeatherCondition::Rainy => "🌧",
-            WeatherCondition::Snowy => "❄",
-            WeatherCondition::Foggy => "🌫",
+        let (weather_icon, condition_text) = match self.weather_condition {
+            WeatherCondition::Sunny => ("☀", "晴朗"),
+            WeatherCondition::Cloudy => ("☁", "多云"),
+            WeatherCondition::Rainy => ("🌧", "有雨"),
+            WeatherCondition::Snowy => ("❄", "下雪"),
+            WeatherCondition::Foggy => ("🌫", "有雾"),
         };
 
-        Text::new(weather_icon, Point::new(x + 30, y + 30), style).draw(display)?;
+        draw_smart_text(
+            display,
+            weather_icon,
+            Point::new(x + 30, y + 30),
+            TextStyle::new().with_color(PANEL_TEXT_COLOR),
+        )?;
 
-        let condition_text = match self.weather_condition {
-            WeatherCondition::Sunny => "晴朗",
-            WeatherCondition::Cloudy => "多云",
-            WeatherCondition::Rainy => "有雨",
-            WeatherCondition::Snowy => "下雪",
-            WeatherCondition::Foggy => "有雾",
-        };
-        Text::new(condition_text, Point::new(x + 30, y + 70),small_style).draw(display)?;
+        draw_smart_text(
+            display,
+            condition_text,
+            Point::new(x + 30, y + 70),
+            TextStyle::new().with_color(PANEL_TEXT_COLOR),
+        )?;
 
         Ok(())
     }
@@ -255,15 +551,22 @@ impl InkDisplay {
         .into_styled(PrimitiveStyle::with_fill(PANEL_BG_COLOR));
         panel.draw(display)?;
 
-        let style = MonoTextStyle::new(&FULL_WIDTH_FONT, PANEL_TEXT_COLOR);
-        let small_style = MonoTextStyle::new(&HALF_WIDTH_FONT, PANEL_TEXT_COLOR);
-
-        Text::new("湿度", Point::new(x + 20, y + 25), small_style).draw(display)?;
+        draw_smart_text(
+            display,
+            "湿度",
+            Point::new(x + 20, y + 25),
+            TextStyle::new().with_color(PANEL_TEXT_COLOR),
+        )?;
 
         let humidity_text = format!("{}%", self.humidity);
-        Text::new(&humidity_text, Point::new(x + 20, y + 65), style).draw(display)?;
+        draw_smart_text(
+            display,
+            &humidity_text,
+            Point::new(x + 20, y + 65),
+            TextStyle::new().with_color(PANEL_TEXT_COLOR),
+        )?;
 
-        // 湿度进度条
+        // 湿度进度条（保持不变）
         let bar_width = (width - 40) as i32;
         let fill_width = (bar_width * self.humidity as i32 / 100) as u32;
 
@@ -302,21 +605,26 @@ impl InkDisplay {
         .into_styled(PrimitiveStyle::with_fill(PANEL_BG_COLOR))
         .draw(display)?;
 
-        let quote_style = MonoTextStyle::new(&FULL_WIDTH_FONT, PANEL_TEXT_COLOR);
-        let author_style = MonoTextStyle::new(&HALF_WIDTH_FONT, PANEL_TEXT_COLOR);
+        // 格言内容（自动换行）
+        draw_smart_text(
+            display,
+            &self.quote,
+            Point::new(70, y_start + 25),
+            TextStyle::new()
+                .with_color(PANEL_TEXT_COLOR)
+                .with_max_width(660), // 700 - 40 (左右边距)
+        )?;
 
-        // 格言内容（简单截断处理）
-        let display_quote = if self.quote.len() > 20 {
-            format!("{}...", &self.quote[..20])
-        } else {
-            self.quote.clone()
-        };
-
-        Text::new(&display_quote, Point::new(70, y_start + 30), quote_style).draw(display)?;
-
+        // 作者信息
         if !self.quote_author.is_empty() {
             let author_text = format!("—— {}", self.quote_author);
-            Text::new(&author_text, Point::new(650, y_start + 60), author_style).draw(display)?;
+            let author_width = SmartTextRenderer::calculate_text_width(&author_text);
+            draw_smart_text(
+                display,
+                &author_text,
+                Point::new(750 - author_width as i32, y_start + 60),
+                TextStyle::new().with_color(PANEL_TEXT_COLOR),
+            )?;
         }
 
         Ok(())
@@ -326,18 +634,10 @@ impl InkDisplay {
     where
         D: DrawTarget<Color = QuadColor>,
     {
-        // 底部装饰线
+        // 底部装饰线（保持不变）
         Line::new(Point::new(100, 470), Point::new(700, 470))
             .into_styled(PrimitiveStyle::with_stroke(TEXT_COLOR, 2))
             .draw(display)?;
-
-        // 装饰点
-        for i in 0..5 {
-            let x = 150 + i * 100;
-            Circle::new(Point::new(x, 470), 3)
-                .into_styled(PrimitiveStyle::with_fill(TEXT_COLOR))
-                .draw(display)?;
-        }
 
         Ok(())
     }
@@ -354,7 +654,7 @@ pub fn create_sample_display() -> InkDisplay {
         weather_condition: WeatherCondition::Sunny,
         battery_level: 85,
         wifi_connected: true,
-        quote: "你好世界".to_string(),
+        quote: "生活就像一盒巧克力，你永远不知道下一颗是什么味道。".to_string(),
         quote_author: "阿甘正传".to_string(),
     }
 }

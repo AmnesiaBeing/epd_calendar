@@ -607,8 +607,7 @@ fn generate_font_files(
     let full_width_offsets: Vec<u32> = full_width_char_mapping.values().cloned().collect();
 
     content.push_str("const FULL_WIDTH_CHARS: &[u16] = &[\n");
-    for (&c, _) in full_width_char_mapping.iter().take(50) {
-        // 只显示前50个字符的注释，避免文件过大
+    for (&c, _) in full_width_char_mapping.iter() {
         let char_display = match c {
             '\n' => "\\n".to_string(),
             '\r' => "\\r".to_string(),
@@ -621,12 +620,6 @@ fn generate_font_files(
         content.push_str(&format!(
             "    {}, // '{}' (U+{:04X})\n",
             c as u16, char_display, c as u32
-        ));
-    }
-    if full_width_char_mapping.len() > 50 {
-        content.push_str(&format!(
-            "    // ... 还有 {} 个字符\n",
-            full_width_char_mapping.len() - 50
         ));
     }
     content.push_str("];\n\n");
@@ -641,7 +634,7 @@ fn generate_font_files(
     let half_width_offsets: Vec<u32> = half_width_char_mapping.values().cloned().collect();
 
     content.push_str("const HALF_WIDTH_CHARS: &[u16] = &[\n");
-    for (&c, _) in half_width_char_mapping.iter().take(50) {
+    for (&c, _) in half_width_char_mapping.iter() {
         // 只显示前50个字符的注释
         let char_display = match c {
             '\n' => "\\n".to_string(),
@@ -655,12 +648,6 @@ fn generate_font_files(
         content.push_str(&format!(
             "    {}, // '{}' (U+{:04X})\n",
             c as u16, char_display, c as u32
-        ));
-    }
-    if half_width_char_mapping.len() > 50 {
-        content.push_str(&format!(
-            "    // ... 还有 {} 个字符\n",
-            half_width_char_mapping.len() - 50
         ));
     }
     content.push_str("];\n\n");
