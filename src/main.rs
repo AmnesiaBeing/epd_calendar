@@ -14,285 +14,26 @@ use embedded_graphics::{
 
 mod app;
 mod bsp;
+mod drv;
 
-// 使用您已有的字体
-use crate::app::{
-    fonts::{FULL_WIDTH_FONT, HALF_WIDTH_FONT},
-    weather_icons::{WeatherIcon, get_icon_data, get_icon_image_raw},
-};
-
-// 颜色定义
-const BACKGROUND_COLOR: QuadColor = QuadColor::White;
-const TEXT_COLOR: QuadColor = QuadColor::Black;
-const PANEL_BG_COLOR: QuadColor = QuadColor::White;
-const PANEL_TEXT_COLOR: QuadColor = QuadColor::Black;
-
-// 智能文本渲染器
-pub struct SmartTextRenderer {
-    full_width_style: MonoTextStyle<'static, QuadColor>,
-    half_width_style: MonoTextStyle<'static, QuadColor>,
-    current_x: i32,
-    current_y: i32,
-    line_height: i32,
-}
-
-impl SmartTextRenderer {
-    pub fn new(position: Point) -> Self {
-        Self {
-            full_width_style: MonoTextStyle::new(&FULL_WIDTH_FONT, TEXT_COLOR),
-            half_width_style: MonoTextStyle::new(&HALF_WIDTH_FONT, TEXT_COLOR),
-            current_x: position.x,
-            current_y: position.y,
-            line_height: FULL_WIDTH_FONT.character_size.height as i32 + 2,
-        }
-    }
-
-    pub fn with_color(mut self, color: QuadColor) -> Self {
-        self.full_width_style = MonoTextStyle::new(&FULL_WIDTH_FONT, color);
-        self.half_width_style = MonoTextStyle::new(&HALF_WIDTH_FONT, color);
-        self
-    }
-
-    pub fn with_line_height(mut self, line_height: i32) -> Self {
-        self.line_height = line_height;
-        self
-    }
-
-    // 判断字符是否为半角字符
-    fn is_half_width_char(c: char) -> bool {
-        c.is_ascii() && !c.is_ascii_control()
-    }
-
-    // 渲染单行文本（自动处理全角半角混合）
-    pub fn draw_text<D>(&mut self, display: &mut D, text: &str) -> Result<(), D::Error>
-    where
-        D: DrawTarget<Color = QuadColor>,
-    {
-        let start_x = self.current_x;
-
-        for c in text.chars() {
-            if Self::is_half_width_char(c) {
-                // 半角字符
-                Text::new(
-                    &c.to_string(),
-                    Point::new(self.current_x, self.current_y),
-                    self.half_width_style,
-                )
-                .draw(display)?;
-                self.current_x += (FULL_WIDTH_FONT.character_size.width / 2) as i32;
-            } else {
-                // 全角字符
-                Text::new(
-                    &c.to_string(),
-                    Point::new(self.current_x, self.current_y),
-                    self.full_width_style,
-                )
-                .draw(display)?;
-                self.current_x += FULL_WIDTH_FONT.character_size.width as i32;
-            }
-        }
-
-        // 移动到下一行
-        self.current_x = start_x;
-        self.current_y += self.line_height;
-
-        Ok(())
-    }
-
-    // 渲染文本并限制最大宽度（自动换行）
-    pub fn draw_text_wrapped<D>(
-        &mut self,
-        display: &mut D,
-        text: &str,
-        max_width: u32,
-    ) -> Result<(), D::Error>
-    where
-        D: DrawTarget<Color = QuadColor>,
-    {
-        let start_x = self.current_x;
-        let mut line_width = 0;
-        let mut current_line = String::new();
-
-        for c in text.chars() {
-            let char_width = if Self::is_half_width_char(c) {
-                (FULL_WIDTH_FONT.character_size.width / 2) as i32
-            } else {
-                FULL_WIDTH_FONT.character_size.width as i32
-            };
-
-            // 检查是否需要换行
-            if line_width + char_width > max_width as i32 && !current_line.is_empty() {
-                // 绘制当前行
-                self.draw_text(display, &current_line)?;
-                current_line.clear();
-                line_width = 0;
-            }
-
-            current_line.push(c);
-            line_width += char_width;
-        }
-
-        // 绘制最后一行
-        if !current_line.is_empty() {
-            self.draw_text(display, &current_line)?;
-        }
-
-        self.current_x = start_x;
-        Ok(())
-    }
-
-    // 移动到指定位置
-    pub fn move_to(&mut self, position: Point) {
-        self.current_x = position.x;
-        self.current_y = position.y;
-    }
-
-    // 相对移动
-    pub fn move_by(&mut self, dx: i32, dy: i32) {
-        self.current_x += dx;
-        self.current_y += dy;
-    }
-
-    // 获取当前位置
-    pub fn current_position(&self) -> Point {
-        Point::new(self.current_x, self.current_y)
-    }
-
-    // 计算文本宽度（用于居中计算）
-    pub fn calculate_text_width(text: &str) -> u32 {
-        let mut width = 0;
-        for c in text.chars() {
-            if Self::is_half_width_char(c) {
-                width += FULL_WIDTH_FONT.character_size.width / 2;
-            } else {
-                width += FULL_WIDTH_FONT.character_size.width;
-            }
-        }
-        width
-    }
-
-    // 创建居中对齐的文本渲染器
-    pub fn centered_at(position: Point, container_width: u32) -> Self {
-        let mut renderer = Self::new(position);
-        renderer.current_x = position.x + (container_width / 2) as i32;
-        renderer
-    }
-
-    // 绘制居中对齐的文本
-    pub fn draw_centered_text<D>(&mut self, display: &mut D, text: &str) -> Result<(), D::Error>
-    where
-        D: DrawTarget<Color = QuadColor>,
-    {
-        let text_width = Self::calculate_text_width(text);
-        let start_x = self.current_x - (text_width as i32 / 2);
-
-        let temp_x = self.current_x;
-        self.current_x = start_x;
-        let result = self.draw_text(display, text);
-        self.current_x = temp_x;
-
-        result
-    }
-}
-
-// 简化的文本样式
-pub struct TextStyle {
-    pub color: QuadColor,
-    pub is_centered: bool,
-    pub max_width: Option<u32>,
-}
-
-impl Default for TextStyle {
-    fn default() -> Self {
-        Self {
-            color: TEXT_COLOR,
-            is_centered: false,
-            max_width: None,
-        }
-    }
-}
-
-impl TextStyle {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn with_color(mut self, color: QuadColor) -> Self {
-        self.color = color;
-        self
-    }
-
-    pub fn centered(mut self) -> Self {
-        self.is_centered = true;
-        self
-    }
-
-    pub fn with_max_width(mut self, max_width: u32) -> Self {
-        self.max_width = Some(max_width);
-        self
-    }
-}
-
-// 简化的文本绘制函数
-pub fn draw_smart_text<D>(
-    display: &mut D,
-    text: &str,
-    position: Point,
-    style: TextStyle,
-) -> Result<Point, D::Error>
-where
-    D: DrawTarget<Color = QuadColor>,
-{
-    let mut renderer = SmartTextRenderer::new(position).with_color(style.color);
-
-    if let Some(max_width) = style.max_width {
-        if style.is_centered {
-            // 对于居中的换行文本，需要特殊处理
-            let lines = wrap_text(text, max_width);
-            for line in lines {
-                renderer.draw_centered_text(display, &line)?;
-            }
-        } else {
-            renderer.draw_text_wrapped(display, text, max_width)?;
-        }
-    } else if style.is_centered {
-        renderer.draw_centered_text(display, text)?;
-    } else {
-        renderer.draw_text(display, text)?;
-    }
-
-    Ok(renderer.current_position())
-}
-
-// 文本换行辅助函数
-fn wrap_text(text: &str, max_width: u32) -> Vec<String> {
-    let mut lines = Vec::new();
-    let mut current_line = String::new();
-    let mut line_width = 0;
-
-    for c in text.chars() {
-        let char_width = if SmartTextRenderer::is_half_width_char(c) {
-            FULL_WIDTH_FONT.character_size.width / 2
-        } else {
-            FULL_WIDTH_FONT.character_size.width
-        };
-
-        if line_width + char_width > max_width && !current_line.is_empty() {
-            lines.push(current_line.clone());
-            current_line.clear();
-            line_width = 0;
-        }
-
-        current_line.push(c);
-        line_width += char_width;
-    }
-
-    if !current_line.is_empty() {
-        lines.push(current_line);
-    }
-
-    lines
-}
+// 把显示元素的位置固定下来（左上角）
+const SEPARATOR_LINE_X_1: i32 = 10;
+const SEPARATOR_LINE_X_2: i32 = 790;
+const SEPARATOR_LINE_Y_1: i32 = 140;
+const SEPARATOR_LINE_Y_2: i32 = 360;
+const SEPARATOR_LINE_3_X: i32 = 8 * 24 + 20;
+const SEPARATOR_LINE_3_Y_1: i32 = SEPARATOR_LINE_Y_1 + 10;
+const SEPARATOR_LINE_3_Y_2: i32 = SEPARATOR_LINE_Y_2 - 10;
+const TIME_ELEMENT_WIDTH: i32 = 48; // 每个时间都是等宽字体，宽度48px，高度128px
+const TIME_ELEMENT_HEIGHT: i32 = 128;
+const TIME_POSITION: Point = Point::new(
+    400 - 2 * TIME_ELEMENT_WIDTH - TIME_ELEMENT_WIDTH / 2,
+    (SEPARATOR_LINE_Y_1 - TIME_ELEMENT_HEIGHT) / 2,
+);
+const ICON_WIDTH: i32 = 64;
+const ICON_HEIGHT: i32 = 64;
+const BATTERY_POSITION: Point = Point::new(800 - 10 - ICON_WIDTH, 10);
+const BOLT_POSITION: Point = Point::new(800 - 10 - 5 - 2 * ICON_WIDTH, 10);
 
 pub fn draw_weather_icon<D>(
     icon: WeatherIcon,
@@ -303,8 +44,8 @@ where
     D: DrawTarget<Color = QuadColor>,
 {
     let image_data = get_icon_data(icon);
-    let width = 64;
-    let height = 64;
+    let width = app::weather_icons::WEATHER_ICON_SIZE;
+    let height = app::weather_icons::WEATHER_ICON_SIZE;
 
     // 计算每行字节数
     let bytes_per_row = (width + 7) / 8;
@@ -405,13 +146,44 @@ impl InkDisplay {
             .into_styled(PrimitiveStyle::with_fill(BACKGROUND_COLOR))
             .draw(display);
 
-        let _ = Line::new(Point { x: 10, y: 160 }, Point { x: 790, y: 160 })
-            .into_styled(PrimitiveStyle::with_stroke(QuadColor::Black, 1))
-            .draw(display);
+        let _ = Line::new(
+            Point {
+                x: SEPARATOR_LINE_X_1,
+                y: SEPARATOR_LINE_Y_1,
+            },
+            Point {
+                x: SEPARATOR_LINE_X_2,
+                y: SEPARATOR_LINE_Y_1,
+            },
+        )
+        .into_styled(PrimitiveStyle::with_stroke(QuadColor::Black, 1))
+        .draw(display);
 
-        let _ = Line::new(Point { x: 10, y: 360 }, Point { x: 790, y: 360 })
-            .into_styled(PrimitiveStyle::with_stroke(QuadColor::Black, 1))
-            .draw(display);
+        let _ = Line::new(
+            Point {
+                x: SEPARATOR_LINE_X_1,
+                y: SEPARATOR_LINE_Y_2,
+            },
+            Point {
+                x: SEPARATOR_LINE_X_2,
+                y: SEPARATOR_LINE_Y_2,
+            },
+        )
+        .into_styled(PrimitiveStyle::with_stroke(QuadColor::Black, 1))
+        .draw(display);
+
+        let _ = Line::new(
+            Point {
+                x: SEPARATOR_LINE_3_X,
+                y: SEPARATOR_LINE_3_Y_1,
+            },
+            Point {
+                x: SEPARATOR_LINE_3_X,
+                y: SEPARATOR_LINE_3_Y_2,
+            },
+        )
+        .into_styled(PrimitiveStyle::with_stroke(QuadColor::Black, 1))
+        .draw(display);
     }
 
     fn draw_status_bar<D>(&self, display: &mut D)

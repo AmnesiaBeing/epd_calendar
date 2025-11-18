@@ -22,7 +22,7 @@ impl BuildConfig {
     /// 加载默认配置
     pub fn load() -> Result<Self> {
         Ok(Self {
-            output_dir: PathBuf::from("src/app"),
+            output_dir: PathBuf::from("src/drv"),
             sentences_dir: PathBuf::from("../sentences-bundle/sentences"),
             categories_path: PathBuf::from("../sentences-bundle/categories.json"),
             font_path: PathBuf::from("assets/NotoSansMonoCJKsc-Regular.otf"),
