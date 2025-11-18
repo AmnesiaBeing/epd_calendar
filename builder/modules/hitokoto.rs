@@ -24,16 +24,13 @@ pub struct HitokotoCategory {
 
 /// 构建格言数据
 pub fn build(config: &BuildConfig, progress: &ProgressTracker) -> Result<()> {
-    progress.update_progress(0, 4, "解析分类");
+    progress.update_progress(0, 3, "解析分类");
     let categories = parse_categories(config)?;
 
-    progress.update_progress(1, 4, "解析格言文件");
+    progress.update_progress(1, 3, "解析格言文件");
     let hitokotos = parse_all_json_files(config, &categories)?;
 
-    // progress.update_progress(2, 4, "收集字符");
-    // let all_chars = collect_all_chars(&hitokotos)?;
-
-    progress.update_progress(3, 4, "生成数据文件");
+    progress.update_progress(2, 3, "生成数据文件");
     generate_hitokoto_data(config, &hitokotos)?;
 
     Ok(())
