@@ -5,6 +5,7 @@ use log::info;
 use embassy_executor::Spawner;
 
 use embedded_graphics::{
+    image::Image,
     mono_font::MonoTextStyle,
     prelude::*,
     primitives::{CornerRadii, Line, PrimitiveStyle, Rectangle, RoundedRectangle},
@@ -15,7 +16,10 @@ mod app;
 mod bsp;
 
 // 使用您已有的字体
-use crate::app::hitokoto_fonts::{FULL_WIDTH_FONT, HALF_WIDTH_FONT};
+use crate::app::{
+    fonts::{FULL_WIDTH_FONT, HALF_WIDTH_FONT},
+    weather_icons::{WeatherIcon, get_icon_data, get_icon_image_raw},
+};
 
 // 颜色定义
 const BACKGROUND_COLOR: QuadColor = QuadColor::White;
@@ -290,6 +294,46 @@ fn wrap_text(text: &str, max_width: u32) -> Vec<String> {
     lines
 }
 
+pub fn draw_weather_icon<D>(
+    icon: WeatherIcon,
+    position: Point,
+    display: &mut D,
+) -> Result<(), D::Error>
+where
+    D: DrawTarget<Color = QuadColor>,
+{
+    let image_data = get_icon_data(icon);
+    let width = 64;
+    let height = 64;
+
+    // 计算每行字节数
+    let bytes_per_row = (width + 7) / 8;
+
+    // 绘制每个像素
+    let pixels = (0..height).flat_map(move |y| {
+        (0..width).map(move |x| {
+            let byte_index = (y * bytes_per_row + x / 8) as usize;
+            let bit_index = 7 - (x % 8);
+
+            let color = if byte_index < image_data.len() {
+                let byte = image_data[byte_index];
+                let bit = (byte >> bit_index) & 1;
+                if bit == 1 {
+                    QuadColor::Black
+                } else {
+                    QuadColor::White
+                }
+            } else {
+                QuadColor::White
+            };
+
+            Pixel(Point::new(x as i32, y as i32) + position, color)
+        })
+    });
+
+    display.draw_iter(pixels)
+}
+
 pub struct InkDisplay {
     pub time: String,
     pub date: String,
@@ -330,41 +374,47 @@ impl Default for InkDisplay {
 }
 
 impl InkDisplay {
-    pub fn draw<D>(&self, display: &mut D) -> Result<(), D::Error>
+    pub fn draw<D>(&self, display: &mut D)
     where
         D: DrawTarget<Color = QuadColor>,
     {
-        // 1. 清屏
-        self.clear_screen(display)?;
+        // 1. 绘制背景&分割线
+        self.clear_screen(display);
 
-        // 2. 绘制顶部状态栏
-        self.draw_status_bar(display)?;
+        // 2. 绘制顶部状态信息，包括网络、电量、充电状态
+        // self.draw_status_bar(display);
 
-        // 3. 绘制主要时间区域
-        self.draw_time_section(display)?;
+        // 3. 绘制时间
+        // self.draw_time_section(display);
 
-        // 4. 绘制天气信息
-        self.draw_weather_section(display)?;
+        // 4. 绘制农历
+        // self.draw_time_section(display);
 
-        // 5. 绘制格言区域
-        self.draw_quote_section(display)?;
+        // 5. 绘制天气信息
+        self.draw_weather_section(display);
 
-        // 6. 绘制底部装饰线
-        self.draw_decoration(display)?;
-
-        Ok(())
+        // 6. 绘制格言区域
+        // self.draw_quote_section(display);
     }
 
-    fn clear_screen<D>(&self, display: &mut D) -> Result<(), D::Error>
+    fn clear_screen<D>(&self, display: &mut D)
     where
         D: DrawTarget<Color = QuadColor>,
     {
-        Rectangle::new(Point::new(0, 0), Size::new(800, 480))
+        let _ = Rectangle::new(Point::new(0, 0), Size::new(800, 480))
             .into_styled(PrimitiveStyle::with_fill(BACKGROUND_COLOR))
-            .draw(display)
+            .draw(display);
+
+        let _ = Line::new(Point { x: 10, y: 160 }, Point { x: 790, y: 160 })
+            .into_styled(PrimitiveStyle::with_stroke(QuadColor::Black, 1))
+            .draw(display);
+
+        let _ = Line::new(Point { x: 10, y: 360 }, Point { x: 790, y: 360 })
+            .into_styled(PrimitiveStyle::with_stroke(QuadColor::Black, 1))
+            .draw(display);
     }
 
-    fn draw_status_bar<D>(&self, display: &mut D) -> Result<(), D::Error>
+    fn draw_status_bar<D>(&self, display: &mut D)
     where
         D: DrawTarget<Color = QuadColor>,
     {
@@ -374,33 +424,17 @@ impl InkDisplay {
         } else {
             "Wi-Fi ○"
         };
-        draw_smart_text(display, wifi_text, Point::new(20, 20), TextStyle::new())?;
+        let _ = draw_smart_text(display, wifi_text, Point::new(20, 20), TextStyle::new());
 
-        // 中间：日期和星期
-        let date_text = format!("{} {}", self.date, self.weekday);
-        draw_smart_text(
-            display,
-            &date_text,
-            Point::new(300, 20),
-            TextStyle::new().centered(),
-        )?;
-
-        // 右侧：电池电量
+        // 右侧：电池电量 & 充电状态
         let battery_text = format!("电池 {}%", self.battery_level);
         let battery_width = SmartTextRenderer::calculate_text_width(&battery_text);
-        draw_smart_text(
+        let _ = draw_smart_text(
             display,
             &battery_text,
             Point::new(800 - 20 - battery_width as i32, 20),
             TextStyle::new(),
-        )?;
-
-        // 分隔线
-        Line::new(Point::new(0, 40), Point::new(800, 40))
-            .into_styled(PrimitiveStyle::with_stroke(TEXT_COLOR, 1))
-            .draw(display)?;
-
-        Ok(())
+        );
     }
 
     fn draw_time_section<D>(&self, display: &mut D) -> Result<(), D::Error>
@@ -426,7 +460,7 @@ impl InkDisplay {
         Ok(())
     }
 
-    fn draw_weather_section<D>(&self, display: &mut D) -> Result<(), D::Error>
+    fn draw_weather_section<D>(&self, display: &mut D)
     where
         D: DrawTarget<Color = QuadColor>,
     {
@@ -435,7 +469,7 @@ impl InkDisplay {
         let gap = 40;
 
         // 温度面板
-        self.draw_temperature_panel(display, 50, y_start, panel_width)?;
+        // self.draw_temperature_panel(display, 50, y_start, panel_width);
 
         // 天气图标面板
         self.draw_weather_icon_panel(
@@ -443,17 +477,15 @@ impl InkDisplay {
             (50 + panel_width + gap) as i32,
             y_start,
             panel_width,
-        )?;
+        );
 
-        // 湿度面板
-        self.draw_humidity_panel(
-            display,
-            (50 + 2 * (panel_width + gap)) as i32,
-            y_start,
-            panel_width,
-        )?;
-
-        Ok(())
+        // // 湿度面板
+        // self.draw_humidity_panel(
+        //     display,
+        //     (50 + 2 * (panel_width + gap)) as i32,
+        //     y_start,
+        //     panel_width,
+        // );
     }
 
     fn draw_temperature_panel<D>(
@@ -491,13 +523,7 @@ impl InkDisplay {
         Ok(())
     }
 
-    fn draw_weather_icon_panel<D>(
-        &self,
-        display: &mut D,
-        x: i32,
-        y: i32,
-        width: u32,
-    ) -> Result<(), D::Error>
+    fn draw_weather_icon_panel<D>(&self, display: &mut D, x: i32, y: i32, width: u32)
     where
         D: DrawTarget<Color = QuadColor>,
     {
@@ -506,32 +532,9 @@ impl InkDisplay {
             CornerRadii::new(Size::new(10, 10)),
         )
         .into_styled(PrimitiveStyle::with_fill(PANEL_BG_COLOR));
-        panel.draw(display)?;
+        let _ = panel.draw(display);
 
-        // 天气图标（用文字符号表示）
-        let (weather_icon, condition_text) = match self.weather_condition {
-            WeatherCondition::Sunny => ("☀", "晴朗"),
-            WeatherCondition::Cloudy => ("☁", "多云"),
-            WeatherCondition::Rainy => ("🌧", "有雨"),
-            WeatherCondition::Snowy => ("❄", "下雪"),
-            WeatherCondition::Foggy => ("🌫", "有雾"),
-        };
-
-        draw_smart_text(
-            display,
-            weather_icon,
-            Point::new(x + 30, y + 30),
-            TextStyle::new().with_color(PANEL_TEXT_COLOR),
-        )?;
-
-        draw_smart_text(
-            display,
-            condition_text,
-            Point::new(x + 30, y + 70),
-            TextStyle::new().with_color(PANEL_TEXT_COLOR),
-        )?;
-
-        Ok(())
+        let _ = draw_weather_icon(WeatherIcon::sunny, Point::new(300, 300), display);
     }
 
     fn draw_humidity_panel<D>(
@@ -591,55 +594,33 @@ impl InkDisplay {
         Ok(())
     }
 
-    fn draw_quote_section<D>(&self, display: &mut D) -> Result<(), D::Error>
+    fn draw_quote_section<D>(&self, display: &mut D)
     where
         D: DrawTarget<Color = QuadColor>,
     {
-        let y_start = 360;
-
-        // 格言面板
-        RoundedRectangle::new(
-            Rectangle::new(Point::new(50, y_start), Size::new(700, 80)),
-            CornerRadii::new(Size::new(15, 15)),
-        )
-        .into_styled(PrimitiveStyle::with_fill(PANEL_BG_COLOR))
-        .draw(display)?;
+        let y_start = 380;
 
         // 格言内容（自动换行）
-        draw_smart_text(
+        let _ = draw_smart_text(
             display,
             &self.quote,
             Point::new(70, y_start + 25),
             TextStyle::new()
                 .with_color(PANEL_TEXT_COLOR)
                 .with_max_width(660), // 700 - 40 (左右边距)
-        )?;
+        );
 
         // 作者信息
         if !self.quote_author.is_empty() {
             let author_text = format!("—— {}", self.quote_author);
             let author_width = SmartTextRenderer::calculate_text_width(&author_text);
-            draw_smart_text(
+            let _ = draw_smart_text(
                 display,
                 &author_text,
                 Point::new(750 - author_width as i32, y_start + 60),
                 TextStyle::new().with_color(PANEL_TEXT_COLOR),
-            )?;
+            );
         }
-
-        Ok(())
-    }
-
-    fn draw_decoration<D>(&self, display: &mut D) -> Result<(), D::Error>
-    where
-        D: DrawTarget<Color = QuadColor>,
-    {
-        // 底部装饰线（保持不变）
-        Line::new(Point::new(100, 470), Point::new(700, 470))
-            .into_styled(PrimitiveStyle::with_stroke(TEXT_COLOR, 2))
-            .draw(display)?;
-
-        Ok(())
     }
 }
 
@@ -660,12 +641,12 @@ pub fn create_sample_display() -> InkDisplay {
 }
 
 // 在主函数中使用
-pub fn render_display<D>(display: &mut D) -> Result<(), D::Error>
+pub fn render_display<D>(display: &mut D)
 where
     D: DrawTarget<Color = QuadColor>,
 {
     let ink_display = create_sample_display();
-    ink_display.draw(display)
+    ink_display.draw(display);
 }
 
 #[embassy_executor::main]
@@ -682,7 +663,7 @@ async fn main(spawner: Spawner) {
 
     info!("epd_calendar running...");
 
-    render_display(&mut board.epd_display).unwrap();
+    render_display(&mut board.epd_display);
 
     // Show display on e-paper
     board
