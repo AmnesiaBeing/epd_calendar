@@ -1,8 +1,8 @@
 hitokoto_data.rs
 
-fonts.rs
-full_width_font.bin
-half_width_font.bin
+hitokoto_fonts.rs
+hitokoto_full_width_font.bin
+hitokoto_half_width_font.bin
 
 weather_icons.rs
 weather_icons.bin

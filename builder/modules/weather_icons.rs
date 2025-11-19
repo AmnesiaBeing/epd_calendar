@@ -1,8 +1,12 @@
 //! 天气图标处理模块
 
 use crate::builder::config::BuildConfig;
-use crate::builder::utils::{self, ProgressTracker};
-use anyhow::{Context, Result, anyhow};
+use crate::builder::utils::file_utils;
+use crate::builder::utils::{
+    ProgressTracker,
+    icon_renderer::{IconConfig, IconRenderer},
+};
+use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::collections::BTreeMap;
 use std::fs;
@@ -26,7 +30,7 @@ pub fn build(config: &BuildConfig, progress: &ProgressTracker) -> Result<()> {
     generate_icon_binary_files(config, &icon_data)?;
 
     progress.update_progress(3, 4, "生成索引文件");
-    generate_weather_icons_rs(config, &icons)?;
+    generate_weather_icons_rs(config, &icons, &icon_mapping)?;
 
     println!(
         "cargo:warning=  天气图标处理完成，共处理 {} 个图标",
@@ -68,10 +72,8 @@ fn process_weather_icons(
     config: &BuildConfig,
     icons: &[WeatherIcon],
     progress: &ProgressTracker,
-) -> Result<(Vec<u8>, BTreeMap<String, (usize, u32)>)> {
+) -> Result<(Vec<u8>, BTreeMap<String, usize>)> {
     let icons_dir = config.weather_icons_dir.join("icons");
-    let options = usvg::Options::default();
-
     let mut icon_data = Vec::new();
     let mut icon_mapping = BTreeMap::new();
 
@@ -83,46 +85,21 @@ fn process_weather_icons(
             continue;
         }
 
-        let svg_data = fs::read(&svg_path)
-            .with_context(|| format!("读取SVG文件失败: {}", svg_path.display()))?;
+        // 使用通用图标渲染器渲染图标
+        let icon_config = IconConfig {
+            icon_size: config.weather_icon_size,
+            svg_path: svg_path.to_string_lossy().to_string(),
+        };
 
-        // 解析 SVG
-        use usvg::TreeParsing;
-        let tree = usvg::Tree::from_data(&svg_data, &options)
-            .map_err(|e| anyhow!("解析SVG失败 {}: {}", svg_path.display(), e))?;
+        let result = IconRenderer::render_svg_icon(&icon_config)
+            .with_context(|| format!("渲染图标失败: {}", icon.icon_code))?;
 
-        // 创建像素图
-        let mut pixmap =
-            resvg::tiny_skia::Pixmap::new(config.weather_icon_size, config.weather_icon_size)
-                .ok_or_else(|| anyhow!("创建像素图失败"))?;
-
-        // 使用 resvg::Tree 进行渲染
-        let rtree = resvg::Tree::from_usvg(&tree);
-
-        // 计算缩放比例
-        let svg_size = rtree.view_box.rect.size();
-        let scale_x = config.weather_icon_size as f32 / svg_size.width();
-        let scale_y = config.weather_icon_size as f32 / svg_size.height();
-        let scale = scale_x.min(scale_y); // 保持宽高比
-
-        // 计算居中偏移
-        let offset_x = (config.weather_icon_size as f32 - svg_size.width() * scale) / 2.0;
-        let offset_y = (config.weather_icon_size as f32 - svg_size.height() * scale) / 2.0;
-
-        // 创建缩放和平移变换
-        let transform = resvg::tiny_skia::Transform::from_scale(scale, scale)
-            .post_translate(offset_x, offset_y);
-
-        // 渲染到 pixmap
-        rtree.render(transform, &mut pixmap.as_mut());
-
-        // 转换为 1-bit 位图
-        let bitmap_data = convert_to_1bit(&pixmap, config.weather_icon_size);
-
-        // 存储图标数据
+        // 记录图标数据位置
         let start_index = icon_data.len();
-        icon_data.extend_from_slice(&bitmap_data);
-        icon_mapping.insert(icon.icon_code.clone(), (start_index, index as u32));
+        icon_mapping.insert(icon.icon_code.clone(), start_index);
+
+        // 添加图标数据
+        icon_data.extend_from_slice(&result.bitmap_data);
 
         // 显示进度
         if index % 10 == 0 {
@@ -133,52 +110,29 @@ fn process_weather_icons(
     Ok((icon_data, icon_mapping))
 }
 
-/// 将 RGBA 像素图转换为 1-bit 位图
-fn convert_to_1bit(pixmap: &resvg::tiny_skia::Pixmap, icon_size: u32) -> Vec<u8> {
-    let width = icon_size as usize;
-    let height = icon_size as usize;
-
-    // 计算每行所需的字节数
-    let bytes_per_row = (width + 7) / 8;
-    let mut result = vec![0u8; bytes_per_row * height];
-
-    for y in 0..height {
-        for x in 0..width {
-            if let Some(pixel) = pixmap.pixel(x as u32, y as u32) {
-                // 对于天气类图标，本身只有黑白两色，我们只需要考虑透明度和不透明度即可
-                let alpha = pixel.alpha() as f32 / 255.0;
-
-                // 阈值处理，转换为黑白
-                let is_black = alpha > 0.5;
-
-                if is_black {
-                    let byte_index = y * bytes_per_row + x / 8;
-                    let bit_offset = 7 - (x % 8); // MSB 优先
-
-                    if byte_index < result.len() {
-                        result[byte_index] |= 1 << bit_offset;
-                    }
-                }
-            }
-        }
-    }
-
-    result
-}
-
 /// 生成图标二进制文件
 fn generate_icon_binary_files(config: &BuildConfig, icon_data: &[u8]) -> Result<()> {
     let icons_bin_path = config.output_dir.join("weather_icons.bin");
-    utils::file_utils::write_file(&icons_bin_path, icon_data)?;
+    file_utils::write_file(&icons_bin_path, icon_data)?;
+
+    println!(
+        "cargo:warning=  天气图标二进制文件生成成功: {}",
+        icons_bin_path.display()
+    );
+
     Ok(())
 }
 
 /// 生成天气图标索引文件
-fn generate_weather_icons_rs(config: &BuildConfig, icons: &[WeatherIcon]) -> Result<()> {
+fn generate_weather_icons_rs(
+    config: &BuildConfig,
+    icons: &[WeatherIcon],
+    icon_mapping: &BTreeMap<String, usize>,
+) -> Result<()> {
     let output_path = config.output_dir.join("weather_icons.rs");
 
-    let content = generate_icons_rs_content(icons, config.weather_icon_size)?;
-    utils::file_utils::write_string_file(&output_path, &content)?;
+    let content = generate_icons_rs_content(icons, icon_mapping, config.weather_icon_size)?;
+    file_utils::write_string_file(&output_path, &content)?;
 
     println!(
         "cargo:warning=  天气图标索引文件生成成功: {}",
@@ -188,7 +142,11 @@ fn generate_weather_icons_rs(config: &BuildConfig, icons: &[WeatherIcon]) -> Res
 }
 
 /// 生成天气图标Rust文件内容
-fn generate_icons_rs_content(icons: &[WeatherIcon], icon_size: u32) -> Result<String> {
+fn generate_icons_rs_content(
+    icons: &[WeatherIcon],
+    icon_mapping: &BTreeMap<String, usize>,
+    icon_size: u32,
+) -> Result<String> {
     let mut content = String::new();
 
     content.push_str("// 自动生成的天气图标数据文件\n");
@@ -200,11 +158,12 @@ fn generate_icons_rs_content(icons: &[WeatherIcon], icon_size: u32) -> Result<St
     content.push_str("    pixelcolor::BinaryColor,\n");
     content.push_str("};\n\n");
 
-    // 定义图标枚举
+    // 定义图标枚举 - 简化 trait 并允许非驼峰命名
     content.push_str("#[allow(non_camel_case_types)]\n");
-    content.push_str("#[derive(Clone, Copy, PartialEq)]\n");
+    content.push_str("#[derive(Clone, Copy, PartialEq, Debug)]\n");
     content.push_str("pub enum WeatherIcon {\n");
     for icon in icons {
+        // 将图标名称转换为有效的 Rust 标识符
         let variant_name = icon.icon_name.replace('-', "_").replace(' ', "_");
         content.push_str(&format!("    {},\n", variant_name));
     }
@@ -281,12 +240,13 @@ fn generate_icons_rs_content(icons: &[WeatherIcon], icon_size: u32) -> Result<St
 
     // 生成图标索引数组
     content.push_str("pub const WEATHER_ICON_INDICES: &[usize] = &[\n");
-    for i in 0..icons.len() {
-        content.push_str(&format!(
-            "    {}, // {}\n",
-            i * bytes_per_icon,
-            icons[i].icon_name
-        ));
+    for icon in icons {
+        if let Some(&start_index) = icon_mapping.get(&icon.icon_code) {
+            content.push_str(&format!(
+                "    {}, // {} ({})\n",
+                start_index, icon.icon_name, icon.icon_code
+            ));
+        }
     }
     content.push_str("];\n\n");
 
@@ -295,7 +255,10 @@ fn generate_icons_rs_content(icons: &[WeatherIcon], icon_size: u32) -> Result<St
     content.push_str(&format!(
         "    let start = WEATHER_ICON_INDICES[icon.as_index()];\n"
     ));
-    content.push_str(&format!("    let end = start + {};\n", bytes_per_icon));
+    content.push_str(&format!(
+        "    let end = start + {}; // {}x{} / 8 = {} bytes per icon\n",
+        bytes_per_icon, icon_size, icon_size, bytes_per_icon
+    ));
     content.push_str("    &WEATHER_ICON_DATA[start..end]\n");
     content.push_str("}\n\n");
 
@@ -307,6 +270,16 @@ fn generate_icons_rs_content(icons: &[WeatherIcon], icon_size: u32) -> Result<St
         "    ImageRaw::new(get_icon_data(icon), {})\n",
         icon_size
     ));
+    content.push_str("}\n");
+
+    // 添加便捷函数获取所有可用图标
+    content.push_str("pub fn get_all_weather_icons() -> &'static [WeatherIcon] {\n");
+    content.push_str("    &[\n");
+    for icon in icons {
+        let variant_name = icon.icon_name.replace('-', "_").replace(' ', "_");
+        content.push_str(&format!("        WeatherIcon::{},\n", variant_name));
+    }
+    content.push_str("    ]\n");
     content.push_str("}\n");
 
     Ok(content)

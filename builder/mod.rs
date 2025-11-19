@@ -20,12 +20,12 @@ pub fn run() -> Result<()> {
     modules::hitokoto::build(&config, &progress)?;
     progress.complete_stage();
 
-    progress.start_stage("渲染字体数据");
-    modules::font::build(&config, &progress)?;
-    progress.complete_stage();
-
     progress.start_stage("处理天气图标");
     modules::weather_icons::build(&config, &progress)?;
+    progress.complete_stage();
+
+    progress.start_stage("处理电池&充电图标");
+    modules::battery_icons::build(&config, &progress)?;
     progress.complete_stage();
 
     progress.finish_build();
