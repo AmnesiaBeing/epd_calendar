@@ -12,6 +12,8 @@ use embedded_graphics::{
     text::Text,
 };
 
+use crate::drv::battery_renderer::render_battery_status;
+
 mod app;
 mod bsp;
 mod drv;
@@ -123,7 +125,7 @@ impl InkDisplay {
         self.clear_screen(display);
 
         // 2. 绘制顶部状态信息，包括网络、电量、充电状态
-        // self.draw_status_bar(display);
+        self.draw_status_bar(display);
 
         // 3. 绘制时间
         // self.draw_time_section(display);
@@ -190,6 +192,11 @@ impl InkDisplay {
     where
         D: DrawTarget<Color = QuadColor>,
     {
+        let status = drv::battery_renderer::BatteryStatus {
+            level: self.battery_level,
+            is_charging: true,
+        };
+        let _ = render_battery_status(display, &status);
     }
 
     fn draw_time_section<D>(&self, display: &mut D) -> Result<(), D::Error>
