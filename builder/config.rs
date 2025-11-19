@@ -12,10 +12,6 @@ pub struct BuildConfig {
     pub categories_path: PathBuf,
     pub font_path: PathBuf,
     pub weather_icons_dir: PathBuf,
-
-    // 尺寸配置
-    pub font_size: u32,
-    pub weather_icon_size: u32,
 }
 
 impl BuildConfig {
@@ -27,9 +23,6 @@ impl BuildConfig {
             categories_path: PathBuf::from("../sentences-bundle/categories.json"),
             font_path: PathBuf::from("assets/NotoSansMonoCJKsc-Regular.otf"),
             weather_icons_dir: PathBuf::from("../Icons"),
-
-            font_size: 24,
-            weather_icon_size: 128,
         })
     }
 

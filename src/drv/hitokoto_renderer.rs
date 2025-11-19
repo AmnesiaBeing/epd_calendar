@@ -1,17 +1,138 @@
-// 该代码用于在固定位置渲染格言文本
+//! 格言渲染器 - 在屏幕固定区域渲染格言文本
 
-use crate::drv::fonts::{FULL_WIDTH_FONT, HALF_WIDTH_FONT};
-
+use embedded_graphics::primitives::Rectangle;
+use embedded_graphics::text::Text;
+use embedded_graphics::{
+    Drawable,
+    draw_target::DrawTarget,
+    geometry::{Point, Size},
+    mono_font::MonoTextStyle,
+};
 use epd_waveshare::color::QuadColor;
 
-use embedded_graphics::{mono_font::MonoTextStyle, prelude::*, text::Text};
+use crate::drv::hitokoto_data::{FROM_STRINGS, FROM_WHO_STRINGS, HITOKOTOS, Hitokoto};
+use crate::drv::hitokoto_fonts::{
+    HITOKOTO_FULL_WIDTH_FONT as FULL_WIDTH_FONT, HITOKOTO_HALF_WIDTH_FONT as HALF_WIDTH_FONT,
+};
 
 // 颜色定义
-const BACKGROUND_COLOR: QuadColor = QuadColor::White;
 const TEXT_COLOR: QuadColor = QuadColor::Black;
 
+// 边距配置
+const MARGIN_X: i32 = 36;
+const LINE_SPACING: i32 = 2;
+
+// 显示区域配置
+const DISPLAY_AREA: Rectangle = Rectangle::new(
+    Point::new(0, 360),
+    Size::new(800, 120), // 480-360=120
+);
+
+// 错误类型
+pub enum HitokotoError {
+    TooLong, // 格言过长，无法在指定区域内显示
+}
+
+// 格言布局信息
+pub struct HitokotoLayout {
+    pub content_lines: Vec<String>,
+    pub author_line: String,
+    pub total_lines: usize,
+}
+
+impl HitokotoLayout {
+    /// 计算格言布局
+    pub fn calculate(hitokoto: &Hitokoto) -> Result<Self, HitokotoError> {
+        let content = &hitokoto.hitokoto;
+        let from = FROM_STRINGS[hitokoto.from];
+        let from_who = if hitokoto.from_who != usize::MAX {
+            FROM_WHO_STRINGS[hitokoto.from_who]
+        } else {
+            "佚名"
+        };
+
+        // 生成作者行
+        let author_line = if from_who == "佚名" {
+            format!("——{}", from)
+        } else {
+            format!("——{}《{}》", from_who, from)
+        };
+
+        // 计算可用宽度（减去边距）
+        let available_width = (DISPLAY_AREA.size.width as i32 - 2 * MARGIN_X) as u32;
+
+        // 换行格言内容
+        let content_lines = Self::wrap_text(content, available_width);
+        let total_lines = content_lines.len() + 1; // 内容行数 + 作者行
+
+        // 检查是否超出显示区域
+        let max_lines = Self::calculate_max_lines();
+        if total_lines > max_lines {
+            return Err(HitokotoError::TooLong);
+        }
+
+        Ok(Self {
+            content_lines,
+            author_line,
+            total_lines,
+        })
+    }
+
+    // 文本换行函数
+    fn wrap_text(text: &str, max_width: u32) -> Vec<String> {
+        let mut lines = Vec::new();
+        let mut current_line = String::new();
+        let mut line_width = 0;
+
+        for c in text.chars() {
+            let char_width = if HitokotoTextRenderer::is_half_width_char(c) {
+                FULL_WIDTH_FONT.character_size.width / 2
+            } else {
+                FULL_WIDTH_FONT.character_size.width
+            };
+
+            // 检查是否需要换行
+            if line_width + char_width > max_width && !current_line.is_empty() {
+                lines.push(current_line.clone());
+                current_line.clear();
+                line_width = 0;
+            }
+
+            current_line.push(c);
+            line_width += char_width;
+        }
+
+        if !current_line.is_empty() {
+            lines.push(current_line);
+        }
+
+        lines
+    }
+
+    // 计算最大可显示行数
+    fn calculate_max_lines() -> usize {
+        let line_height = FULL_WIDTH_FONT.character_size.height as i32 + LINE_SPACING;
+        let available_height = DISPLAY_AREA.size.height as i32;
+        (available_height / line_height) as usize
+    }
+
+    /// 获取总高度（像素）
+    pub fn total_height(&self) -> u32 {
+        let line_height = FULL_WIDTH_FONT.character_size.height as u32;
+        let spacing = LINE_SPACING as u32;
+        (self.total_lines as u32) * line_height + ((self.total_lines - 1) as u32) * spacing
+    }
+
+    /// 计算垂直居中的起始Y坐标
+    pub fn calculate_vertical_center_start(&self) -> i32 {
+        let total_height = self.total_height() as i32;
+        let available_height = DISPLAY_AREA.size.height as i32;
+        DISPLAY_AREA.top_left.y + (available_height - total_height) / 2
+    }
+}
+
 // 智能文本渲染器
-pub struct SmartTextRenderer {
+pub struct HitokotoTextRenderer {
     full_width_style: MonoTextStyle<'static, QuadColor>,
     half_width_style: MonoTextStyle<'static, QuadColor>,
     current_x: i32,
@@ -19,26 +140,15 @@ pub struct SmartTextRenderer {
     line_height: i32,
 }
 
-impl SmartTextRenderer {
+impl HitokotoTextRenderer {
     pub fn new(position: Point) -> Self {
         Self {
             full_width_style: MonoTextStyle::new(&FULL_WIDTH_FONT, TEXT_COLOR),
             half_width_style: MonoTextStyle::new(&HALF_WIDTH_FONT, TEXT_COLOR),
             current_x: position.x,
             current_y: position.y,
-            line_height: FULL_WIDTH_FONT.character_size.height as i32 + 2,
+            line_height: FULL_WIDTH_FONT.character_size.height as i32 + LINE_SPACING,
         }
-    }
-
-    pub fn with_color(mut self, color: QuadColor) -> Self {
-        self.full_width_style = MonoTextStyle::new(&FULL_WIDTH_FONT, color);
-        self.half_width_style = MonoTextStyle::new(&HALF_WIDTH_FONT, color);
-        self
-    }
-
-    pub fn with_line_height(mut self, line_height: i32) -> Self {
-        self.line_height = line_height;
-        self
     }
 
     // 判断字符是否为半角字符
@@ -52,6 +162,13 @@ impl SmartTextRenderer {
         D: DrawTarget<Color = QuadColor>,
     {
         let start_x = self.current_x;
+
+        log::info!(
+            "draw_text: start_x={}, start_y={}, text={}",
+            start_x,
+            self.current_y,
+            text
+        );
 
         for c in text.chars() {
             if Self::is_half_width_char(c) {
@@ -82,66 +199,49 @@ impl SmartTextRenderer {
         Ok(())
     }
 
-    // 渲染文本并限制最大宽度（自动换行）
-    pub fn draw_text_wrapped<D>(
+    // 渲染右对齐文本
+    pub fn draw_text_right<D>(
         &mut self,
         display: &mut D,
         text: &str,
-        max_width: u32,
+        right_x: i32,
     ) -> Result<(), D::Error>
     where
         D: DrawTarget<Color = QuadColor>,
     {
-        let start_x = self.current_x;
-        let mut line_width = 0;
-        let mut current_line = String::new();
+        let text_width = Self::calculate_text_width(text) as i32;
+        let start_x = right_x - text_width;
 
-        for c in text.chars() {
-            let char_width = if Self::is_half_width_char(c) {
-                (FULL_WIDTH_FONT.character_size.width / 2) as i32
-            } else {
-                FULL_WIDTH_FONT.character_size.width as i32
-            };
-
-            // 检查是否需要换行
-            if line_width + char_width > max_width as i32 && !current_line.is_empty() {
-                // 绘制当前行
-                self.draw_text(display, &current_line)?;
-                current_line.clear();
-                line_width = 0;
-            }
-
-            current_line.push(c);
-            line_width += char_width;
-        }
-
-        // 绘制最后一行
-        if !current_line.is_empty() {
-            self.draw_text(display, &current_line)?;
-        }
-
+        let temp_x = self.current_x;
         self.current_x = start_x;
-        Ok(())
+        let result = self.draw_text(display, text);
+        self.current_x = temp_x;
+
+        result
     }
 
-    // 移动到指定位置
-    pub fn move_to(&mut self, position: Point) {
-        self.current_x = position.x;
-        self.current_y = position.y;
+    // 渲染居中对齐文本
+    pub fn draw_text_centered<D>(
+        &mut self,
+        display: &mut D,
+        text: &str,
+        center_x: i32,
+    ) -> Result<(), D::Error>
+    where
+        D: DrawTarget<Color = QuadColor>,
+    {
+        let text_width = Self::calculate_text_width(text) as i32;
+        let start_x = center_x - text_width / 2;
+
+        let temp_x = self.current_x;
+        self.current_x = start_x;
+        let result = self.draw_text(display, text);
+        self.current_x = temp_x;
+
+        result
     }
 
-    // 相对移动
-    pub fn move_by(&mut self, dx: i32, dy: i32) {
-        self.current_x += dx;
-        self.current_y += dy;
-    }
-
-    // 获取当前位置
-    pub fn current_position(&self) -> Point {
-        Point::new(self.current_x, self.current_y)
-    }
-
-    // 计算文本宽度（用于居中计算）
+    // 计算文本宽度
     pub fn calculate_text_width(text: &str) -> u32 {
         let mut width = 0;
         for c in text.chars() {
@@ -154,92 +254,138 @@ impl SmartTextRenderer {
         width
     }
 
-    // 创建居中对齐的文本渲染器
-    pub fn centered_at(position: Point, container_width: u32) -> Self {
-        let mut renderer = Self::new(position);
-        renderer.current_x = position.x + (container_width / 2) as i32;
-        renderer
+    // 移动到指定位置
+    pub fn move_to(&mut self, position: Point) {
+        self.current_x = position.x;
+        self.current_y = position.y;
+    }
+}
+
+// 格言渲染器
+pub struct HitokotoRenderer {
+    rng: crate::drv::lcg::Lcg,
+}
+
+impl HitokotoRenderer {
+    pub fn new() -> Self {
+        Self {
+            rng: crate::drv::lcg::Lcg::new(),
+        }
     }
 
-    // 绘制居中对齐的文本
-    pub fn draw_centered_text<D>(&mut self, display: &mut D, text: &str) -> Result<(), D::Error>
+    /// 渲染格言到显示设备
+    pub fn render<D>(&mut self, display: &mut D) -> Result<(), D::Error>
     where
         D: DrawTarget<Color = QuadColor>,
     {
-        let text_width = Self::calculate_text_width(text);
-        let start_x = self.current_x - (text_width as i32 / 2);
+        const MAX_RETRIES: usize = 3; // 最大重试次数
 
-        let temp_x = self.current_x;
-        self.current_x = start_x;
-        let result = self.draw_text(display, text);
-        self.current_x = temp_x;
+        for attempt in 0..MAX_RETRIES {
+            let index = self.rng.next_index(HITOKOTOS.len());
+            let hitokoto = &HITOKOTOS[index];
 
-        result
-    }
-}
+            match HitokotoLayout::calculate(hitokoto) {
+                Ok(layout) => {
+                    // 成功找到合适的格言，进行渲染
+                    self.draw_hitokoto(display, &layout)?;
+                    return Ok(());
+                }
+                Err(HitokotoError::TooLong) => {
+                    // 记录过长的格言
+                    log::warn!(
+                        "Hitokoto too long (attempt {}): index={}, content='{}'",
+                        attempt + 1,
+                        index,
+                        hitokoto.hitokoto
+                    );
 
-// 文本换行辅助函数
-fn wrap_hitokoto_text(text: &str, max_width: u32) -> Vec<String> {
-    let mut lines = Vec::new();
-    let mut current_line = String::new();
-    let mut line_width = 0;
-
-    for c in text.chars() {
-        let char_width = if SmartTextRenderer::is_half_width_char(c) {
-            FULL_WIDTH_FONT.character_size.width / 2
-        } else {
-            FULL_WIDTH_FONT.character_size.width
-        };
-
-        if line_width + char_width > max_width && !current_line.is_empty() {
-            lines.push(current_line.clone());
-            current_line.clear();
-            line_width = 0;
+                    if attempt == MAX_RETRIES - 1 {
+                        // 最后一次尝试也失败了，使用默认格言
+                        log::error!(
+                            "Failed to find suitable hitokoto after {} attempts",
+                            MAX_RETRIES
+                        );
+                        self.render_fallback(display)?;
+                        return Ok(());
+                    }
+                }
+            }
         }
 
-        current_line.push(c);
-        line_width += char_width;
+        Ok(())
     }
 
-    if !current_line.is_empty() {
-        lines.push(current_line);
+    /// 渲染特定的格言布局
+    fn draw_hitokoto<D>(&self, display: &mut D, layout: &HitokotoLayout) -> Result<(), D::Error>
+    where
+        D: DrawTarget<Color = QuadColor>,
+    {
+        // 使用垂直居中布局
+        let start_y = layout.calculate_vertical_center_start();
+        let mut renderer = HitokotoTextRenderer::new(Point::new(MARGIN_X, start_y));
+
+        let center_x = DISPLAY_AREA.size.width as i32 / 2;
+        let right_x = DISPLAY_AREA.size.width as i32 - MARGIN_X;
+
+        log::info!(
+            "render_hitokoto: start_y={}, center_x={}, right_x={}",
+            start_y,
+            center_x,
+            right_x
+        );
+
+        // 根据行数选择布局策略
+        match layout.content_lines.len() {
+            1 => {
+                // 单行格言：内容居中，作者右对齐
+                renderer.draw_text_centered(display, &layout.content_lines[0], center_x)?;
+                renderer.draw_text_right(display, &layout.author_line, right_x)?;
+            }
+            _ => {
+                // 多行格言：内容左对齐，作者右对齐在最后一行
+                for line in &layout.content_lines {
+                    renderer.draw_text(display, line)?;
+                }
+                // 调整作者行位置，使其与内容有适当间隔
+                renderer.move_to(Point::new(
+                    renderer.current_x,
+                    renderer.current_y + LINE_SPACING * 2,
+                ));
+                renderer.draw_text_right(display, &layout.author_line, right_x)?;
+            }
+        }
+
+        log::info!(
+            "render_hitokoto: layout.content_lines={:?}",
+            layout.content_lines
+        );
+
+        Ok(())
     }
 
-    lines
+    /// 渲染后备格言（当所有尝试都失败时使用）
+    fn render_fallback<D>(&self, display: &mut D) -> Result<(), D::Error>
+    where
+        D: DrawTarget<Color = QuadColor>,
+    {
+        let fallback_text = "格言加载中...";
+        let mut renderer = HitokotoTextRenderer::new(Point::new(
+            DISPLAY_AREA.top_left.x + MARGIN_X,
+            DISPLAY_AREA.top_left.y + (DISPLAY_AREA.size.height as i32) / 2, // 垂直居中
+        ));
+
+        let center_x = DISPLAY_AREA.top_left.x + (DISPLAY_AREA.size.width as i32) / 2;
+        renderer.draw_text_centered(display, fallback_text, center_x)?;
+
+        Ok(())
+    }
 }
 
-// 实际绘制格言文本的函数
-fn draw_hitokoto_text<D>(display: &mut D, text: &str, position: Point) -> Result<Point, D::Error>
+// 便捷函数：渲染下一句格言
+pub fn render_next_hitokoto<D>(display: &mut D) -> Result<(), D::Error>
 where
     D: DrawTarget<Color = QuadColor>,
 {
-    let mut renderer = SmartTextRenderer::new(position);
-
-    // 显示的格言包括 格言 、 作者 和 来源 3个部分，其中 来源、作者 一定占据1行，需要提前计算格言占用的行数
-    // 对于一行的格言，直接居中显示
-    // 对于多行的格言，第一行填满，第二行左对齐
-    // 作者来源需要右对齐显示
-    // 对于一、二行的格言，作者来源显示在下一行
-    // 对于三、四行的格言，作者来源显示在下半行
-    // 对于五行的格言，不显示作者来源
-    // 对于六行的格言，返回失败，让上层应用显示下一条格言，并将日志打印出来
-    let lines = wrap_hitokoto_text(text, 800 - 36 - 36); // 800 是屏幕宽度，36 是距离屏幕两边的间隔
-    for line in lines {
-        renderer.draw_centered_text(display, &line)?;
-    }
-
-    Ok(renderer.current_position())
-}
-
-// 绘制格言文本的入口函数
-pub fn next_hitokoto<D>(display: &mut D)
-where
-    D: DrawTarget<Color = QuadColor>,
-{
-    use super::hitokoto_data::{FROM_STRINGS, HITOKOTOS, Hitokoto};
-    let mut rng = super::lcg::Lcg::new();
-    let index = rng.next_index(HITOKOTOS.len());
-    let hitokoto: &Hitokoto = &HITOKOTOS[index];
-    let from = &FROM_STRINGS[hitokoto.from];
-    let from_who = &FROM_STRINGS[hitokoto.from_who];
+    let mut renderer = HitokotoRenderer::new();
+    renderer.render(display)
 }

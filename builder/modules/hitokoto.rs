@@ -336,13 +336,13 @@ fn generate_fonts_rs_content(
     // 生成全角字体定义
     content.push_str(&format!(
         "pub const HITOKOTO_FULL_WIDTH_FONT: MonoFont<'static> = MonoFont {{\n    image: ImageRaw::<BinaryColor>::new(\n        include_bytes!(\"hitokoto_full_width_font.bin\"),\n        {}\n    ),\n    glyph_mapping: &HITOKOTO_FULL_WIDTH_GLYPH_MAPPING,\n    character_size: Size::new({}, {}),\n    character_spacing: 0,\n    baseline: {},\n    underline: DecorationDimensions::new({} + 2, 1),\n    strikethrough: DecorationDimensions::new({} / 2, 1),\n}};\n\n",
-        24, full_width, full_height, 24, 24, 24
+        24, full_width, full_height, 0, 24, 24
     ));
 
     // 生成半角字体定义
     content.push_str(&format!(
         "pub const HITOKOTO_HALF_WIDTH_FONT: MonoFont<'static> = MonoFont {{\n    image: ImageRaw::<BinaryColor>::new(\n        include_bytes!(\"hitokoto_half_width_font.bin\"),\n        {}\n    ),\n    glyph_mapping: &HITOKOTO_HALF_WIDTH_GLYPH_MAPPING,\n    character_size: Size::new({}, {}),\n    character_spacing: 0,\n    baseline: {},\n    underline: DecorationDimensions::new({} + 2, 1),\n    strikethrough: DecorationDimensions::new({} / 2, 1),\n}};\n",
-        24, half_width, half_height, 24, 24, half_width
+        24, half_width, half_height, 0, 24, half_width
     ));
 
     Ok(content)
@@ -408,7 +408,7 @@ fn generate_hitokoto_data(config: &BuildConfig, hitokotos: &[(u32, Vec<Hitokoto>
     content.push_str("];\n\n");
 
     // 生成 Hitokoto 结构体和数据数组
-    content.push_str("#[derive(Debug, Clone, Copy)]\npub struct Hitokoto {\n    pub hitokoto: &'static str,\n    pub from: usize,\n    pub from_who: usize,\n    pub category: u32,\n}\n\n");
+    content.push_str("#[derive(Clone, Copy)]\n#[allow(dead_code)]\npub struct Hitokoto {\n    pub hitokoto: &'static str,\n    pub from: usize,\n    pub from_who: usize,\n    pub category: u32,\n}\n\n");
     content.push_str("pub const HITOKOTOS: &[Hitokoto] = &[\n");
 
     for (category_id, hitokoto) in &all_hitokotos {
