@@ -28,6 +28,10 @@ pub fn run() -> Result<()> {
     modules::battery_icons::build(&config, &progress)?;
     progress.complete_stage();
 
+    progress.start_stage("处理网络图标");
+    modules::network_icons::build(&config, &progress)?;
+    progress.complete_stage();
+
     progress.finish_build();
     Ok(())
 }
