@@ -81,7 +81,7 @@ pub fn build(config: &BuildConfig, progress: &ProgressTracker) -> Result<()> {
 
 /// 处理电池图标
 fn process_battery_icons(
-    config: &BuildConfig,
+    _config: &BuildConfig,
     battery_icons: &[BatteryIcon],
     progress: &ProgressTracker,
 ) -> Result<(Vec<u8>, BTreeMap<BatteryIcon, usize>)> {

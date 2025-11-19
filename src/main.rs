@@ -36,16 +36,16 @@ const BATTERY_POSITION: Point = Point::new(800 - 10 - ICON_WIDTH, 10);
 const BOLT_POSITION: Point = Point::new(800 - 10 - 5 - 2 * ICON_WIDTH, 10);
 
 pub fn draw_weather_icon<D>(
-    icon: WeatherIcon,
+    icon: drv::weather_icons::WeatherIcon,
     position: Point,
     display: &mut D,
 ) -> Result<(), D::Error>
 where
     D: DrawTarget<Color = QuadColor>,
 {
-    let image_data = get_icon_data(icon);
-    let width = app::weather_icons::WEATHER_ICON_SIZE;
-    let height = app::weather_icons::WEATHER_ICON_SIZE;
+    let image_data = drv::weather_icons::get_icon_data(icon);
+    let width = drv::weather_icons::WEATHER_ICON_SIZE;
+    let height = drv::weather_icons::WEATHER_ICON_SIZE;
 
     // 计算每行字节数
     let bytes_per_row = (width + 7) / 8;
@@ -135,7 +135,7 @@ impl InkDisplay {
         self.draw_weather_section(display);
 
         // 6. 绘制格言区域
-        // self.draw_quote_section(display);
+        self.draw_quote_section(display);
     }
 
     fn clear_screen<D>(&self, display: &mut D)
@@ -143,7 +143,7 @@ impl InkDisplay {
         D: DrawTarget<Color = QuadColor>,
     {
         let _ = Rectangle::new(Point::new(0, 0), Size::new(800, 480))
-            .into_styled(PrimitiveStyle::with_fill(BACKGROUND_COLOR))
+            .into_styled(PrimitiveStyle::with_fill(QuadColor::White))
             .draw(display);
 
         let _ = Line::new(
@@ -190,45 +190,12 @@ impl InkDisplay {
     where
         D: DrawTarget<Color = QuadColor>,
     {
-        // 左侧：Wi-Fi状态
-        let wifi_text = if self.wifi_connected {
-            "Wi-Fi ●"
-        } else {
-            "Wi-Fi ○"
-        };
-        let _ = draw_smart_text(display, wifi_text, Point::new(20, 20), TextStyle::new());
-
-        // 右侧：电池电量 & 充电状态
-        let battery_text = format!("电池 {}%", self.battery_level);
-        let battery_width = SmartTextRenderer::calculate_text_width(&battery_text);
-        let _ = draw_smart_text(
-            display,
-            &battery_text,
-            Point::new(800 - 20 - battery_width as i32, 20),
-            TextStyle::new(),
-        );
     }
 
     fn draw_time_section<D>(&self, display: &mut D) -> Result<(), D::Error>
     where
         D: DrawTarget<Color = QuadColor>,
     {
-        // 时间显示区域背景
-        RoundedRectangle::new(
-            Rectangle::new(Point::new(50, 60), Size::new(700, 150)),
-            CornerRadii::new(Size::new(20, 20)),
-        )
-        .into_styled(PrimitiveStyle::with_fill(PANEL_BG_COLOR))
-        .draw(display)?;
-
-        // 时间文字（居中）
-        draw_smart_text(
-            display,
-            &self.time,
-            Point::new(400, 140),
-            TextStyle::new().with_color(PANEL_TEXT_COLOR).centered(),
-        )?;
-
         Ok(())
     }
 
@@ -270,28 +237,6 @@ impl InkDisplay {
     where
         D: DrawTarget<Color = QuadColor>,
     {
-        let panel = RoundedRectangle::new(
-            Rectangle::new(Point::new(x, y), Size::new(width, 100)),
-            CornerRadii::new(Size::new(10, 10)),
-        )
-        .into_styled(PrimitiveStyle::with_fill(PANEL_BG_COLOR));
-        panel.draw(display)?;
-
-        draw_smart_text(
-            display,
-            "温度",
-            Point::new(x + 20, y + 25),
-            TextStyle::new().with_color(PANEL_TEXT_COLOR),
-        )?;
-
-        let temp_text = format!("{}°C", self.temperature);
-        draw_smart_text(
-            display,
-            &temp_text,
-            Point::new(x + 20, y + 65),
-            TextStyle::new().with_color(PANEL_TEXT_COLOR),
-        )?;
-
         Ok(())
     }
 
@@ -299,14 +244,11 @@ impl InkDisplay {
     where
         D: DrawTarget<Color = QuadColor>,
     {
-        let panel = RoundedRectangle::new(
-            Rectangle::new(Point::new(x, y), Size::new(width, 100)),
-            CornerRadii::new(Size::new(10, 10)),
-        )
-        .into_styled(PrimitiveStyle::with_fill(PANEL_BG_COLOR));
-        let _ = panel.draw(display);
-
-        let _ = draw_weather_icon(WeatherIcon::sunny, Point::new(300, 300), display);
+        let _ = draw_weather_icon(
+            drv::weather_icons::WeatherIcon::sunny,
+            Point::new(300, 300),
+            display,
+        );
     }
 
     fn draw_humidity_panel<D>(
@@ -319,50 +261,6 @@ impl InkDisplay {
     where
         D: DrawTarget<Color = QuadColor>,
     {
-        let panel = RoundedRectangle::new(
-            Rectangle::new(Point::new(x, y), Size::new(width, 100)),
-            CornerRadii::new(Size::new(10, 10)),
-        )
-        .into_styled(PrimitiveStyle::with_fill(PANEL_BG_COLOR));
-        panel.draw(display)?;
-
-        draw_smart_text(
-            display,
-            "湿度",
-            Point::new(x + 20, y + 25),
-            TextStyle::new().with_color(PANEL_TEXT_COLOR),
-        )?;
-
-        let humidity_text = format!("{}%", self.humidity);
-        draw_smart_text(
-            display,
-            &humidity_text,
-            Point::new(x + 20, y + 65),
-            TextStyle::new().with_color(PANEL_TEXT_COLOR),
-        )?;
-
-        // 湿度进度条（保持不变）
-        let bar_width = (width - 40) as i32;
-        let fill_width = (bar_width * self.humidity as i32 / 100) as u32;
-
-        // 背景条
-        RoundedRectangle::new(
-            Rectangle::new(Point::new(x + 20, y + 80), Size::new(bar_width as u32, 8)),
-            CornerRadii::new(Size::new(4, 4)),
-        )
-        .into_styled(PrimitiveStyle::with_fill(BACKGROUND_COLOR))
-        .draw(display)?;
-
-        // 填充条
-        if fill_width > 0 {
-            RoundedRectangle::new(
-                Rectangle::new(Point::new(x + 20, y + 80), Size::new(fill_width, 8)),
-                CornerRadii::new(Size::new(4, 4)),
-            )
-            .into_styled(PrimitiveStyle::with_fill(PANEL_TEXT_COLOR))
-            .draw(display)?;
-        }
-
         Ok(())
     }
 
@@ -370,29 +268,7 @@ impl InkDisplay {
     where
         D: DrawTarget<Color = QuadColor>,
     {
-        let y_start = 380;
-
-        // 格言内容（自动换行）
-        let _ = draw_smart_text(
-            display,
-            &self.quote,
-            Point::new(70, y_start + 25),
-            TextStyle::new()
-                .with_color(PANEL_TEXT_COLOR)
-                .with_max_width(660), // 700 - 40 (左右边距)
-        );
-
-        // 作者信息
-        if !self.quote_author.is_empty() {
-            let author_text = format!("—— {}", self.quote_author);
-            let author_width = SmartTextRenderer::calculate_text_width(&author_text);
-            let _ = draw_smart_text(
-                display,
-                &author_text,
-                Point::new(750 - author_width as i32, y_start + 60),
-                TextStyle::new().with_color(PANEL_TEXT_COLOR),
-            );
-        }
+        drv::hitokoto_renderer::render_next_hitokoto(display);
     }
 }
 

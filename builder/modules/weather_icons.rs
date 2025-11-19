@@ -11,6 +11,9 @@ use serde::Deserialize;
 use std::collections::BTreeMap;
 use std::fs;
 
+/// 天气图标尺寸常量
+const WEATHER_ICON_SIZE: u32 = 64;
+
 /// 天气图标数据结构
 #[derive(Debug, Deserialize)]
 pub struct WeatherIcon {
@@ -87,7 +90,7 @@ fn process_weather_icons(
 
         // 使用通用图标渲染器渲染图标
         let icon_config = IconConfig {
-            icon_size: config.weather_icon_size,
+            icon_size: WEATHER_ICON_SIZE,
             svg_path: svg_path.to_string_lossy().to_string(),
         };
 
@@ -131,7 +134,7 @@ fn generate_weather_icons_rs(
 ) -> Result<()> {
     let output_path = config.output_dir.join("weather_icons.rs");
 
-    let content = generate_icons_rs_content(icons, icon_mapping, config.weather_icon_size)?;
+    let content = generate_icons_rs_content(icons, icon_mapping, WEATHER_ICON_SIZE)?;
     file_utils::write_string_file(&output_path, &content)?;
 
     println!(

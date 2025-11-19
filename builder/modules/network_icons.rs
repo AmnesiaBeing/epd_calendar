@@ -37,15 +37,6 @@ impl NetworkIcon {
     pub fn all_icons() -> Vec<Self> {
         vec![Self::Connected, Self::Disconnected]
     }
-
-    /// 根据连接状态获取图标
-    pub fn from_status(is_connected: bool) -> Self {
-        if is_connected {
-            Self::Connected
-        } else {
-            Self::Disconnected
-        }
-    }
 }
 
 /// 构建网络图标数据
@@ -71,7 +62,7 @@ pub fn build(config: &BuildConfig, progress: &ProgressTracker) -> Result<()> {
 
 /// 处理网络图标
 fn process_network_icons(
-    config: &BuildConfig,
+    _config: &BuildConfig,
     network_icons: &[NetworkIcon],
     progress: &ProgressTracker,
 ) -> Result<(Vec<u8>, BTreeMap<NetworkIcon, usize>)> {
