@@ -13,8 +13,6 @@ pub struct IconConfig {
 /// 图标渲染结果
 pub struct IconRenderResult {
     pub bitmap_data: Vec<u8>,
-    pub width: u32,
-    pub height: u32,
 }
 
 /// 通用图标渲染器
@@ -65,11 +63,7 @@ impl IconRenderer {
         // 转换为 1-bit 位图
         let bitmap_data = Self::convert_to_1bit(&pixmap, config.icon_size);
 
-        Ok(IconRenderResult {
-            bitmap_data,
-            width: config.icon_size,
-            height: config.icon_size,
-        })
+        Ok(IconRenderResult { bitmap_data })
     }
 
     /// 将 RGBA 像素图转换为 1-bit 位图

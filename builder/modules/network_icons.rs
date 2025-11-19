@@ -3,8 +3,8 @@
 use crate::builder::config::BuildConfig;
 use crate::builder::utils::file_utils;
 use crate::builder::utils::{
-    ProgressTracker,
     icon_renderer::{IconConfig, IconRenderer},
+    progress::ProgressTracker,
 };
 use anyhow::{Context, Result};
 use std::collections::BTreeMap;

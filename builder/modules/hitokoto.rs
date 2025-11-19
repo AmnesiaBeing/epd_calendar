@@ -2,7 +2,7 @@
 
 use crate::builder::config::BuildConfig;
 use crate::builder::utils::font_renderer::{FontConfig, FontRenderResult, FontRenderer};
-use crate::builder::utils::{self, ProgressTracker};
+use crate::builder::utils::{self, progress::ProgressTracker};
 use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet, HashMap};

@@ -5,7 +5,7 @@ pub mod modules;
 pub mod utils;
 
 use anyhow::Result;
-use utils::ProgressTracker;
+use utils::progress::ProgressTracker;
 
 /// 运行完整的资源构建流程
 pub fn run() -> Result<()> {
