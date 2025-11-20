@@ -12,7 +12,9 @@ use embedded_graphics::{
     text::Text,
 };
 
-use crate::drv::battery_renderer::render_battery_status;
+use crate::drv::{
+    battery_renderer::render_battery_status, network_renderer::render_network_status,
+};
 
 mod app;
 mod bsp;
@@ -36,46 +38,6 @@ const ICON_WIDTH: i32 = 64;
 const ICON_HEIGHT: i32 = 64;
 const BATTERY_POSITION: Point = Point::new(800 - 10 - ICON_WIDTH, 10);
 const BOLT_POSITION: Point = Point::new(800 - 10 - 5 - 2 * ICON_WIDTH, 10);
-
-pub fn draw_weather_icon<D>(
-    icon: drv::weather_icons::WeatherIcon,
-    position: Point,
-    display: &mut D,
-) -> Result<(), D::Error>
-where
-    D: DrawTarget<Color = QuadColor>,
-{
-    let image_data = drv::weather_icons::get_icon_data(icon);
-    let width = drv::weather_icons::WEATHER_ICON_SIZE;
-    let height = drv::weather_icons::WEATHER_ICON_SIZE;
-
-    // 计算每行字节数
-    let bytes_per_row = (width + 7) / 8;
-
-    // 绘制每个像素
-    let pixels = (0..height).flat_map(move |y| {
-        (0..width).map(move |x| {
-            let byte_index = (y * bytes_per_row + x / 8) as usize;
-            let bit_index = 7 - (x % 8);
-
-            let color = if byte_index < image_data.len() {
-                let byte = image_data[byte_index];
-                let bit = (byte >> bit_index) & 1;
-                if bit == 1 {
-                    QuadColor::Black
-                } else {
-                    QuadColor::White
-                }
-            } else {
-                QuadColor::White
-            };
-
-            Pixel(Point::new(x as i32, y as i32) + position, color)
-        })
-    });
-
-    display.draw_iter(pixels)
-}
 
 pub struct InkDisplay {
     pub time: String,
@@ -134,7 +96,7 @@ impl InkDisplay {
         // self.draw_time_section(display);
 
         // 5. 绘制天气信息
-        self.draw_weather_section(display);
+        // self.draw_weather_section(display);
 
         // 6. 绘制格言区域
         self.draw_quote_section(display);
@@ -192,11 +154,16 @@ impl InkDisplay {
     where
         D: DrawTarget<Color = QuadColor>,
     {
-        let status = drv::battery_renderer::BatteryStatus {
+        let battery_status = drv::battery_renderer::BatteryStatus {
             level: self.battery_level,
             is_charging: true,
         };
-        let _ = render_battery_status(display, &status);
+        let _ = render_battery_status(display, &battery_status);
+
+        let network_status = drv::network_renderer::NetworkStatus {
+            is_connected: true,
+        };
+        let _ = render_network_status(display, &network_status);
     }
 
     fn draw_time_section<D>(&self, display: &mut D) -> Result<(), D::Error>
@@ -210,65 +177,6 @@ impl InkDisplay {
     where
         D: DrawTarget<Color = QuadColor>,
     {
-        let y_start = 240;
-        let panel_width = 240;
-        let gap = 40;
-
-        // 温度面板
-        // self.draw_temperature_panel(display, 50, y_start, panel_width);
-
-        // 天气图标面板
-        self.draw_weather_icon_panel(
-            display,
-            (50 + panel_width + gap) as i32,
-            y_start,
-            panel_width,
-        );
-
-        // // 湿度面板
-        // self.draw_humidity_panel(
-        //     display,
-        //     (50 + 2 * (panel_width + gap)) as i32,
-        //     y_start,
-        //     panel_width,
-        // );
-    }
-
-    fn draw_temperature_panel<D>(
-        &self,
-        display: &mut D,
-        x: i32,
-        y: i32,
-        width: u32,
-    ) -> Result<(), D::Error>
-    where
-        D: DrawTarget<Color = QuadColor>,
-    {
-        Ok(())
-    }
-
-    fn draw_weather_icon_panel<D>(&self, display: &mut D, x: i32, y: i32, width: u32)
-    where
-        D: DrawTarget<Color = QuadColor>,
-    {
-        let _ = draw_weather_icon(
-            drv::weather_icons::WeatherIcon::sunny,
-            Point::new(300, 300),
-            display,
-        );
-    }
-
-    fn draw_humidity_panel<D>(
-        &self,
-        display: &mut D,
-        x: i32,
-        y: i32,
-        width: u32,
-    ) -> Result<(), D::Error>
-    where
-        D: DrawTarget<Color = QuadColor>,
-    {
-        Ok(())
     }
 
     fn draw_quote_section<D>(&self, display: &mut D)
