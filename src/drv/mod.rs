@@ -1,3 +1,4 @@
+pub mod image_renderer;
 pub mod battery_renderer;
 pub mod hitokoto_renderer;
 pub mod lcg;
