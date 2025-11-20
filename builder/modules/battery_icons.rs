@@ -200,10 +200,9 @@ fn generate_battery_icons_rs_content(
     content.push_str(
         "pub const BATTERY_ICON_DATA: &[u8] = include_bytes!(\"battery_icons.bin\");\n\n",
     );
-    content.push_str("pub const BATTERY_ICON_SIZE: u32 = 32;\n");
     content.push_str(&format!(
-        "pub const BATTERY_ICON_COUNT: usize = {};\n\n",
-        battery_icons.len()
+        "pub const BATTERY_ICON_SIZE: u32 = {};\n\n",
+        BATTERY_ICON_SIZE
     ));
 
     // 生成图标索引数组
@@ -215,8 +214,8 @@ fn generate_battery_icons_rs_content(
     }
     content.push_str("];\n\n");
 
-    // 计算每个图标的字节大小 (32x32 / 8 = 128 bytes)
-    let bytes_per_icon = 128;
+    // 计算每个图标的字节大小
+    let bytes_per_icon = BATTERY_ICON_SIZE * BATTERY_ICON_SIZE / 8;
 
     // 实用函数
     content.push_str("pub fn get_battery_icon_data(icon: BatteryIcon) -> &'static [u8] {\n");

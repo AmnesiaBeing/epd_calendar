@@ -1,11 +1,6 @@
 //! 电池状态渲染器 - 在屏幕指定位置渲染电池电量和充电状态
 
-use embedded_graphics::{
-    image::{Image, ImageRaw},
-    pixelcolor::BinaryColor,
-    prelude::*,
-    primitives::Rectangle,
-};
+use embedded_graphics::prelude::*;
 use epd_waveshare::color::QuadColor;
 
 use crate::drv::battery_icons::{BATTERY_ICON_SIZE, BatteryIcon, get_battery_icon_data};
@@ -17,7 +12,7 @@ const FOREGROUND_COLOR: QuadColor = QuadColor::Black;
 // 位置定义
 const MARGIN_Y: i32 = 10;
 const BATTERY_X: i32 = 800 - BATTERY_ICON_SIZE as i32 - 10;
-const CHARGING_X: i32 = 800 - BATTERY_ICON_SIZE as i32 * 2 - 10;
+const CHARGING_X: i32 = 800 - BATTERY_ICON_SIZE as i32 * 2 - 15;
 
 pub fn draw_binary_image<D>(
     display: &mut D,
@@ -84,11 +79,6 @@ where
     } else {
         None
     };
-
-    let battery_icon_image_raw = ImageRaw::<BinaryColor>::new(
-        get_battery_icon_data(battery_icon),
-        BATTERY_ICON_SIZE * BATTERY_ICON_SIZE / 8,
-    );
 
     let _ = draw_binary_image(
         display,
