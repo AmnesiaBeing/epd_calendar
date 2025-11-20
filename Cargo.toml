@@ -71,6 +71,8 @@ epd-waveshare = { path = "./../epd-waveshare/", features = [] }
 sntpc = { version = "0.6.1", features = ["embassy-socket"] }
 defmt = "1.0.1"
 
+sxtwl-rs = { path = "./../sxtwl-rs/" }
+
 # PC端依赖
 embedded-hal-mock = { path = "./../embedded-hal-mock/", optional = true }
 # embedded-storage-std-mock = { path = "./../embedded-storage-std-mock", optional = true}

@@ -676,6 +676,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sntpc",
+ "sxtwl-rs",
  "thiserror",
  "unicode-normalization",
  "usvg",
@@ -983,6 +984,12 @@ name = "libc"
 version = "0.2.174"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1171693293099992e19cddea4e8b849964e9846f4acee11b3948bcc337be8776"
+
+[[package]]
+name = "libm"
+version = "0.2.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f9fbbcab51052fe104eb5e5d351cf728d30a5be1fe14d9be8a3b097481fb97de"
 
 [[package]]
 name = "libz-sys"
@@ -1707,6 +1714,13 @@ checksum = "d71499ff2d42f59d26edb21369a308ede691421f79ebc0f001e2b1fd3a7c9e52"
 dependencies = [
  "kurbo",
  "siphasher",
+]
+
+[[package]]
+name = "sxtwl-rs"
+version = "0.1.0"
+dependencies = [
+ "libm",
 ]
 
 [[package]]
