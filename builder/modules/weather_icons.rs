@@ -171,7 +171,7 @@ fn generate_icons_rs_content(
 
     // 定义图标枚举 - 简化 trait 并允许非驼峰命名
     content.push_str("#[allow(non_camel_case_types)]\n");
-    content.push_str("#[derive(Clone, Copy, PartialEq, Debug)]\n");
+    content.push_str("#[derive(Clone, Copy)]\n");
     content.push_str("pub enum WeatherIcon {\n");
     for icon in icons {
         // 将图标名称转换为有效的 Rust 标识符
@@ -220,18 +220,6 @@ fn generate_icons_rs_content(
         ));
     }
     content.push_str("        }\n");
-    content.push_str("    }\n\n");
-
-    content.push_str("    pub fn name(&self) -> &'static str {\n");
-    content.push_str("        match self {\n");
-    for icon in icons {
-        let variant_name = icon.icon_name.replace('-', "_").replace(' ', "_");
-        content.push_str(&format!(
-            "            WeatherIcon::{} => \"{}\",\n",
-            variant_name, icon.icon_name
-        ));
-    }
-    content.push_str("        }\n");
     content.push_str("    }\n");
     content.push_str("}\n\n");
 
@@ -272,26 +260,6 @@ fn generate_icons_rs_content(
     ));
     content.push_str("    &WEATHER_ICON_DATA[start..end]\n");
     content.push_str("}\n\n");
-
-    // 添加便捷函数来创建 ImageRaw
-    content.push_str(
-        "pub fn get_icon_image_raw(icon: WeatherIcon) -> ImageRaw<'static, BinaryColor> {\n",
-    );
-    content.push_str(&format!(
-        "    ImageRaw::new(get_icon_data(icon), {})\n",
-        icon_size
-    ));
-    content.push_str("}\n");
-
-    // 添加便捷函数获取所有可用图标
-    content.push_str("pub fn get_all_weather_icons() -> &'static [WeatherIcon] {\n");
-    content.push_str("    &[\n");
-    for icon in icons {
-        let variant_name = icon.icon_name.replace('-', "_").replace(' ', "_");
-        content.push_str(&format!("        WeatherIcon::{},\n", variant_name));
-    }
-    content.push_str("    ]\n");
-    content.push_str("}\n");
 
     Ok(content)
 }
