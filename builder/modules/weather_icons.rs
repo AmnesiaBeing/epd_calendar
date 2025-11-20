@@ -79,6 +79,7 @@ fn process_weather_icons(
     let icons_dir = config.weather_icons_dir.join("icons");
     let mut icon_data = Vec::new();
     let mut icon_mapping = BTreeMap::new();
+    let mut preview_results = Vec::new(); // 用于存储预览数据
 
     for (index, icon) in icons.iter().enumerate() {
         let svg_path = icons_dir.join(format!("{}.svg", icon.icon_code));
@@ -104,11 +105,18 @@ fn process_weather_icons(
         // 添加图标数据
         icon_data.extend_from_slice(&result.bitmap_data);
 
+        // 存储预览数据
+        preview_results.push((icon.icon_code.clone(), result));
+
         // 显示进度
         if index % 10 == 0 {
             progress.update_progress(index, icons.len(), "处理天气图标");
         }
     }
+
+    // 预览其中一个图标
+    let (name, result) = preview_results.first().unwrap();
+    IconRenderer::preview_icon(result, name, WEATHER_ICON_SIZE);
 
     Ok((icon_data, icon_mapping))
 }

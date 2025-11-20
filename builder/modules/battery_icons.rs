@@ -77,6 +77,7 @@ fn process_battery_icons(
 ) -> Result<(Vec<u8>, BTreeMap<BatteryIcon, usize>)> {
     let mut icon_data = Vec::new();
     let mut icon_mapping = BTreeMap::new();
+    let mut preview_results = Vec::new(); // 用于存储预览数据
 
     for (index, &battery_icon) in battery_icons.iter().enumerate() {
         let svg_filename = format!("{}.svg", battery_icon.filename());
@@ -98,11 +99,18 @@ fn process_battery_icons(
         // 添加图标数据
         icon_data.extend_from_slice(&result.bitmap_data);
 
+        // 存储预览数据
+        preview_results.push((battery_icon.filename(), result));
+
         // 显示进度
         progress.update_progress(index, battery_icons.len(), "渲染电池图标");
 
         println!("cargo:warning=    已处理: {:?}", battery_icon);
     }
+
+    // 预览其中一个图标
+    let (name, result) = preview_results.last().unwrap();
+    IconRenderer::preview_icon(result, name, BATTERY_ICON_SIZE);
 
     Ok((icon_data, icon_mapping))
 }

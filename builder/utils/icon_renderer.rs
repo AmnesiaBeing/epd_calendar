@@ -80,7 +80,8 @@ impl IconRenderer {
                 if let Some(pixel) = pixmap.pixel(x as u32, y as u32) {
                     // 阈值处理，转换为黑白
                     let alpha = pixel.alpha() as f32 / 255.0;
-                    let is_black = alpha > 0.5;
+                    let is_black = alpha > 0.5
+                        && (pixel.red() < 250 || pixel.green() < 250 || pixel.blue() < 250);
 
                     if is_black {
                         let byte_index = y * bytes_per_row + x / 8;
@@ -95,5 +96,76 @@ impl IconRenderer {
         }
 
         result
+    }
+
+    /// 预览图标
+    #[allow(dead_code)]
+    pub fn preview_icon(result: &IconRenderResult, name: &str, icon_size: u32) {
+        let width = icon_size as usize;
+        let height = icon_size as usize;
+        let bytes_per_row = (width + 7) / 8;
+
+        println!(
+            "cargo:warning=  图标预览 '{}' ({}x{}):",
+            name, width, height
+        );
+
+        for y in 0..height {
+            let mut line = String::new();
+            for x in 0..width {
+                let byte_index = y * bytes_per_row + x / 8;
+                let bit_offset = 7 - (x % 8); // MSB 优先
+
+                let pixel = if byte_index < result.bitmap_data.len() {
+                    (result.bitmap_data[byte_index] >> bit_offset) & 1
+                } else {
+                    0
+                };
+
+                // 使用不同的字符来创建更好的视觉效果
+                line.push(if pixel == 1 { '█' } else { ' ' });
+            }
+            println!("cargo:warning=  {}", line);
+        }
+        println!("cargo:warning=");
+    }
+
+    /// 预览多个图标（并排显示）
+    #[allow(dead_code)]
+    pub fn preview_icons_multiple(results: &[(&str, &IconRenderResult)], icon_size: u32) {
+        let width = icon_size as usize;
+        let height = icon_size as usize;
+        let bytes_per_row = (width + 7) / 8;
+
+        println!("cargo:warning=  多图标预览 (共{}个):", results.len());
+
+        // 打印标题行
+        let titles: Vec<String> = results
+            .iter()
+            .map(|(name, _)| format!("{:^width$}", name, width = width))
+            .collect();
+        println!("cargo:warning=  {}", titles.join(" "));
+
+        // 逐行渲染所有图标
+        for y in 0..height {
+            let mut line = String::new();
+            for (_, result) in results {
+                for x in 0..width {
+                    let byte_index = y * bytes_per_row + x / 8;
+                    let bit_offset = 7 - (x % 8);
+
+                    let pixel = if byte_index < result.bitmap_data.len() {
+                        (result.bitmap_data[byte_index] >> bit_offset) & 1
+                    } else {
+                        0
+                    };
+
+                    line.push(if pixel == 1 { '█' } else { ' ' });
+                }
+                line.push(' '); // 图标之间的间隔
+            }
+            println!("cargo:warning=  {}", line);
+        }
+        println!("cargo:warning=");
     }
 }
