@@ -3,10 +3,11 @@ pub mod hitokoto_renderer;
 pub mod image_renderer;
 pub mod lcg;
 pub mod network_renderer;
+pub mod time_renderer;
 
 // 以下模块在编译期生成
-pub mod battery_icons;
-pub mod hitokoto_data;
-pub mod hitokoto_fonts;
-pub mod network_icons;
-pub mod weather_icons;
+pub mod generated_battery_icons;
+pub mod generated_hitokoto_data;
+pub mod generated_hitokoto_fonts;
+pub mod generated_network_icons;
+pub mod generated_weather_icons;

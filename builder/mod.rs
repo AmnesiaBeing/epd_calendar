@@ -32,6 +32,10 @@ pub fn run() -> Result<()> {
     modules::network_icons::build(&config, &progress)?;
     progress.complete_stage();
 
+    progress.start_stage("处理日期字体");
+    modules::date_fonts::build(&config, &progress)?;
+    progress.complete_stage();
+
     progress.finish_build();
     Ok(())
 }

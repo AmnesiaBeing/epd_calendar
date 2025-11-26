@@ -13,7 +13,9 @@ use embedded_graphics::{
 };
 
 use crate::drv::{
-    battery_renderer::render_battery_status, network_renderer::render_network_status,
+    battery_renderer::render_battery_status,
+    network_renderer::render_network_status,
+    time_renderer::{Meridiem, TimeConfig, render_time},
 };
 
 mod app;
@@ -23,8 +25,8 @@ mod drv;
 // 把显示元素的位置固定下来（左上角）
 const SEPARATOR_LINE_X_1: i32 = 10;
 const SEPARATOR_LINE_X_2: i32 = 790;
-const SEPARATOR_LINE_Y_1: i32 = 140;
-const SEPARATOR_LINE_Y_2: i32 = 360;
+const SEPARATOR_LINE_Y_1: i32 = 180;
+const SEPARATOR_LINE_Y_2: i32 = 400;
 const SEPARATOR_LINE_3_X: i32 = 8 * 24 + 20;
 const SEPARATOR_LINE_3_Y_1: i32 = SEPARATOR_LINE_Y_1 + 10;
 const SEPARATOR_LINE_3_Y_2: i32 = SEPARATOR_LINE_Y_2 - 10;
@@ -40,7 +42,7 @@ const BATTERY_POSITION: Point = Point::new(800 - 10 - ICON_WIDTH, 10);
 const BOLT_POSITION: Point = Point::new(800 - 10 - 5 - 2 * ICON_WIDTH, 10);
 
 pub struct InkDisplay {
-    pub time: String,
+    pub time: TimeConfig,
     pub date: String,
     pub weekday: String,
     pub temperature: i32,
@@ -64,7 +66,14 @@ pub enum WeatherCondition {
 impl Default for InkDisplay {
     fn default() -> Self {
         Self {
-            time: "12:00".to_string(),
+            time: TimeConfig {
+                hour_tens: 8,
+                hour_ones: 8,
+                minute_tens: 8,
+                minute_ones: 8,
+                show_meridiem: true,
+                meridiem: Meridiem::AM,
+            },
             date: "2024-01-01".to_string(),
             weekday: "星期一".to_string(),
             temperature: 20,
@@ -90,7 +99,7 @@ impl InkDisplay {
         self.draw_status_bar(display);
 
         // 3. 绘制时间
-        // self.draw_time_section(display);
+        self.draw_time_section(display);
 
         // 4. 绘制农历
         // self.draw_time_section(display);
@@ -160,9 +169,7 @@ impl InkDisplay {
         };
         let _ = render_battery_status(display, &battery_status);
 
-        let network_status = drv::network_renderer::NetworkStatus {
-            is_connected: true,
-        };
+        let network_status = drv::network_renderer::NetworkStatus { is_connected: true };
         let _ = render_network_status(display, &network_status);
     }
 
@@ -170,6 +177,7 @@ impl InkDisplay {
     where
         D: DrawTarget<Color = QuadColor>,
     {
+        render_time(display, &self.time)?;
         Ok(())
     }
 
@@ -187,28 +195,12 @@ impl InkDisplay {
     }
 }
 
-// 使用示例
-pub fn create_sample_display() -> InkDisplay {
-    InkDisplay {
-        time: "14:30".to_string(),
-        date: "2024-01-15".to_string(),
-        weekday: "星期一".to_string(),
-        temperature: 23,
-        humidity: 65,
-        weather_condition: WeatherCondition::Sunny,
-        battery_level: 85,
-        wifi_connected: true,
-        quote: "生活就像一盒巧克力，你永远不知道下一颗是什么味道。".to_string(),
-        quote_author: "阿甘正传".to_string(),
-    }
-}
-
 // 在主函数中使用
 pub fn render_display<D>(display: &mut D)
 where
     D: DrawTarget<Color = QuadColor>,
 {
-    let ink_display = create_sample_display();
+    let ink_display = InkDisplay::default();
     ink_display.draw(display);
 }
 

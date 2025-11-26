@@ -24,6 +24,8 @@ pub struct HitokotoCategory {
     pub key: String,
 }
 
+const FONT_SIZE: u32 = 20;
+
 /// 构建格言数据
 pub fn build(config: &BuildConfig, progress: &ProgressTracker) -> Result<()> {
     progress.update_progress(0, 5, "解析分类");
@@ -158,10 +160,10 @@ fn generate_hitokoto_fonts(
     // 分离全角和半角字符
     let (full_width_chars, half_width_chars) = separate_chars(chars);
 
-    // 渲染全角字体（使用24px大小）
+    // 渲染全角字体（使用20px大小）
     let full_width_config = FontConfig {
         font_path: config.font_path.to_string_lossy().to_string(),
-        font_size: 24, // 格言显示使用较大的字体
+        font_size: FONT_SIZE, // 格言显示使用较大的字体
         is_half_width: false,
         chars: full_width_chars,
     };
@@ -172,7 +174,7 @@ fn generate_hitokoto_fonts(
     // 渲染半角字体
     let half_width_config = FontConfig {
         font_path: config.font_path.to_string_lossy().to_string(),
-        font_size: 24,
+        font_size: FONT_SIZE,
         is_half_width: true,
         chars: half_width_chars,
     };
@@ -231,14 +233,14 @@ fn generate_font_files(
     half_width_result: &FontRenderResult,
 ) -> Result<()> {
     // 生成二进制字体文件
-    let full_width_bin_path = config.output_dir.join("hitokoto_full_width_font.bin");
+    let full_width_bin_path = config.output_dir.join("generated_hitokoto_full_width_font.bin");
     utils::file_utils::write_file(&full_width_bin_path, &full_width_result.glyph_data)?;
 
-    let half_width_bin_path = config.output_dir.join("hitokoto_half_width_font.bin");
+    let half_width_bin_path = config.output_dir.join("generated_hitokoto_half_width_font.bin");
     utils::file_utils::write_file(&half_width_bin_path, &half_width_result.glyph_data)?;
 
     // 生成字体描述文件
-    let fonts_rs_path = config.output_dir.join("hitokoto_fonts.rs");
+    let fonts_rs_path = config.output_dir.join("generated_hitokoto_fonts.rs");
     let content = generate_fonts_rs_content(
         &full_width_result.char_mapping,
         &half_width_result.char_mapping,
@@ -335,21 +337,21 @@ fn generate_fonts_rs_content(
 
     // 生成全角字体定义
     content.push_str(&format!(
-        "pub const HITOKOTO_FULL_WIDTH_FONT: MonoFont<'static> = MonoFont {{\n    image: ImageRaw::<BinaryColor>::new(\n        include_bytes!(\"hitokoto_full_width_font.bin\"),\n        {}\n    ),\n    glyph_mapping: &HITOKOTO_FULL_WIDTH_GLYPH_MAPPING,\n    character_size: Size::new({}, {}),\n    character_spacing: 0,\n    baseline: {},\n    underline: DecorationDimensions::new({} + 2, 1),\n    strikethrough: DecorationDimensions::new({} / 2, 1),\n}};\n\n",
-        24, full_width, full_height, 0, 24, 24
+        "pub const HITOKOTO_FULL_WIDTH_FONT: MonoFont<'static> = MonoFont {{\n    image: ImageRaw::<BinaryColor>::new(\n        include_bytes!(\"generated_hitokoto_full_width_font.bin\"),\n        {}\n    ),\n    glyph_mapping: &HITOKOTO_FULL_WIDTH_GLYPH_MAPPING,\n    character_size: Size::new({}, {}),\n    character_spacing: 0,\n    baseline: {},\n    underline: DecorationDimensions::new({} + 2, 1),\n    strikethrough: DecorationDimensions::new({} / 2, 1),\n}};\n\n",
+        FONT_SIZE, full_width, full_height, 0, FONT_SIZE, FONT_SIZE
     ));
 
     // 生成半角字体定义
     content.push_str(&format!(
-        "pub const HITOKOTO_HALF_WIDTH_FONT: MonoFont<'static> = MonoFont {{\n    image: ImageRaw::<BinaryColor>::new(\n        include_bytes!(\"hitokoto_half_width_font.bin\"),\n        {}\n    ),\n    glyph_mapping: &HITOKOTO_HALF_WIDTH_GLYPH_MAPPING,\n    character_size: Size::new({}, {}),\n    character_spacing: 0,\n    baseline: {},\n    underline: DecorationDimensions::new({} + 2, 1),\n    strikethrough: DecorationDimensions::new({} / 2, 1),\n}};\n",
-        24, half_width, half_height, 0, 24, half_width
+        "pub const HITOKOTO_HALF_WIDTH_FONT: MonoFont<'static> = MonoFont {{\n    image: ImageRaw::<BinaryColor>::new(\n        include_bytes!(\"generated_hitokoto_half_width_font.bin\"),\n        {}\n    ),\n    glyph_mapping: &HITOKOTO_HALF_WIDTH_GLYPH_MAPPING,\n    character_size: Size::new({}, {}),\n    character_spacing: 0,\n    baseline: {},\n    underline: DecorationDimensions::new({} + 2, 1),\n    strikethrough: DecorationDimensions::new({} / 2, 1),\n}};\n",
+        FONT_SIZE, half_width, half_height, 0, FONT_SIZE, half_width
     ));
 
     Ok(content)
 }
 
 fn generate_hitokoto_data(config: &BuildConfig, hitokotos: &[(u32, Vec<Hitokoto>)]) -> Result<()> {
-    let output_path = config.output_dir.join("hitokoto_data.rs");
+    let output_path = config.output_dir.join("generated_hitokoto_data.rs");
 
     let mut from_strings = BTreeSet::new();
     let mut from_who_strings = BTreeSet::new();

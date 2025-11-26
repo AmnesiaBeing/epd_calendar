@@ -5,7 +5,7 @@ use epd_waveshare::color::QuadColor;
 
 use crate::drv::{
     image_renderer::draw_binary_image,
-    network_icons::{NETWORK_ICON_SIZE, NetworkIcon, get_network_icon_data},
+    generated_network_icons::{NETWORK_ICON_SIZE, NetworkIcon, get_network_icon_data},
 };
 
 // 位置定义

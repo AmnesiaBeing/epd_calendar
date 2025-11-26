@@ -123,7 +123,7 @@ fn process_weather_icons(
 
 /// 生成图标二进制文件
 fn generate_icon_binary_files(config: &BuildConfig, icon_data: &[u8]) -> Result<()> {
-    let icons_bin_path = config.output_dir.join("weather_icons.bin");
+    let icons_bin_path = config.output_dir.join("generated_weather_icons.bin");
     file_utils::write_file(&icons_bin_path, icon_data)?;
 
     println!(
@@ -140,7 +140,7 @@ fn generate_weather_icons_rs(
     icons: &[WeatherIcon],
     icon_mapping: &BTreeMap<String, usize>,
 ) -> Result<()> {
-    let output_path = config.output_dir.join("weather_icons.rs");
+    let output_path = config.output_dir.join("generated_weather_icons.rs");
 
     let content = generate_icons_rs_content(icons, icon_mapping, WEATHER_ICON_SIZE)?;
     file_utils::write_string_file(&output_path, &content)?;
@@ -225,7 +225,7 @@ fn generate_icons_rs_content(
 
     // 定义图标数据
     content.push_str(&format!(
-        "pub const WEATHER_ICON_DATA: &[u8] = include_bytes!(\"weather_icons.bin\");\n\n"
+        "pub const WEATHER_ICON_DATA: &[u8] = include_bytes!(\"generated_weather_icons.bin\");\n\n"
     ));
 
     content.push_str(&format!(

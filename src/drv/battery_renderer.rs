@@ -4,7 +4,7 @@ use embedded_graphics::prelude::*;
 use epd_waveshare::color::QuadColor;
 
 use crate::drv::{
-    battery_icons::{BATTERY_ICON_SIZE, BatteryIcon, get_battery_icon_data},
+    generated_battery_icons::{BATTERY_ICON_SIZE, BatteryIcon, get_battery_icon_data},
     image_renderer::draw_binary_image,
 };
 

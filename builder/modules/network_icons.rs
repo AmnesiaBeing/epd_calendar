@@ -102,7 +102,7 @@ fn process_network_icons(
 
 /// 生成网络图标二进制文件
 fn generate_network_binary_files(config: &BuildConfig, icon_data: &[u8]) -> Result<()> {
-    let network_bin_path = config.output_dir.join("network_icons.bin");
+    let network_bin_path = config.output_dir.join("generated_network_icons.bin");
     file_utils::write_file(&network_bin_path, icon_data)?;
 
     println!(
@@ -119,7 +119,7 @@ fn generate_network_icons_rs(
     network_icons: &[NetworkIcon],
     icon_mapping: &BTreeMap<NetworkIcon, usize>,
 ) -> Result<()> {
-    let output_path = config.output_dir.join("network_icons.rs");
+    let output_path = config.output_dir.join("generated_network_icons.rs");
 
     let content = generate_network_icons_rs_content(network_icons, icon_mapping)?;
     file_utils::write_string_file(&output_path, &content)?;
@@ -184,7 +184,7 @@ fn generate_network_icons_rs_content(
 
     // 定义图标数据
     content.push_str(
-        "pub const NETWORK_ICON_DATA: &[u8] = include_bytes!(\"network_icons.bin\");\n\n",
+        "pub const NETWORK_ICON_DATA: &[u8] = include_bytes!(\"generated_network_icons.bin\");\n\n",
     );
     content.push_str(&format!(
         "pub const NETWORK_ICON_SIZE: u32 = {};\n\n",

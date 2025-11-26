@@ -117,7 +117,7 @@ fn process_battery_icons(
 
 /// 生成电池图标二进制文件
 fn generate_battery_binary_files(config: &BuildConfig, icon_data: &[u8]) -> Result<()> {
-    let battery_bin_path = config.output_dir.join("battery_icons.bin");
+    let battery_bin_path = config.output_dir.join("generated_battery_icons.bin");
     file_utils::write_file(&battery_bin_path, icon_data)?;
 
     println!(
@@ -134,7 +134,7 @@ fn generate_battery_icons_rs(
     battery_icons: &[BatteryIcon],
     icon_mapping: &BTreeMap<BatteryIcon, usize>,
 ) -> Result<()> {
-    let output_path = config.output_dir.join("battery_icons.rs");
+    let output_path = config.output_dir.join("generated_battery_icons.rs");
 
     let content = generate_battery_icons_rs_content(battery_icons, icon_mapping)?;
     file_utils::write_string_file(&output_path, &content)?;
@@ -198,7 +198,7 @@ fn generate_battery_icons_rs_content(
 
     // 定义图标数据
     content.push_str(
-        "pub const BATTERY_ICON_DATA: &[u8] = include_bytes!(\"battery_icons.bin\");\n\n",
+        "pub const BATTERY_ICON_DATA: &[u8] = include_bytes!(\"generated_battery_icons.bin\");\n\n",
     );
     content.push_str(&format!(
         "pub const BATTERY_ICON_SIZE: u32 = {};\n\n",

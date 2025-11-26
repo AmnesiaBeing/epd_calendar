@@ -10,8 +10,8 @@ use embedded_graphics::{
 };
 use epd_waveshare::color::QuadColor;
 
-use crate::drv::hitokoto_data::{FROM_STRINGS, FROM_WHO_STRINGS, HITOKOTOS, Hitokoto};
-use crate::drv::hitokoto_fonts::{
+use crate::drv::generated_hitokoto_data::{FROM_STRINGS, FROM_WHO_STRINGS, HITOKOTOS, Hitokoto};
+use crate::drv::generated_hitokoto_fonts::{
     HITOKOTO_FULL_WIDTH_FONT as FULL_WIDTH_FONT, HITOKOTO_HALF_WIDTH_FONT as HALF_WIDTH_FONT,
 };
 
