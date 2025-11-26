@@ -14,8 +14,8 @@ use embedded_graphics::{
 
 use crate::drv::{
     battery_renderer::render_battery_status,
+    datetime_renderer::{DateConfig, Meridiem, TimeConfig, render_datetime},
     network_renderer::render_network_status,
-    time_renderer::{Meridiem, TimeConfig, render_time},
 };
 
 mod app;
@@ -43,7 +43,7 @@ const BOLT_POSITION: Point = Point::new(800 - 10 - 5 - 2 * ICON_WIDTH, 10);
 
 pub struct InkDisplay {
     pub time: TimeConfig,
-    pub date: String,
+    pub date: DateConfig,
     pub weekday: String,
     pub temperature: i32,
     pub humidity: u8,
@@ -74,7 +74,12 @@ impl Default for InkDisplay {
                 show_meridiem: true,
                 meridiem: Meridiem::AM,
             },
-            date: "2024-01-01".to_string(),
+            date: DateConfig {
+                year: 2025,
+                month: 11,
+                day: 26,
+                weekday: 2,
+            },
             weekday: "星期一".to_string(),
             temperature: 20,
             humidity: 50,
@@ -173,12 +178,11 @@ impl InkDisplay {
         let _ = render_network_status(display, &network_status);
     }
 
-    fn draw_time_section<D>(&self, display: &mut D) -> Result<(), D::Error>
+    fn draw_time_section<D>(&self, display: &mut D)
     where
         D: DrawTarget<Color = QuadColor>,
     {
-        render_time(display, &self.time)?;
-        Ok(())
+        let _ = render_datetime(display, &self.date, &self.time);
     }
 
     fn draw_weather_section<D>(&self, display: &mut D)

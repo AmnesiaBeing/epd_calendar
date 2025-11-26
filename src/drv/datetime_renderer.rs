@@ -1,18 +1,28 @@
 //! 时间渲染器 - 在屏幕指定位置渲染时间
 
+use embedded_graphics::mono_font::MonoTextStyle;
 use embedded_graphics::prelude::*;
 use embedded_graphics::primitives::{Circle, Line, PrimitiveStyle, Rectangle};
+use embedded_graphics::text::Text;
 use epd_waveshare::color::QuadColor;
 
 // 位置定义
 const TIME_MARGIN_TOP: i32 = 10;
 const TIME_FONT_HEIGHT: u32 = 120;
 const TIME_CHAR_WIDTH: u32 = 60;
+const DATE_MARGIN_TOP: u32 = 120 + 10 + 5;
 const SCREEN_WIDTH: u32 = 800;
 const SEGMENT_THICKNESS: u32 = 8;
 const DIGIT_SPACING: i32 = 10; // 数字之间的间距
 const COLON_SPACING: i32 = 5; // 冒号与数字之间的间距
 const COLON_WIDTH: i32 = 10; // 冒号宽度
+
+use crate::drv::generated_date_fonts::{
+    DATE_FULL_WIDTH_FONT as FULL_WIDTH_FONT, DATE_HALF_WIDTH_FONT as HALF_WIDTH_FONT,
+};
+
+// 颜色定义
+const TEXT_COLOR: QuadColor = QuadColor::Black;
 
 /// AM/PM 状态枚举
 #[derive(Debug, Clone, Copy)]
@@ -35,6 +45,18 @@ pub struct TimeConfig {
     pub show_meridiem: bool,
     /// 当前是上午还是下午
     pub meridiem: Meridiem,
+}
+
+/// 日期渲染配置
+pub struct DateConfig {
+    /// 年
+    pub year: u32,
+    /// 月
+    pub month: u8,
+    /// 日
+    pub day: u8,
+    /// 星期
+    pub weekday: u8,
 }
 
 /// 七段数码管段定义
@@ -320,5 +342,169 @@ where
         )?;
     }
 
+    Ok(())
+}
+
+// 智能文本渲染器
+pub struct HitokotoTextRenderer {
+    full_width_style: MonoTextStyle<'static, QuadColor>,
+    half_width_style: MonoTextStyle<'static, QuadColor>,
+    current_x: i32,
+    current_y: i32,
+    line_height: i32,
+}
+
+impl HitokotoTextRenderer {
+    pub fn new(position: Point) -> Self {
+        Self {
+            full_width_style: MonoTextStyle::new(&FULL_WIDTH_FONT, TEXT_COLOR),
+            half_width_style: MonoTextStyle::new(&HALF_WIDTH_FONT, TEXT_COLOR),
+            current_x: position.x,
+            current_y: position.y,
+            line_height: FULL_WIDTH_FONT.character_size.height as i32,
+        }
+    }
+
+    // 判断字符是否为半角字符
+    fn is_half_width_char(c: char) -> bool {
+        c.is_ascii() && !c.is_ascii_control()
+    }
+
+    // 渲染单行文本（自动处理全角半角混合）
+    pub fn draw_text<D>(&mut self, display: &mut D, text: &str) -> Result<(), D::Error>
+    where
+        D: DrawTarget<Color = QuadColor>,
+    {
+        let start_x = self.current_x;
+
+        for c in text.chars() {
+            log::info!(
+                "draw_text: char={}, is_half={}, start_x={}, start_y={}, text={}",
+                c,
+                Self::is_half_width_char(c),
+                self.current_x,
+                self.current_y,
+                text
+            );
+            if Self::is_half_width_char(c) {
+                // 半角字符
+                Text::new(
+                    &c.to_string(),
+                    Point::new(self.current_x, self.current_y),
+                    self.half_width_style,
+                )
+                .draw(display)?;
+                self.current_x += HALF_WIDTH_FONT.character_size.width as i32;
+            } else {
+                // 全角字符
+                Text::new(
+                    &c.to_string(),
+                    Point::new(self.current_x, self.current_y),
+                    self.full_width_style,
+                )
+                .draw(display)?;
+                self.current_x += FULL_WIDTH_FONT.character_size.width as i32;
+            }
+        }
+
+        // 移动到下一行
+        self.current_x = start_x;
+        self.current_y += self.line_height;
+
+        Ok(())
+    }
+
+    // 渲染右对齐文本
+    pub fn draw_text_right<D>(
+        &mut self,
+        display: &mut D,
+        text: &str,
+        right_x: i32,
+    ) -> Result<(), D::Error>
+    where
+        D: DrawTarget<Color = QuadColor>,
+    {
+        let text_width = Self::calculate_text_width(text) as i32;
+        let start_x = right_x - text_width;
+
+        let temp_x = self.current_x;
+        self.current_x = start_x;
+        let result = self.draw_text(display, text);
+        self.current_x = temp_x;
+
+        result
+    }
+
+    // 渲染居中对齐文本
+    pub fn draw_text_centered<D>(
+        &mut self,
+        display: &mut D,
+        text: &str,
+        center_x: i32,
+    ) -> Result<(), D::Error>
+    where
+        D: DrawTarget<Color = QuadColor>,
+    {
+        let text_width = Self::calculate_text_width(text) as i32;
+        let start_x = center_x - text_width / 2;
+
+        let temp_x = self.current_x;
+        self.current_x = start_x;
+        let result = self.draw_text(display, text);
+        self.current_x = temp_x;
+
+        result
+    }
+
+    // 计算文本宽度
+    pub fn calculate_text_width(text: &str) -> u32 {
+        let mut width = 0;
+        for c in text.chars() {
+            if Self::is_half_width_char(c) {
+                width += FULL_WIDTH_FONT.character_size.width / 2;
+            } else {
+                width += FULL_WIDTH_FONT.character_size.width;
+            }
+        }
+        width
+    }
+
+    // 移动到指定位置
+    pub fn move_to(&mut self, position: Point) {
+        self.current_x = position.x;
+        self.current_y = position.y;
+    }
+}
+
+// 显示区域配置
+const DISPLAY_AREA: Rectangle = Rectangle::new(Point::new(0, 120), Size::new(800, 40));
+
+// 日期渲染函数
+fn render_date<D>(display: &mut D, config: &DateConfig) -> Result<(), D::Error>
+where
+    D: DrawTarget<Color = QuadColor>,
+{
+    let mut renderer = HitokotoTextRenderer::new(Point::new(
+        DISPLAY_AREA.top_left.x,
+        DISPLAY_AREA.top_left.y + (DISPLAY_AREA.size.height as i32) / 2, // 垂直居中
+    ));
+
+    let center_x = DISPLAY_AREA.top_left.x + (DISPLAY_AREA.size.width as i32) / 2;
+    renderer.draw_text_centered(display, &"2025-11-26 周三", center_x)?;
+
+    Ok(())
+}
+
+// 日期时间渲染函数
+pub fn render_datetime<D>(
+    display: &mut D,
+    date_config: &DateConfig,
+    time_config: &TimeConfig,
+) -> Result<(), D::Error>
+where
+    D: DrawTarget<Color = QuadColor>,
+{
+    render_date(display, date_config)?;
+    render_time(display, time_config)?;
     Ok(())
 }

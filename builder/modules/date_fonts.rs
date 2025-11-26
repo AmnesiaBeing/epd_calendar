@@ -24,8 +24,8 @@ pub fn build(config: &BuildConfig, progress: &ProgressTracker) -> Result<()> {
 /// 收集所有格言中使用的字符
 fn collect_all_chars() -> Result<Vec<char>> {
     let filtered_chars: Vec<char> = vec![
-        '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '月', '日', '年', '时', '分', '秒', '一',
-        '二', '三', '四', '五', '六', '七', '八', '九', '十', '〇', '周', '工', '休',
+        '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '-', '月', '日', '年', '时', '分', '秒',
+        '一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '〇', '周', '工', '休',
     ];
 
     println!(
@@ -53,17 +53,6 @@ fn separate_chars(chars: &[char]) -> (Vec<char>, Vec<char>) {
             full_width.push(c);
         }
     }
-
-    // 确保半角字符包含完整的ASCII可打印字符集
-    let mut half_set: BTreeSet<char> = half_width.into_iter().collect();
-    for code in 0x20..=0x7E {
-        if let Some(c) = std::char::from_u32(code) {
-            if c.is_ascii_graphic() || c == ' ' {
-                half_set.insert(c);
-            }
-        }
-    }
-    let half_width: Vec<char> = half_set.into_iter().collect();
 
     println!(
         "cargo:warning=  字体字符分离 - 全角: {}个, 半角: {}个",
@@ -110,8 +99,8 @@ fn generate_date_fonts(
     generate_font_files(config, &full_width_result, &half_width_result)?;
 
     // 预览
-    FontRenderer::preview_string(&full_width_result, "你好，世界！", "格言全角");
-    FontRenderer::preview_string(&half_width_result, "Hello World!", "格言半角");
+    FontRenderer::preview_string(&full_width_result, "周一", "日期全角");
+    FontRenderer::preview_string(&half_width_result, "123-456-789", "日期半角");
 
     Ok(())
 }
@@ -171,7 +160,7 @@ fn generate_fonts_rs_content(
 
     // 生成全角字符映射
     let full_width_offsets: Vec<u32> = full_width_char_mapping.values().cloned().collect();
-    content.push_str("const HITOKOTO_FULL_WIDTH_CHARS: &[u16] = &[\n");
+    content.push_str("const DATE_FULL_WIDTH_CHARS: &[u16] = &[\n");
     for (&c, _) in full_width_char_mapping.iter() {
         let char_display = match c {
             '\n' => "\\n".to_string(),
@@ -189,7 +178,7 @@ fn generate_fonts_rs_content(
     }
     content.push_str("];\n\n");
 
-    content.push_str("const HITOKOTO_FULL_WIDTH_OFFSETS: &[u32] = &[\n");
+    content.push_str("const DATE_FULL_WIDTH_OFFSETS: &[u32] = &[\n");
     for &offset in &full_width_offsets {
         content.push_str(&format!("    {},\n", offset));
     }
@@ -197,7 +186,7 @@ fn generate_fonts_rs_content(
 
     // 生成半角字符映射
     let half_width_offsets: Vec<u32> = half_width_char_mapping.values().cloned().collect();
-    content.push_str("const HITOKOTO_HALF_WIDTH_CHARS: &[u16] = &[\n");
+    content.push_str("const DATE_HALF_WIDTH_CHARS: &[u16] = &[\n");
     for (&c, _) in half_width_char_mapping.iter() {
         let char_display = match c {
             '\n' => "\\n".to_string(),
@@ -215,25 +204,25 @@ fn generate_fonts_rs_content(
     }
     content.push_str("];\n\n");
 
-    content.push_str("const HITOKOTO_HALF_WIDTH_OFFSETS: &[u32] = &[\n");
+    content.push_str("const DATE_HALF_WIDTH_OFFSETS: &[u32] = &[\n");
     for &offset in &half_width_offsets {
         content.push_str(&format!("    {},\n", offset));
     }
     content.push_str("];\n\n");
 
-    content.push_str("static HITOKOTO_FULL_WIDTH_GLYPH_MAPPING: BinarySearchGlyphMapping = BinarySearchGlyphMapping {\n    chars: HITOKOTO_FULL_WIDTH_CHARS,\n    offsets: HITOKOTO_FULL_WIDTH_OFFSETS,\n};\n\n");
+    content.push_str("static DATE_FULL_WIDTH_GLYPH_MAPPING: BinarySearchGlyphMapping = BinarySearchGlyphMapping {\n    chars: DATE_FULL_WIDTH_CHARS,\n    offsets: DATE_FULL_WIDTH_OFFSETS,\n};\n\n");
 
-    content.push_str("static HITOKOTO_HALF_WIDTH_GLYPH_MAPPING: BinarySearchGlyphMapping = BinarySearchGlyphMapping {\n    chars: HITOKOTO_HALF_WIDTH_CHARS,\n    offsets: HITOKOTO_HALF_WIDTH_OFFSETS,\n};\n\n");
+    content.push_str("static DATE_HALF_WIDTH_GLYPH_MAPPING: BinarySearchGlyphMapping = BinarySearchGlyphMapping {\n    chars: DATE_HALF_WIDTH_CHARS,\n    offsets: DATE_HALF_WIDTH_OFFSETS,\n};\n\n");
 
     // 生成全角字体定义
     content.push_str(&format!(
-        "pub const HITOKOTO_FULL_WIDTH_FONT: MonoFont<'static> = MonoFont {{\n    image: ImageRaw::<BinaryColor>::new(\n        include_bytes!(\"hitokoto_full_width_font.bin\"),\n        {}\n    ),\n    glyph_mapping: &HITOKOTO_FULL_WIDTH_GLYPH_MAPPING,\n    character_size: Size::new({}, {}),\n    character_spacing: 0,\n    baseline: {},\n    underline: DecorationDimensions::new({} + 2, 1),\n    strikethrough: DecorationDimensions::new({} / 2, 1),\n}};\n\n",
+        "pub const DATE_FULL_WIDTH_FONT: MonoFont<'static> = MonoFont {{\n    image: ImageRaw::<BinaryColor>::new(\n        include_bytes!(\"generated_date_full_width_font.bin\"),\n        {}\n    ),\n    glyph_mapping: &DATE_FULL_WIDTH_GLYPH_MAPPING,\n    character_size: Size::new({}, {}),\n    character_spacing: 0,\n    baseline: {},\n    underline: DecorationDimensions::new({} + 2, 1),\n    strikethrough: DecorationDimensions::new({} / 2, 1),\n}};\n\n",
         FONT_SIZE, full_width, full_height, 0, FONT_SIZE, FONT_SIZE
     ));
 
     // 生成半角字体定义
     content.push_str(&format!(
-        "pub const HITOKOTO_HALF_WIDTH_FONT: MonoFont<'static> = MonoFont {{\n    image: ImageRaw::<BinaryColor>::new(\n        include_bytes!(\"hitokoto_half_width_font.bin\"),\n        {}\n    ),\n    glyph_mapping: &HITOKOTO_HALF_WIDTH_GLYPH_MAPPING,\n    character_size: Size::new({}, {}),\n    character_spacing: 0,\n    baseline: {},\n    underline: DecorationDimensions::new({} + 2, 1),\n    strikethrough: DecorationDimensions::new({} / 2, 1),\n}};\n",
+        "pub const DATE_HALF_WIDTH_FONT: MonoFont<'static> = MonoFont {{\n    image: ImageRaw::<BinaryColor>::new(\n        include_bytes!(\"generated_date_half_width_font.bin\"),\n        {}\n    ),\n    glyph_mapping: &DATE_HALF_WIDTH_GLYPH_MAPPING,\n    character_size: Size::new({}, {}),\n    character_spacing: 0,\n    baseline: {},\n    underline: DecorationDimensions::new({} + 2, 1),\n    strikethrough: DecorationDimensions::new({} / 2, 1),\n}};\n",
         FONT_SIZE, half_width, half_height, 0, FONT_SIZE, half_width
     ));
 

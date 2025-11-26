@@ -24,8 +24,8 @@ const LINE_SPACING: i32 = 2;
 
 // 显示区域配置
 const DISPLAY_AREA: Rectangle = Rectangle::new(
-    Point::new(0, 360),
-    Size::new(800, 120), // 480-360=120
+    Point::new(0, 400),
+    Size::new(800, 80), // 480-400=80
 );
 
 // 错误类型
