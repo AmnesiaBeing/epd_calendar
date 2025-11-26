@@ -123,16 +123,12 @@ fn generate_font_files(
     let content = generate_fonts_rs_content(
         &full_width_result.char_mapping,
         &half_width_result.char_mapping,
-        full_width_result.char_width,
-        full_width_result.char_height,
-        half_width_result.char_width,
-        half_width_result.char_height,
     )?;
 
     utils::file_utils::write_string_file(&fonts_rs_path, &content)?;
 
     println!(
-        "cargo:warning=  格言字体文件生成成功: {}",
+        "cargo:warning=  日期字体文件生成成功: {}",
         fonts_rs_path.display()
     );
 
@@ -143,10 +139,6 @@ fn generate_font_files(
 fn generate_fonts_rs_content(
     full_width_char_mapping: &BTreeMap<char, u32>,
     half_width_char_mapping: &BTreeMap<char, u32>,
-    full_width: u32,
-    full_height: u32,
-    half_width: u32,
-    half_height: u32,
 ) -> Result<String> {
     let mut content = String::new();
 
@@ -154,7 +146,7 @@ fn generate_fonts_rs_content(
     content.push_str("// 不要手动修改此文件\n\n");
     content.push_str("use embedded_graphics::{\n    image::ImageRaw,\n    mono_font::{DecorationDimensions, MonoFont, mapping::GlyphMapping},\n    pixelcolor::BinaryColor,\n    prelude::Size,\n};\n\n");
 
-    content.push_str("struct BinarySearchGlyphMapping {\n    chars: &'static [u16],\n    offsets: &'static [u32],\n}\n\n");
+    content.push_str("pub struct BinarySearchGlyphMapping {\n    chars: &'static [u16],\n    offsets: &'static [u32],\n}\n\n");
 
     content.push_str("impl GlyphMapping for BinarySearchGlyphMapping {\n    fn index(&self, c: char) -> usize {\n        let target = c as u16;\n        let mut left = 0;\n        let mut right = self.chars.len();\n        \n        while left < right {\n            let mid = left + (right - left) / 2;\n            if self.chars[mid] < target {\n                left = mid + 1;\n            } else if self.chars[mid] > target {\n                right = mid;\n            } else {\n                return self.offsets[mid] as usize;\n            }\n        }\n        \n        0\n    }\n}\n\n");
 
@@ -210,21 +202,21 @@ fn generate_fonts_rs_content(
     }
     content.push_str("];\n\n");
 
-    content.push_str("static DATE_FULL_WIDTH_GLYPH_MAPPING: BinarySearchGlyphMapping = BinarySearchGlyphMapping {\n    chars: DATE_FULL_WIDTH_CHARS,\n    offsets: DATE_FULL_WIDTH_OFFSETS,\n};\n\n");
+    content.push_str("pub static DATE_FULL_WIDTH_GLYPH_MAPPING: BinarySearchGlyphMapping = BinarySearchGlyphMapping {\n    chars: DATE_FULL_WIDTH_CHARS,\n    offsets: DATE_FULL_WIDTH_OFFSETS,\n};\n\n");
 
-    content.push_str("static DATE_HALF_WIDTH_GLYPH_MAPPING: BinarySearchGlyphMapping = BinarySearchGlyphMapping {\n    chars: DATE_HALF_WIDTH_CHARS,\n    offsets: DATE_HALF_WIDTH_OFFSETS,\n};\n\n");
+    content.push_str("pub static DATE_HALF_WIDTH_GLYPH_MAPPING: BinarySearchGlyphMapping = BinarySearchGlyphMapping {\n    chars: DATE_HALF_WIDTH_CHARS,\n    offsets: DATE_HALF_WIDTH_OFFSETS,\n};\n\n");
 
-    // 生成全角字体定义
-    content.push_str(&format!(
-        "pub const DATE_FULL_WIDTH_FONT: MonoFont<'static> = MonoFont {{\n    image: ImageRaw::<BinaryColor>::new(\n        include_bytes!(\"generated_date_full_width_font.bin\"),\n        {}\n    ),\n    glyph_mapping: &DATE_FULL_WIDTH_GLYPH_MAPPING,\n    character_size: Size::new({}, {}),\n    character_spacing: 0,\n    baseline: {},\n    underline: DecorationDimensions::new({} + 2, 1),\n    strikethrough: DecorationDimensions::new({} / 2, 1),\n}};\n\n",
-        FONT_SIZE, full_width, full_height, 0, FONT_SIZE, FONT_SIZE
-    ));
+    // // 生成全角字体定义
+    // content.push_str(&format!(
+    //     "pub const DATE_FULL_WIDTH_FONT: MonoFont<'static> = MonoFont {{\n    image: ImageRaw::<BinaryColor>::new(\n        include_bytes!(\"generated_date_full_width_font.bin\"),\n        {}\n    ),\n    glyph_mapping: &DATE_FULL_WIDTH_GLYPH_MAPPING,\n    character_size: Size::new({}, {}),\n    character_spacing: 0,\n    baseline: {},\n    underline: DecorationDimensions::new({} + 2, 1),\n    strikethrough: DecorationDimensions::new({} / 2, 1),\n}};\n\n",
+    //     FONT_SIZE, full_width, full_height, 0, FONT_SIZE, FONT_SIZE
+    // ));
 
-    // 生成半角字体定义
-    content.push_str(&format!(
-        "pub const DATE_HALF_WIDTH_FONT: MonoFont<'static> = MonoFont {{\n    image: ImageRaw::<BinaryColor>::new(\n        include_bytes!(\"generated_date_half_width_font.bin\"),\n        {}\n    ),\n    glyph_mapping: &DATE_HALF_WIDTH_GLYPH_MAPPING,\n    character_size: Size::new({}, {}),\n    character_spacing: 0,\n    baseline: {},\n    underline: DecorationDimensions::new({} + 2, 1),\n    strikethrough: DecorationDimensions::new({} / 2, 1),\n}};\n",
-        FONT_SIZE, half_width, half_height, 0, FONT_SIZE, half_width
-    ));
+    // // 生成半角字体定义
+    // content.push_str(&format!(
+    //     "pub const DATE_HALF_WIDTH_FONT: MonoFont<'static> = MonoFont {{\n    image: ImageRaw::<BinaryColor>::new(\n        include_bytes!(\"generated_date_half_width_font.bin\"),\n        {}\n    ),\n    glyph_mapping: &DATE_HALF_WIDTH_GLYPH_MAPPING,\n    character_size: Size::new({}, {}),\n    character_spacing: 0,\n    baseline: {},\n    underline: DecorationDimensions::new({} + 2, 1),\n    strikethrough: DecorationDimensions::new({} / 2, 1),\n}};\n",
+    //     FONT_SIZE, half_width, half_height, 0, FONT_SIZE, half_width
+    // ));
 
     Ok(content)
 }

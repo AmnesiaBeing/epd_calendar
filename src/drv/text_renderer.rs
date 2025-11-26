@@ -1,37 +1,36 @@
 //! 抽象化的文本渲染器，支持不同的全角、半角字体
 
 use embedded_graphics::geometry::Size;
+use embedded_graphics::mono_font::mapping::GlyphMapping;
 use embedded_graphics::prelude::*;
 use epd_waveshare::color::QuadColor;
+
+use crate::drv::generated_date_fonts::BinarySearchGlyphMapping;
+use crate::drv::image_renderer::draw_binary_image;
 
 // 字体配置结构体
 pub struct FontConfig {
     pub full_width_data: &'static [u8],
-    pub half_width_data: &'static [u8],
+    pub full_width_glyph_mapping: &'static BinarySearchGlyphMapping,
     pub full_width_size: Size,
+    pub half_width_data: &'static [u8],
+    pub half_width_glyph_mapping: &'static BinarySearchGlyphMapping,
     pub half_width_size: Size,
 }
 
 // 文本渲染器
-pub struct TextRenderer<C> {
+pub struct TextRenderer {
     font_config: FontConfig,
-    color: C,
-    background_color: C,
     current_x: i32,
     current_y: i32,
     line_height: i32,
 }
 
-impl<C> TextRenderer<C>
-where
-    C: PixelColor + From<QuadColor> + Into<QuadColor> + Copy,
-{
-    pub fn new(font_config: FontConfig, color: C, background_color: C, position: Point) -> Self {
+impl TextRenderer {
+    pub fn new(font_config: FontConfig, position: Point) -> Self {
         Self {
             line_height: (font_config.full_width_size.height as i32).clone(),
             font_config,
-            color,
-            background_color,
             current_x: position.x,
             current_y: position.y,
         }
@@ -148,82 +147,33 @@ where
         Point::new(self.current_x, self.current_y)
     }
 
-    // 设置颜色
-    pub fn set_color(&mut self, color: C, background_color: C) {
-        self.color = color;
-        self.background_color = background_color;
-    }
-
-    // 获取全角字符的glyph数据（需要根据你的字体格式实现）
+    // 获取全角字符的glyph数据
     fn get_full_width_glyph(&self, c: char) -> Option<&'static [u8]> {
-        // 这里需要根据你的字体数据格式实现字符查找
-        // 示例实现，需要根据实际字体格式调整
-        let char_code = c as u32;
-        let glyph_index = char_code as usize * self.font_config.full_width_size.width as usize;
+        let char_index = self.font_config.full_width_glyph_mapping.index(c);
+        let bytes_per_row = (self.font_config.full_width_size.width + 7) / 8;
+        let char_data_size = (bytes_per_row * self.font_config.full_width_size.height) as usize;
+        let start = (char_index as usize) * char_data_size;
+        let end = start + char_data_size;
 
-        if glyph_index + self.font_config.full_width_size.width as usize
-            <= self.font_config.full_width_data.len()
-        {
-            Some(&self.font_config.full_width_data[glyph_index..])
+        if end <= self.font_config.full_width_data.len() {
+            Some(&self.font_config.full_width_data[start..end])
         } else {
             None
         }
     }
 
-    // 获取半角字符的glyph数据（需要根据你的字体格式实现）
+    // 获取半角字符的glyph数据
     fn get_half_width_glyph(&self, c: char) -> Option<&'static [u8]> {
-        // 这里需要根据你的字体数据格式实现字符查找
-        // 示例实现，需要根据实际字体格式调整
-        let char_code = c as u32;
-        let glyph_index = char_code as usize * self.font_config.half_width_size.width as usize;
+        let char_index = self.font_config.half_width_glyph_mapping.index(c);
+        let bytes_per_row = (self.font_config.half_width_size.width + 7) / 8;
+        let char_data_size = (bytes_per_row * self.font_config.half_width_size.height) as usize;
+        let start = (char_index as usize) * char_data_size;
+        let end = start + char_data_size;
 
-        if glyph_index + self.font_config.half_width_size.width as usize
-            <= self.font_config.half_width_data.len()
-        {
-            Some(&self.font_config.half_width_data[glyph_index..])
+        if end <= self.font_config.half_width_data.len() {
+            Some(&self.font_config.half_width_data[start..end])
         } else {
             None
         }
     }
-}
-
-// 二值图像渲染器（你提供的）
-pub fn draw_binary_image<D>(
-    display: &mut D,
-    image_data: &[u8],
-    size: Size,
-    position: Point,
-) -> Result<(), D::Error>
-where
-    D: DrawTarget<Color = QuadColor>,
-{
-    let width = size.width as usize;
-    let height = size.height as usize;
-
-    // 计算每行字节数
-    let bytes_per_row = (width + 7) / 8;
-
-    // 绘制每个像素
-    let pixels = (0..height).flat_map(move |y| {
-        (0..width).map(move |x| {
-            let byte_index = (y * bytes_per_row + x / 8) as usize;
-            let bit_index = 7 - (x % 8);
-
-            let color = if byte_index < image_data.len() {
-                let byte = image_data[byte_index];
-                let bit = (byte >> bit_index) & 1;
-                if bit == 1 {
-                    QuadColor::Black // 这里会根据TextRenderer的颜色设置进行转换
-                } else {
-                    QuadColor::White
-                }
-            } else {
-                QuadColor::White
-            };
-
-            Pixel(Point::new(x as i32, y as i32) + position, color)
-        })
-    });
-
-    display.draw_iter(pixels)
 }
