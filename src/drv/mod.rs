@@ -4,6 +4,7 @@ pub mod hitokoto_renderer;
 pub mod image_renderer;
 pub mod lcg;
 pub mod network_renderer;
+pub mod text_renderer;
 
 // 以下模块在编译期生成
 pub mod generated_battery_icons;
