@@ -1,236 +1,317 @@
-use epd_waveshare::color::QuadColor;
-use epd_waveshare::prelude::WaveshareDisplay;
-use log::info;
-
+// src/main.rs
+use core::sync::atomic::{AtomicBool, Ordering};
 use embassy_executor::Spawner;
+use embassy_sync::blocking_mutex::CriticalSectionMutex;
+use embassy_sync::blocking_mutex::raw::NoopRawMutex;
+use embassy_sync::mutex::Mutex;
+use embassy_sync::once_lock::OnceLock;
+use embassy_time::{Duration, Instant, Timer};
 
-use embedded_graphics::{
-    image::Image,
-    mono_font::MonoTextStyle,
-    prelude::*,
-    primitives::{CornerRadii, Line, PrimitiveStyle, Rectangle, RoundedRectangle},
-    text::Text,
-};
+// 模块声明
+mod app_core;
+mod assets;
+mod common;
+mod driver;
+mod render;
+mod service;
+mod tasks;
 
-use crate::drv::{
-    battery_renderer::render_battery_status,
-    datetime_renderer::{DateConfig, Meridiem, TimeConfig, render_datetime},
-    network_renderer::render_network_status,
-};
+// 导入常用类型
+use common::config::LayoutConfig;
+use common::error::{AppError, Result};
+use common::types::DisplayData;
+// use core::display_manager::{DisplayManager, RefreshMode};
 
-mod app;
-mod bsp;
-mod drv;
-
-// 把显示元素的位置固定下来（左上角）
-const SEPARATOR_LINE_X_1: i32 = 10;
-const SEPARATOR_LINE_X_2: i32 = 790;
-const SEPARATOR_LINE_Y_1: i32 = 180;
-const SEPARATOR_LINE_Y_2: i32 = 400;
-const SEPARATOR_LINE_3_X: i32 = 8 * 24 + 20;
-const SEPARATOR_LINE_3_Y_1: i32 = SEPARATOR_LINE_Y_1 + 10;
-const SEPARATOR_LINE_3_Y_2: i32 = SEPARATOR_LINE_Y_2 - 10;
-const TIME_ELEMENT_WIDTH: i32 = 48; // 每个时间都是等宽字体，宽度48px，高度128px
-const TIME_ELEMENT_HEIGHT: i32 = 128;
-const TIME_POSITION: Point = Point::new(
-    400 - 2 * TIME_ELEMENT_WIDTH - TIME_ELEMENT_WIDTH / 2,
-    (SEPARATOR_LINE_Y_1 - TIME_ELEMENT_HEIGHT) / 2,
-);
-const ICON_WIDTH: i32 = 64;
-const ICON_HEIGHT: i32 = 64;
-const BATTERY_POSITION: Point = Point::new(800 - 10 - ICON_WIDTH, 10);
-const BOLT_POSITION: Point = Point::new(800 - 10 - 5 - 2 * ICON_WIDTH, 10);
-
-pub struct InkDisplay {
-    pub time: TimeConfig,
-    pub date: DateConfig,
-    pub weekday: String,
-    pub temperature: i32,
-    pub humidity: u8,
-    pub weather_condition: WeatherCondition,
-    pub battery_level: u8,
-    pub wifi_connected: bool,
-    pub quote: String,
-    pub quote_author: String,
-}
-
-#[derive(Clone, Copy)]
-pub enum WeatherCondition {
-    Sunny,
-    Cloudy,
-    Rainy,
-    Snowy,
-    Foggy,
-}
-
-impl Default for InkDisplay {
-    fn default() -> Self {
-        Self {
-            time: TimeConfig {
-                hour_tens: 8,
-                hour_ones: 8,
-                minute_tens: 8,
-                minute_ones: 8,
-                show_meridiem: true,
-                meridiem: Meridiem::AM,
-            },
-            date: DateConfig {
-                year: 2025,
-                month: 11,
-                day: 26,
-                weekday: 2,
-            },
-            weekday: "星期一".to_string(),
-            temperature: 20,
-            humidity: 50,
-            weather_condition: WeatherCondition::Sunny,
-            battery_level: 100,
-            wifi_connected: true,
-            quote: "今日格言将显示在这里".to_string(),
-            quote_author: "佚名".to_string(),
-        }
-    }
-}
-
-impl InkDisplay {
-    pub fn draw<D>(&self, display: &mut D)
-    where
-        D: DrawTarget<Color = QuadColor>,
-    {
-        // 1. 绘制背景&分割线
-        self.clear_screen(display);
-
-        // 2. 绘制顶部状态信息，包括网络、电量、充电状态
-        self.draw_status_bar(display);
-
-        // 3. 绘制时间
-        self.draw_time_section(display);
-
-        // 4. 绘制农历
-        // self.draw_time_section(display);
-
-        // 5. 绘制天气信息
-        // self.draw_weather_section(display);
-
-        // 6. 绘制格言区域
-        self.draw_quote_section(display);
-    }
-
-    fn clear_screen<D>(&self, display: &mut D)
-    where
-        D: DrawTarget<Color = QuadColor>,
-    {
-        let _ = Rectangle::new(Point::new(0, 0), Size::new(800, 480))
-            .into_styled(PrimitiveStyle::with_fill(QuadColor::White))
-            .draw(display);
-
-        let _ = Line::new(
-            Point {
-                x: SEPARATOR_LINE_X_1,
-                y: SEPARATOR_LINE_Y_1,
-            },
-            Point {
-                x: SEPARATOR_LINE_X_2,
-                y: SEPARATOR_LINE_Y_1,
-            },
-        )
-        .into_styled(PrimitiveStyle::with_stroke(QuadColor::Black, 1))
-        .draw(display);
-
-        let _ = Line::new(
-            Point {
-                x: SEPARATOR_LINE_X_1,
-                y: SEPARATOR_LINE_Y_2,
-            },
-            Point {
-                x: SEPARATOR_LINE_X_2,
-                y: SEPARATOR_LINE_Y_2,
-            },
-        )
-        .into_styled(PrimitiveStyle::with_stroke(QuadColor::Black, 1))
-        .draw(display);
-
-        let _ = Line::new(
-            Point {
-                x: SEPARATOR_LINE_3_X,
-                y: SEPARATOR_LINE_3_Y_1,
-            },
-            Point {
-                x: SEPARATOR_LINE_3_X,
-                y: SEPARATOR_LINE_3_Y_2,
-            },
-        )
-        .into_styled(PrimitiveStyle::with_stroke(QuadColor::Black, 1))
-        .draw(display);
-    }
-
-    fn draw_status_bar<D>(&self, display: &mut D)
-    where
-        D: DrawTarget<Color = QuadColor>,
-    {
-        let battery_status = drv::battery_renderer::BatteryStatus {
-            level: self.battery_level,
-            is_charging: true,
-        };
-        let _ = render_battery_status(display, &battery_status);
-
-        let network_status = drv::network_renderer::NetworkStatus { is_connected: true };
-        let _ = render_network_status(display, &network_status);
-    }
-
-    fn draw_time_section<D>(&self, display: &mut D)
-    where
-        D: DrawTarget<Color = QuadColor>,
-    {
-        let _ = render_datetime(display, &self.date, &self.time);
-    }
-
-    fn draw_weather_section<D>(&self, display: &mut D)
-    where
-        D: DrawTarget<Color = QuadColor>,
-    {
-    }
-
-    fn draw_quote_section<D>(&self, display: &mut D)
-    where
-        D: DrawTarget<Color = QuadColor>,
-    {
-        drv::hitokoto_renderer::render_next_hitokoto(display);
-    }
-}
-
-// 在主函数中使用
-pub fn render_display<D>(display: &mut D)
-where
-    D: DrawTarget<Color = QuadColor>,
-{
-    let ink_display = InkDisplay::default();
-    ink_display.draw(display);
-}
+// 全局状态
+use crate::common::system_state::SYSTEM_STATE;
+#[cfg(feature = "simulator")]
+use crate::driver::display::SimulatorEpdDriver;
+use crate::service::{ConfigService, TimeService};
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
-    // 初始化日志
+    // 初始化日志系统
+    init_logging().await;
+    log::info!("EPD Calendar starting...");
+
+    // 检查是否已经初始化（从休眠唤醒）
+    if SYSTEM_STATE.is_set() {
+        // 从休眠中恢复
+        log::info!("System already initialized, resuming from sleep");
+    } else {
+        // 冷启动
+        log::info!("Cold start initializing system...");
+
+        // 1. 初始化存储驱动与配置服务（从存储读取配对信息）
+        let storage_driver = driver::storage::create_default_storage().await?;
+        let config_service = ConfigService::new(storage_driver);
+        let system_config = config_service.load_config().await.unwrap_or_default();
+
+        // 2. 初始化硬件驱动
+        let display_driver = init_display_driver().await;
+        let time_source = init_time_source().await;
+        // let network_driver = init_network_driver().await;
+        // let power_monitor = init_power_monitor().await;
+
+        // 3. 初始化服务层（传入配置）
+        let time_service = TimeService::new(
+            time_source,
+            system_config.time_format_24h,
+            system_config.temperature_celsius,
+        );
+        // let weather_service = service::weather_service::WeatherService::new(
+        //     network_driver.clone(),
+        //     system_config.temperature_celsius,
+        // );
+        // let quote_service = service::quote_service::QuoteService::new();
+
+        // 4. 初始化核心管理器
+        let display_manager =
+            core::display_manager::DisplayManager::new(LayoutConfig::MAX_PARTIAL_REFRESHES);
+
+        // 5. 初始化渲染引擎
+        let render_engine = render::RenderEngine::new(display_driver);
+
+        // 6. 创建共享状态
+        let display_data = Mutex::new(DisplayData::default());
+        let shared_display_manager = Mutex::new(display_manager);
+        let shared_render_engine = Mutex::new(render_engine);
+        let shared_config = Mutex::new(system_config);
+
+        // 7. 注册显示区域
+        register_display_regions(&shared_display_manager).await;
+
+        // 8. 执行初始全局显示设置
+        if let Err(e) = initial_display_setup(
+            &shared_display_manager,
+            &display_data,
+            &shared_render_engine,
+            &time_service,
+            // &weather_service,
+            // &quote_service,
+        )
+        .await
+        {
+            log::error!("Initial display setup failed: {}", e);
+            return;
+        }
+
+        // 9. 启动所有任务
+        spawn_tasks(
+            spawner,
+            shared_display_manager,
+            display_data,
+            shared_render_engine,
+            shared_config,
+            config_service,
+            time_service,
+            // weather_service,
+            // quote_service,
+            // power_monitor,
+            // network_driver,
+        )
+        .await;
+
+        log::info!("EPD Calendar started successfully");
+    }
+
+    // 10. 主循环
+    main_loop().await;
+}
+
+/// 初始化日志系统
+async fn init_logging() {
     #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
     env_logger::init();
+
     #[cfg(feature = "embedded_esp")]
-    log_to_defmt::setup();
+    log_to_defmt::init();
+}
 
-    info!("epd_calendar starting...");
+/// 初始化显示驱动
+async fn init_display_driver() -> Result<impl driver::display::DisplayDriver> {
+    #[cfg(feature = "simulator")]
+    {
+        Ok(SimulatorEpdDriver::new())
+    }
 
-    let mut board = bsp::Board::new();
+    #[cfg(feature = "embedded_linux")]
+    {
+        Ok(LinuxEpdDriver::new())
+    }
 
-    info!("epd_calendar running...");
+    #[cfg(feature = "embedded_esp")]
+    {
+        // ESP32显示驱动初始化
+        todo!("ESP32 display driver initialization")
+    }
+}
 
-    render_display(&mut board.epd_display);
+/// 初始化时间源
+async fn init_time_source() -> Result<impl driver::time_source::TimeSource> {
+    #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
+    {
+        driver::time_source::SystemTimeSource::new()
+    }
 
-    // Show display on e-paper
-    board
-        .epd
-        .update_and_display_frame(
-            &mut board.epd_spi,
-            board.epd_display.buffer(),
-            &mut board.delay,
-        )
-        .expect("display error");
+    #[cfg(feature = "embedded_esp")]
+    {
+        // RTC时间源初始化
+        todo!("RTC time source initialization")
+    }
+}
+
+/// 初始化网络驱动
+// async fn init_network_driver() -> Result<impl driver::network::NetworkDriver> {
+//     driver::network::MockNetworkDriver::new() // 先用模拟实现
+// }
+
+/// 初始化电源监控
+// async fn init_power_monitor() -> Result<impl driver::power::PowerMonitor> {
+//     driver::power::MockPowerMonitor::new() // 先用模拟实现
+// }
+
+/// 注册显示区域
+async fn register_display_regions(display_manager: &Mutex<NoopRawMutex, DisplayManager>) {
+    let mut dm = display_manager.lock().await;
+
+    dm.register_region("time", LayoutConfig::TIME_REGION);
+    dm.register_region("date", LayoutConfig::DATE_REGION);
+    dm.register_region("weather", LayoutConfig::WEATHER_REGION);
+    dm.register_region("quote", LayoutConfig::QUOTE_REGION);
+    dm.register_region("status", LayoutConfig::STATUS_REGION);
+}
+
+/// 初始显示设置
+async fn initial_display_setup(
+    display_manager: &Mutex<NoopRawMutex, DisplayManager>,
+    display_data: &Mutex<NoopRawMutex, DisplayData>,
+    render_engine: &Mutex<NoopRawMutex, render::RenderEngine>,
+    time_service: &service::time_service::TimeService<impl driver::time_source::TimeSource>,
+    // weather_service: &service::weather_service::WeatherService<impl driver::network::NetworkDriver>,
+    // quote_service: &service::quote_service::QuoteService,
+) -> Result<()> {
+    log::info!("Performing initial global display setup");
+
+    // 强制全局刷新模式
+    {
+        let mut dm = display_manager.lock().await;
+        dm.set_refresh_mode(RefreshMode::Global);
+    }
+
+    // 获取初始数据
+    let initial_time = time_service.get_current_time().await?;
+    let initial_weather = weather_service.get_weather().await.unwrap_or_default();
+    let initial_quote = quote_service.get_random_quote().await?;
+
+    // 更新显示数据
+    {
+        let mut data = display_data.lock().await;
+        data.time = initial_time;
+        data.weather = initial_weather;
+        data.quote = initial_quote;
+        data.force_refresh = true;
+    }
+
+    // 执行首次全局渲染
+    {
+        let data = display_data.lock().await.clone();
+        let mut engine = render_engine.lock().await;
+        engine.render_full_display(&data).await?;
+    }
+
+    // 重置刷新模式为局部刷新
+    {
+        let mut dm = display_manager.lock().await;
+        dm.set_refresh_mode(RefreshMode::Partial);
+        dm.reset_refresh_counters();
+    }
+
+    log::info!("Initial display setup completed");
+    Ok(())
+}
+
+/// 启动所有任务
+async fn spawn_tasks(
+    spawner: Spawner,
+    display_manager: Mutex<NoopRawMutex, DisplayManager>,
+    display_data: Mutex<NoopRawMutex, DisplayData>,
+    render_engine: Mutex<NoopRawMutex, render::RenderEngine>,
+    // time_service: service::time_service::TimeService<impl driver::time_source::TimeSource>,
+    // weather_service: service::weather_service::WeatherService<impl driver::network::NetworkDriver>,
+    // quote_service: service::quote_service::QuoteService,
+    // power_monitor: impl driver::power::PowerMonitor,
+    // network_driver: impl driver::network::NetworkDriver,
+) {
+    // 时间任务
+    if let Err(e) = spawner.spawn(tasks::time_task::time_task(
+        display_manager.clone(),
+        display_data.clone(),
+        time_service,
+    )) {
+        log::error!("Failed to spawn time task: {}", e);
+    }
+
+    // 天气任务
+    // if let Err(e) = spawner.spawn(tasks::weather_task::weather_task(
+    //     display_manager.clone(),
+    //     display_data.clone(),
+    //     weather_service,
+    // )) {
+    //     log::error!("Failed to spawn weather task: {}", e);
+    // }
+
+    // 格言任务
+    // if let Err(e) = spawner.spawn(tasks::quote_task::quote_task(
+    //     display_manager.clone(),
+    //     display_data.clone(),
+    //     quote_service,
+    // )) {
+    //     log::error!("Failed to spawn quote task: {}", e);
+    // }
+
+    // 状态任务
+    // if let Err(e) = spawner.spawn(tasks::status_task::status_task(
+    //     display_manager.clone(),
+    //     display_data.clone(),
+    //     power_monitor,
+    //     network_driver,
+    // )) {
+    //     log::error!("Failed to spawn status task: {}", e);
+    // }
+
+    // 显示刷新任务
+    if let Err(e) = spawner.spawn(tasks::display_refresh_task::display_refresh_task(
+        display_manager,
+        display_data,
+        render_engine,
+    )) {
+        log::error!("Failed to spawn display refresh task: {}", e);
+    }
+
+    log::info!("All tasks spawned successfully");
+}
+
+/// 主循环 - 处理系统级事件
+async fn main_loop() {
+    let mut last_system_check = Instant::now();
+
+    loop {
+        // 每分钟检查一次系统状态
+        if last_system_check.elapsed() > Duration::from_secs(60) {
+            check_system_health().await;
+            last_system_check = Instant::now();
+        }
+
+        // 主循环休眠，让任务运行
+        Timer::after(Duration::from_secs(30)).await;
+    }
+}
+
+/// 系统健康检查
+async fn check_system_health() {
+    let state = SYSTEM_STATE.lock().await;
+
+    // 记录系统运行状态
+    log::debug!("System health check - Uptime: {:?}", state.uptime());
 }

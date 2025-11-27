@@ -9,6 +9,7 @@ pub mod text_renderer;
 // 以下模块在编译期生成
 pub mod generated_battery_icons;
 pub mod generated_date_fonts;
+pub mod generated_digit_icons;
 pub mod generated_hitokoto_data;
 pub mod generated_hitokoto_fonts;
 pub mod generated_network_icons;

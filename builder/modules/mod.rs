@@ -2,6 +2,7 @@
 
 pub mod battery_icons;
 pub mod date_fonts;
+pub mod digit_icons;
 pub mod hitokoto;
 pub mod network_icons;
 pub mod weather_icons;

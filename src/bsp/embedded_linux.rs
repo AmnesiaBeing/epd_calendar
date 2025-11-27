@@ -71,6 +71,8 @@ pub struct Board {
     pub epd_spi: SPIDevice<SysfsPin, SysfsPin, SysfsPin, Delay>,
     #[cfg(not(feature = "spi_bitbang"))]
     pub epd_spi: SpidevDevice,
+    #[cfg(feature = "spi_bitbang")]
+    pub epd: Epd<SPIDevice<SysfsPin, SysfsPin, SysfsPin, Delay>, SysfsPin, SysfsPin, SysfsPin, Delay>,
     #[cfg(not(feature = "spi_bitbang"))]
     pub epd: Epd<SpidevDevice, SysfsPin, SysfsPin, SysfsPin, Delay>,
     pub epd_display: Display7in5,
@@ -134,15 +136,7 @@ impl Board {
 
         #[cfg(not(feature = "spi_bitbang"))]
         let (mut epd_spi, mut epd) = {
-            // let mut spi = Spidev::open().unwrap();
-            // let options = SpidevOptions::new()
-            //     .bits_per_word(8)
-            //     .max_speed_hz(20_000)
-            //     .mode(SpiModeFlags::SPI_MODE_0)
-            //     .build();
-            // spi.configure(&options).unwrap();
             let mut epd_spi = SpidevDevice::open("/dev/spidev3.0").unwrap();
-            // spi.configure(&options);
 
             let epd = Epd::new(&mut epd_spi, epd_busy, epd_dc, epd_rst, &mut Delay, None)
                 .expect("eink initalize error");
