@@ -9,7 +9,8 @@ use crate::builder::utils::{
 use anyhow::{Context, Result};
 use std::collections::BTreeMap;
 
-const BATTERY_ICON_SIZE: u32 = 32;
+const BATTERY_ICON_WIDTH: u32 = 32;
+const BATTERY_ICON_HEIGHT: u32 = 32;
 
 /// 电池电量级别和充电状态
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Ord, PartialOrd)]
@@ -85,7 +86,8 @@ fn process_battery_icons(
 
         // 使用通用图标渲染器渲染图标
         let icon_config = IconConfig {
-            icon_size: BATTERY_ICON_SIZE,
+            target_width: BATTERY_ICON_WIDTH,
+            target_height: BATTERY_ICON_HEIGHT,
             svg_path: svg_path.clone(),
         };
 
@@ -100,7 +102,7 @@ fn process_battery_icons(
         icon_data.extend_from_slice(&result.bitmap_data);
 
         // 存储预览数据
-        preview_results.push((battery_icon.filename(), result));
+        preview_results.push((icon_config, result));
 
         // 显示进度
         progress.update_progress(index, battery_icons.len(), "渲染电池图标");
@@ -109,8 +111,8 @@ fn process_battery_icons(
     }
 
     // 预览其中一个图标
-    let (name, result) = preview_results.last().unwrap();
-    IconRenderer::preview_icon(result, name, BATTERY_ICON_SIZE);
+    let (icon_config, result) = preview_results.last().unwrap();
+    IconRenderer::preview_icon(result, icon_config);
 
     Ok((icon_data, icon_mapping))
 }
@@ -201,8 +203,12 @@ fn generate_battery_icons_rs_content(
         "pub const BATTERY_ICON_DATA: &[u8] = include_bytes!(\"generated_battery_icons.bin\");\n\n",
     );
     content.push_str(&format!(
-        "pub const BATTERY_ICON_SIZE: u32 = {};\n\n",
-        BATTERY_ICON_SIZE
+        "pub const BATTERY_ICON_WIDTH: u32 = {};\n\n",
+        BATTERY_ICON_WIDTH
+    ));
+    content.push_str(&format!(
+        "pub const BATTERY_ICON_HEIGHT: u32 = {};\n\n",
+        BATTERY_ICON_HEIGHT
     ));
 
     // 生成图标索引数组
@@ -215,7 +221,7 @@ fn generate_battery_icons_rs_content(
     content.push_str("];\n\n");
 
     // 计算每个图标的字节大小
-    let bytes_per_icon = BATTERY_ICON_SIZE * BATTERY_ICON_SIZE / 8;
+    let bytes_per_icon = BATTERY_ICON_WIDTH * BATTERY_ICON_HEIGHT / 8;
 
     // 实用函数
     content.push_str("pub fn get_battery_icon_data(icon: BatteryIcon) -> &'static [u8] {\n");

@@ -6,7 +6,8 @@ use std::path::Path;
 /// 图标渲染配置
 #[derive(Debug, Clone)]
 pub struct IconConfig {
-    pub icon_size: u32,
+    pub target_width: u32,
+    pub target_height: u32,
     pub svg_path: String,
 }
 
@@ -37,7 +38,7 @@ impl IconRenderer {
             .map_err(|e| anyhow!("解析SVG失败 {}: {}", config.svg_path, e))?;
 
         // 创建像素图
-        let mut pixmap = resvg::tiny_skia::Pixmap::new(config.icon_size, config.icon_size)
+        let mut pixmap = resvg::tiny_skia::Pixmap::new(config.target_width, config.target_width)
             .ok_or_else(|| anyhow!("创建像素图失败"))?;
 
         // 使用 resvg::Tree 进行渲染
@@ -45,13 +46,13 @@ impl IconRenderer {
 
         // 计算缩放比例
         let svg_size = rtree.view_box.rect.size();
-        let scale_x = config.icon_size as f32 / svg_size.width();
-        let scale_y = config.icon_size as f32 / svg_size.height();
+        let scale_x = config.target_width as f32 / svg_size.width();
+        let scale_y = config.target_height as f32 / svg_size.height();
         let scale = scale_x.min(scale_y); // 保持宽高比
 
         // 计算居中偏移
-        let offset_x = (config.icon_size as f32 - svg_size.width() * scale) / 2.0;
-        let offset_y = (config.icon_size as f32 - svg_size.height() * scale) / 2.0;
+        let offset_x = (config.target_width as f32 - svg_size.width() * scale) / 2.0;
+        let offset_y = (config.target_height as f32 - svg_size.height() * scale) / 2.0;
 
         // 创建缩放和平移变换
         let transform = resvg::tiny_skia::Transform::from_scale(scale, scale)
@@ -61,7 +62,7 @@ impl IconRenderer {
         rtree.render(transform, &mut pixmap.as_mut());
 
         // 转换为 1-bit 位图
-        let bitmap_data = Self::convert_to_1bit(&pixmap, config.icon_size);
+        let bitmap_data = Self::convert_to_1bit(&pixmap, config.target_width);
 
         Ok(IconRenderResult { bitmap_data })
     }
@@ -100,14 +101,14 @@ impl IconRenderer {
 
     /// 预览图标
     #[allow(dead_code)]
-    pub fn preview_icon(result: &IconRenderResult, name: &str, icon_size: u32) {
-        let width = icon_size as usize;
-        let height = icon_size as usize;
+    pub fn preview_icon(result: &IconRenderResult, config: &IconConfig) {
+        let width = config.target_width as usize;
+        let height = config.target_height as usize;
         let bytes_per_row = (width + 7) / 8;
 
         println!(
             "cargo:warning=  图标预览 '{}' ({}x{}):",
-            name, width, height
+            config.svg_path, width, height
         );
 
         for y in 0..height {

@@ -5,8 +5,33 @@ use embedded_graphics::mono_font::mapping::GlyphMapping;
 use embedded_graphics::prelude::*;
 use epd_waveshare::color::QuadColor;
 
-use crate::drv::generated_date_fonts::BinarySearchGlyphMapping;
 use crate::drv::image_renderer::draw_binary_image;
+
+pub struct BinarySearchGlyphMapping {
+    pub chars: &'static [u16],
+    pub offsets: &'static [u32],
+}
+
+impl GlyphMapping for BinarySearchGlyphMapping {
+    fn index(&self, c: char) -> usize {
+        let target = c as u16;
+        let mut left = 0;
+        let mut right = self.chars.len();
+
+        while left < right {
+            let mid = left + (right - left) / 2;
+            if self.chars[mid] < target {
+                left = mid + 1;
+            } else if self.chars[mid] > target {
+                right = mid;
+            } else {
+                return self.offsets[mid] as usize;
+            }
+        }
+
+        0
+    }
+}
 
 // 字体配置结构体
 pub struct FontConfig {

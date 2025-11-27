@@ -9,7 +9,8 @@ use crate::builder::utils::{
 use anyhow::{Context, Result};
 use std::collections::BTreeMap;
 
-const NETWORK_ICON_SIZE: u32 = 32;
+const NETWORK_ICON_WIDTH: u32 = 32;
+const NETWORK_ICON_HEIGHT: u32 = 32;
 
 /// 网络连接状态
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Ord, PartialOrd, Hash)]
@@ -70,7 +71,8 @@ fn process_network_icons(
 
         // 使用通用图标渲染器渲染图标
         let icon_config = IconConfig {
-            icon_size: NETWORK_ICON_SIZE,
+            target_width: NETWORK_ICON_WIDTH,
+            target_height: NETWORK_ICON_HEIGHT,
             svg_path: svg_path.clone(),
         };
 
@@ -85,7 +87,7 @@ fn process_network_icons(
         icon_data.extend_from_slice(&result.bitmap_data);
 
         // 存储预览数据
-        preview_results.push((network_icon.filename(), result));
+        preview_results.push((icon_config, result));
 
         // 显示进度
         progress.update_progress(index, network_icons.len(), "渲染网络图标");
@@ -94,8 +96,8 @@ fn process_network_icons(
     }
 
     // 预览其中一个图标
-    let (name, result) = preview_results.last().unwrap();
-    IconRenderer::preview_icon(result, name, NETWORK_ICON_SIZE);
+    let (icon_config, result) = preview_results.last().unwrap();
+    IconRenderer::preview_icon(result, icon_config);
 
     Ok((icon_data, icon_mapping))
 }
@@ -187,8 +189,12 @@ fn generate_network_icons_rs_content(
         "pub const NETWORK_ICON_DATA: &[u8] = include_bytes!(\"generated_network_icons.bin\");\n\n",
     );
     content.push_str(&format!(
-        "pub const NETWORK_ICON_SIZE: u32 = {};\n\n",
-        NETWORK_ICON_SIZE
+        "pub const NETWORK_ICON_WIDTH: u32 = {};\n\n",
+        NETWORK_ICON_WIDTH
+    ));
+    content.push_str(&format!(
+        "pub const NETWORK_ICON_HEIGHT: u32 = {};\n\n",
+        NETWORK_ICON_HEIGHT
     ));
 
     // 生成图标索引数组
@@ -200,8 +206,8 @@ fn generate_network_icons_rs_content(
     }
     content.push_str("];\n\n");
 
-    // 计算每个图标的字节大小 (24x24 / 8 = 72 bytes)
-    let bytes_per_icon = 72;
+    // 计算每个图标的字节大小
+    let bytes_per_icon = NETWORK_ICON_WIDTH * NETWORK_ICON_HEIGHT / 8;
 
     // 实用函数
     content.push_str("pub fn get_network_icon_data(icon: NetworkIcon) -> &'static [u8] {\n");

@@ -4,8 +4,10 @@ use embedded_graphics::prelude::*;
 use epd_waveshare::color::QuadColor;
 
 use crate::drv::{
+    generated_network_icons::{
+        NETWORK_ICON_HEIGHT, NETWORK_ICON_WIDTH, NetworkIcon, get_network_icon_data,
+    },
     image_renderer::draw_binary_image,
-    generated_network_icons::{NETWORK_ICON_SIZE, NetworkIcon, get_network_icon_data},
 };
 
 // 位置定义
@@ -31,7 +33,7 @@ where
     let _ = draw_binary_image(
         display,
         get_network_icon_data(network_icon),
-        Size::new(NETWORK_ICON_SIZE, NETWORK_ICON_SIZE),
+        Size::new(NETWORK_ICON_WIDTH, NETWORK_ICON_HEIGHT),
         Point::new(NETWORK_X, MARGIN_Y),
     );
 

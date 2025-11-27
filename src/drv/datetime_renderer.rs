@@ -1,9 +1,7 @@
 //! 时间渲染器 - 在屏幕指定位置渲染时间
 
-use embedded_graphics::mono_font::MonoTextStyle;
 use embedded_graphics::prelude::*;
 use embedded_graphics::primitives::{Circle, Line, PrimitiveStyle, Rectangle};
-use embedded_graphics::text::Text;
 use epd_waveshare::color::QuadColor;
 
 // 位置定义
@@ -21,9 +19,6 @@ use crate::drv::generated_date_fonts::{
     DATE_FULL_WIDTH_GLYPH_MAPPING, DATE_HALF_WIDTH_GLYPH_MAPPING,
 };
 use crate::drv::text_renderer::{FontConfig, TextRenderer};
-
-// 颜色定义
-const TEXT_COLOR: QuadColor = QuadColor::Black;
 
 /// AM/PM 状态枚举
 #[derive(Debug, Clone, Copy)]

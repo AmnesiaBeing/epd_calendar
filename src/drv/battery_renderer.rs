@@ -4,14 +4,16 @@ use embedded_graphics::prelude::*;
 use epd_waveshare::color::QuadColor;
 
 use crate::drv::{
-    generated_battery_icons::{BATTERY_ICON_SIZE, BatteryIcon, get_battery_icon_data},
+    generated_battery_icons::{
+        BATTERY_ICON_HEIGHT, BATTERY_ICON_WIDTH, BatteryIcon, get_battery_icon_data,
+    },
     image_renderer::draw_binary_image,
 };
 
 // 位置定义
 const MARGIN_Y: i32 = 10;
-const BATTERY_X: i32 = 800 - BATTERY_ICON_SIZE as i32 - 10;
-const CHARGING_X: i32 = 800 - BATTERY_ICON_SIZE as i32 * 2 - 15;
+const BATTERY_X: i32 = 800 - BATTERY_ICON_WIDTH as i32 - 10;
+const CHARGING_X: i32 = 800 - BATTERY_ICON_WIDTH as i32 * 2 - 15;
 
 pub struct BatteryStatus {
     pub level: u8,         // 电池电量百分比 (0-100)
@@ -42,7 +44,7 @@ where
     let _ = draw_binary_image(
         display,
         get_battery_icon_data(battery_icon),
-        Size::new(BATTERY_ICON_SIZE, BATTERY_ICON_SIZE),
+        Size::new(BATTERY_ICON_WIDTH, BATTERY_ICON_HEIGHT),
         Point::new(BATTERY_X, MARGIN_Y),
     );
 
@@ -50,7 +52,7 @@ where
         let _ = draw_binary_image(
             display,
             get_battery_icon_data(charging_icon.unwrap()),
-            Size::new(BATTERY_ICON_SIZE, BATTERY_ICON_SIZE),
+            Size::new(BATTERY_ICON_WIDTH, BATTERY_ICON_HEIGHT),
             Point::new(CHARGING_X, MARGIN_Y),
         );
     }

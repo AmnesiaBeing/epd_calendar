@@ -12,7 +12,8 @@ use std::collections::BTreeMap;
 use std::fs;
 
 /// 天气图标尺寸常量
-const WEATHER_ICON_SIZE: u32 = 64;
+const WEATHER_ICON_WIDTH: u32 = 64;
+const WEATHER_ICON_HEIGHT: u32 = 64;
 
 /// 天气图标数据结构
 #[derive(Debug, Deserialize)]
@@ -91,7 +92,8 @@ fn process_weather_icons(
 
         // 使用通用图标渲染器渲染图标
         let icon_config = IconConfig {
-            icon_size: WEATHER_ICON_SIZE,
+            target_width: WEATHER_ICON_WIDTH,
+            target_height: WEATHER_ICON_HEIGHT,
             svg_path: svg_path.to_string_lossy().to_string(),
         };
 
@@ -106,7 +108,7 @@ fn process_weather_icons(
         icon_data.extend_from_slice(&result.bitmap_data);
 
         // 存储预览数据
-        preview_results.push((icon.icon_code.clone(), result));
+        preview_results.push((icon_config, result));
 
         // 显示进度
         if index % 10 == 0 {
@@ -115,8 +117,8 @@ fn process_weather_icons(
     }
 
     // 预览其中一个图标
-    let (name, result) = preview_results.first().unwrap();
-    IconRenderer::preview_icon(result, name, WEATHER_ICON_SIZE);
+    let (icon_config, result) = preview_results.first().unwrap();
+    IconRenderer::preview_icon(result, icon_config);
 
     Ok((icon_data, icon_mapping))
 }
@@ -142,7 +144,7 @@ fn generate_weather_icons_rs(
 ) -> Result<()> {
     let output_path = config.output_dir.join("generated_weather_icons.rs");
 
-    let content = generate_icons_rs_content(icons, icon_mapping, WEATHER_ICON_SIZE)?;
+    let content = generate_icons_rs_content(icons, icon_mapping)?;
     file_utils::write_string_file(&output_path, &content)?;
 
     println!(
@@ -156,7 +158,6 @@ fn generate_weather_icons_rs(
 fn generate_icons_rs_content(
     icons: &[WeatherIcon],
     icon_mapping: &BTreeMap<String, usize>,
-    icon_size: u32,
 ) -> Result<String> {
     let mut content = String::new();
 
@@ -181,7 +182,7 @@ fn generate_icons_rs_content(
     content.push_str("}\n\n");
 
     // 计算每个图标的字节大小
-    let bytes_per_icon = ((icon_size * icon_size) / 8) as usize;
+    let bytes_per_icon = ((WEATHER_ICON_WIDTH * WEATHER_ICON_HEIGHT) / 8) as usize;
 
     // 实现图标到索引的转换
     content.push_str("impl WeatherIcon {\n");
@@ -229,9 +230,14 @@ fn generate_icons_rs_content(
     ));
 
     content.push_str(&format!(
-        "pub const WEATHER_ICON_SIZE: u32 = {};\n",
-        icon_size
+        "pub const WEATHER_ICON_WIDTH: u32 = {};\n",
+        WEATHER_ICON_WIDTH
     ));
+    content.push_str(&format!(
+        "pub const WEATHER_ICON_HEIGHT: u32 = {};\n",
+        WEATHER_ICON_HEIGHT
+    ));
+
     content.push_str(&format!(
         "pub const WEATHER_ICON_COUNT: usize = {};\n",
         icons.len()
@@ -256,7 +262,7 @@ fn generate_icons_rs_content(
     ));
     content.push_str(&format!(
         "    let end = start + {}; // {}x{} / 8 = {} bytes per icon\n",
-        bytes_per_icon, icon_size, icon_size, bytes_per_icon
+        bytes_per_icon, WEATHER_ICON_WIDTH, WEATHER_ICON_HEIGHT, bytes_per_icon
     ));
     content.push_str("    &WEATHER_ICON_DATA[start..end]\n");
     content.push_str("}\n\n");
