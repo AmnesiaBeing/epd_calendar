@@ -7,6 +7,7 @@ edition = "2024"
 default = ["embedded_linux"]
 simulator = [
     "critical-section/std",
+    "critical-section/std",
     "embedded-hal-mock",
     "embedded-storage-std-async-mock",
     "epd-waveshare/simulator",
@@ -22,8 +23,7 @@ simulator = [
 ]
 embedded_linux = [
     "critical-section/std",
-#    "linux-embedded-hal",
-    "embedded-hal-mock",
+    "linux-embedded-hal",
     "embedded-storage-std-async-mock",
     "embassy-sync/log",
     "embassy-sync/std",
@@ -68,6 +68,8 @@ embedded-io-async = "0.7.0"
 embedded-storage = "0.3.1"
 embedded-storage-async = "0.4.1"
 
+static_cell = "2.1.1"
+critical-section = "1.2.0"
 embassy-sync = { version = "0.7.2", default-features = false }
 embassy-executor = { version = "0.9.1", default-features = false }
 embassy-time = { version = "0.5.0", default-features = false }
