@@ -17,6 +17,12 @@ pub enum AppError {
 
     #[error("Time service error")]
     TimeError,
+
+    #[error("Display update failed")]
+    DisplayUpdateFailed,
+
+    #[error("Display sleep failed")]
+    DisplaySleepFailed,
 }
 
 pub type Result<T> = core::result::Result<T, AppError>;

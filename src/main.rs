@@ -1,13 +1,10 @@
 // src/main.rs
-use core::sync::atomic::{AtomicBool, Ordering};
 use embassy_executor::Spawner;
-use embassy_sync::blocking_mutex::CriticalSectionMutex;
-use embassy_sync::blocking_mutex::raw::NoopRawMutex;
+#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
+use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
 use embassy_sync::mutex::Mutex;
-use embassy_sync::once_lock::OnceLock;
 use embassy_time::{Duration, Instant, Timer};
 
-// 模块声明
 mod app_core;
 mod assets;
 mod common;
@@ -16,17 +13,25 @@ mod render;
 mod service;
 mod tasks;
 
-// 导入常用类型
 use common::config::LayoutConfig;
-use common::error::{AppError, Result};
+use common::error::Result;
 use common::types::DisplayData;
+use static_cell::StaticCell;
 // use core::display_manager::{DisplayManager, RefreshMode};
 
-// 全局状态
-use crate::common::system_state::SYSTEM_STATE;
-#[cfg(feature = "simulator")]
-use crate::driver::display::SimulatorEpdDriver;
+use crate::app_core::display_manager::{DisplayManager, RefreshMode};
+use crate::common::system_state::{SYSTEM_STATE, SystemState};
+use crate::common::types::SystemConfig;
+use crate::driver::display::DefaultDisplayDriver;
+use crate::driver::time_source::DefaultTimeSource;
+use crate::render::RenderEngine;
 use crate::service::{ConfigService, TimeService};
+
+static DISPLAY_MANAGER: StaticCell<Mutex<ThreadModeRawMutex, DisplayManager>> = StaticCell::new();
+static DISPLAY_DATA: StaticCell<Mutex<ThreadModeRawMutex, DisplayData>> = StaticCell::new();
+static RENDER_ENGINE: StaticCell<Mutex<ThreadModeRawMutex, RenderEngine>> = StaticCell::new();
+static CONFIG: StaticCell<Mutex<ThreadModeRawMutex, SystemConfig>> = StaticCell::new();
+static TIME_SERVICE: StaticCell<Mutex<ThreadModeRawMutex, TimeService>> = StaticCell::new();
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
@@ -35,25 +40,25 @@ async fn main(spawner: Spawner) {
     log::info!("EPD Calendar starting...");
 
     // 检查是否已经初始化（从休眠唤醒）
-    if SYSTEM_STATE.is_set() {
+    if let Some(_) = SYSTEM_STATE.try_get() {
         // 从休眠中恢复
         log::info!("System already initialized, resuming from sleep");
     } else {
         // 冷启动
         log::info!("Cold start initializing system...");
 
-        // 1. 初始化存储驱动与配置服务（从存储读取配对信息）
-        let storage_driver = driver::storage::create_default_storage().await?;
-        let config_service = ConfigService::new(storage_driver);
+        // 初始化存储驱动与配置服务（从存储读取配对信息）
+        let storage_driver = driver::storage::create_default_storage().await.unwrap();
+        let mut config_service = ConfigService::new(storage_driver);
         let system_config = config_service.load_config().await.unwrap_or_default();
 
-        // 2. 初始化硬件驱动
-        let display_driver = init_display_driver().await;
-        let time_source = init_time_source().await;
+        // 初始化硬件驱动
+        let display_driver: DefaultDisplayDriver = DefaultDisplayDriver::new().await.unwrap();
+        let time_source = DefaultTimeSource::new();
         // let network_driver = init_network_driver().await;
         // let power_monitor = init_power_monitor().await;
 
-        // 3. 初始化服务层（传入配置）
+        // 初始化服务层（传入配置）
         let time_service = TimeService::new(
             time_source,
             system_config.time_format_24h,
@@ -63,29 +68,29 @@ async fn main(spawner: Spawner) {
         //     network_driver.clone(),
         //     system_config.temperature_celsius,
         // );
-        // let quote_service = service::quote_service::QuoteService::new();
+        // let quote_service = QuoteService::new();
 
-        // 4. 初始化核心管理器
-        let display_manager =
-            core::display_manager::DisplayManager::new(LayoutConfig::MAX_PARTIAL_REFRESHES);
+        // 初始化核心管理器
+        let display_manager = DisplayManager::new(LayoutConfig::MAX_PARTIAL_REFRESHES);
 
-        // 5. 初始化渲染引擎
-        let render_engine = render::RenderEngine::new(display_driver);
+        // 初始化渲染引擎
+        let render_engine = RenderEngine::new(display_driver);
 
-        // 6. 创建共享状态
-        let display_data = Mutex::new(DisplayData::default());
-        let shared_display_manager = Mutex::new(display_manager);
-        let shared_render_engine = Mutex::new(render_engine);
-        let shared_config = Mutex::new(system_config);
+        // 初始化共享状态
+        let display_manager = DISPLAY_MANAGER.init(Mutex::new(display_manager));
+        let display_data = DISPLAY_DATA.init(Mutex::new(DisplayData::default()));
+        let render_engine = RENDER_ENGINE.init(Mutex::new(render_engine));
+        let config = CONFIG.init(Mutex::new(system_config));
+        let time_service = TIME_SERVICE.init(Mutex::new(time_service));
 
-        // 7. 注册显示区域
-        register_display_regions(&shared_display_manager).await;
+        // 注册显示区域
+        register_display_regions(&display_manager).await;
 
-        // 8. 执行初始全局显示设置
+        // 执行初始全局显示设置
         if let Err(e) = initial_display_setup(
-            &shared_display_manager,
+            &display_manager,
             &display_data,
-            &shared_render_engine,
+            &render_engine,
             &time_service,
             // &weather_service,
             // &quote_service,
@@ -96,21 +101,23 @@ async fn main(spawner: Spawner) {
             return;
         }
 
-        // 9. 启动所有任务
+        // 启动所有任务
         spawn_tasks(
             spawner,
-            shared_display_manager,
+            display_manager,
             display_data,
-            shared_render_engine,
-            shared_config,
-            config_service,
+            render_engine,
             time_service,
+            config,
             // weather_service,
             // quote_service,
             // power_monitor,
             // network_driver,
         )
         .await;
+
+        // 初始化全局系统状态
+        let _ = SYSTEM_STATE.init(SystemState::default());
 
         log::info!("EPD Calendar started successfully");
     }
@@ -128,39 +135,6 @@ async fn init_logging() {
     log_to_defmt::init();
 }
 
-/// 初始化显示驱动
-async fn init_display_driver() -> Result<impl driver::display::DisplayDriver> {
-    #[cfg(feature = "simulator")]
-    {
-        Ok(SimulatorEpdDriver::new())
-    }
-
-    #[cfg(feature = "embedded_linux")]
-    {
-        Ok(LinuxEpdDriver::new())
-    }
-
-    #[cfg(feature = "embedded_esp")]
-    {
-        // ESP32显示驱动初始化
-        todo!("ESP32 display driver initialization")
-    }
-}
-
-/// 初始化时间源
-async fn init_time_source() -> Result<impl driver::time_source::TimeSource> {
-    #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
-    {
-        driver::time_source::SystemTimeSource::new()
-    }
-
-    #[cfg(feature = "embedded_esp")]
-    {
-        // RTC时间源初始化
-        todo!("RTC time source initialization")
-    }
-}
-
 /// 初始化网络驱动
 // async fn init_network_driver() -> Result<impl driver::network::NetworkDriver> {
 //     driver::network::MockNetworkDriver::new() // 先用模拟实现
@@ -172,7 +146,7 @@ async fn init_time_source() -> Result<impl driver::time_source::TimeSource> {
 // }
 
 /// 注册显示区域
-async fn register_display_regions(display_manager: &Mutex<NoopRawMutex, DisplayManager>) {
+async fn register_display_regions(display_manager: &Mutex<ThreadModeRawMutex, DisplayManager>) {
     let mut dm = display_manager.lock().await;
 
     dm.register_region("time", LayoutConfig::TIME_REGION);
@@ -184,12 +158,12 @@ async fn register_display_regions(display_manager: &Mutex<NoopRawMutex, DisplayM
 
 /// 初始显示设置
 async fn initial_display_setup(
-    display_manager: &Mutex<NoopRawMutex, DisplayManager>,
-    display_data: &Mutex<NoopRawMutex, DisplayData>,
-    render_engine: &Mutex<NoopRawMutex, render::RenderEngine>,
-    time_service: &service::time_service::TimeService<impl driver::time_source::TimeSource>,
-    // weather_service: &service::weather_service::WeatherService<impl driver::network::NetworkDriver>,
-    // quote_service: &service::quote_service::QuoteService,
+    display_manager: &Mutex<ThreadModeRawMutex, DisplayManager>,
+    display_data: &Mutex<ThreadModeRawMutex, DisplayData>,
+    render_engine: &Mutex<ThreadModeRawMutex, RenderEngine>,
+    time_service: &Mutex<ThreadModeRawMutex, TimeService>,
+    // weather_service: &WeatherService<impl driver::network::NetworkDriver>,
+    // quote_service: &QuoteService,
 ) -> Result<()> {
     log::info!("Performing initial global display setup");
 
@@ -200,16 +174,17 @@ async fn initial_display_setup(
     }
 
     // 获取初始数据
+    let time_service = time_service.lock().await;
     let initial_time = time_service.get_current_time().await?;
-    let initial_weather = weather_service.get_weather().await.unwrap_or_default();
-    let initial_quote = quote_service.get_random_quote().await?;
+    // let initial_weather = weather_service.get_weather().await.unwrap_or_default();
+    // let initial_quote = quote_service.get_random_quote().await?;
 
     // 更新显示数据
     {
         let mut data = display_data.lock().await;
         data.time = initial_time;
-        data.weather = initial_weather;
-        data.quote = initial_quote;
+        // data.weather = initial_weather;
+        // data.quote = initial_quote;
         data.force_refresh = true;
     }
 
@@ -234,10 +209,11 @@ async fn initial_display_setup(
 /// 启动所有任务
 async fn spawn_tasks(
     spawner: Spawner,
-    display_manager: Mutex<NoopRawMutex, DisplayManager>,
-    display_data: Mutex<NoopRawMutex, DisplayData>,
-    render_engine: Mutex<NoopRawMutex, render::RenderEngine>,
-    // time_service: service::time_service::TimeService<impl driver::time_source::TimeSource>,
+    display_manager: &'static Mutex<ThreadModeRawMutex, DisplayManager>,
+    display_data: &'static Mutex<ThreadModeRawMutex, DisplayData>,
+    render_engine: &'static Mutex<ThreadModeRawMutex, RenderEngine>,
+    time_service: &'static Mutex<ThreadModeRawMutex, TimeService>,
+    config: &'static Mutex<ThreadModeRawMutex, SystemConfig>,
     // weather_service: service::weather_service::WeatherService<impl driver::network::NetworkDriver>,
     // quote_service: service::quote_service::QuoteService,
     // power_monitor: impl driver::power::PowerMonitor,
@@ -245,9 +221,10 @@ async fn spawn_tasks(
 ) {
     // 时间任务
     if let Err(e) = spawner.spawn(tasks::time_task::time_task(
-        display_manager.clone(),
-        display_data.clone(),
+        display_manager,
+        display_data,
         time_service,
+        config,
     )) {
         log::error!("Failed to spawn time task: {}", e);
     }
@@ -263,22 +240,22 @@ async fn spawn_tasks(
 
     // 格言任务
     // if let Err(e) = spawner.spawn(tasks::quote_task::quote_task(
-    //     display_manager.clone(),
-    //     display_data.clone(),
-    //     quote_service,
+    //     display_manager,
+    //     display_data,
+    //     // quote_service,
     // )) {
     //     log::error!("Failed to spawn quote task: {}", e);
     // }
 
     // 状态任务
-    // if let Err(e) = spawner.spawn(tasks::status_task::status_task(
-    //     display_manager.clone(),
-    //     display_data.clone(),
-    //     power_monitor,
-    //     network_driver,
-    // )) {
-    //     log::error!("Failed to spawn status task: {}", e);
-    // }
+    if let Err(e) = spawner.spawn(tasks::status_task::status_task(
+        display_manager,
+        display_data,
+        // power_monitor,
+        // network_driver,
+    )) {
+        log::error!("Failed to spawn status task: {}", e);
+    }
 
     // 显示刷新任务
     if let Err(e) = spawner.spawn(tasks::display_refresh_task::display_refresh_task(
@@ -310,8 +287,6 @@ async fn main_loop() {
 
 /// 系统健康检查
 async fn check_system_health() {
-    let state = SYSTEM_STATE.lock().await;
-
     // 记录系统运行状态
-    log::debug!("System health check - Uptime: {:?}", state.uptime());
+    log::debug!("System health check");
 }

@@ -12,10 +12,10 @@ mod linux_epd_driver;
 
 // 条件编译导入
 #[cfg(feature = "simulator")]
-pub use simulator::SimulatorEpdDriver;
+pub use simulator::SimulatorEpdDriver as DefaultDisplayDriver;
 
 #[cfg(feature = "embedded_linux")]
-pub use linux_epd_driver::LinuxEpdDriver;
+pub use linux_epd_driver::LinuxEpdDriver as DefaultDisplayDriver;
 
 /// 简化的显示驱动 trait
 /// 直接提供 EPD 硬件操作，不包含显示缓冲区

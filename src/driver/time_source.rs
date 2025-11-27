@@ -14,7 +14,11 @@ pub trait TimeSource {
 }
 
 /// 系统时间源（用于模拟器和Linux）
+#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
 pub struct SystemTimeSource;
+
+#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
+pub use SystemTimeSource as DefaultTimeSource;
 
 impl SystemTimeSource {
     pub fn new() -> Self {

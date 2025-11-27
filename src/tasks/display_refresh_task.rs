@@ -1,19 +1,18 @@
 // src/tasks/display_refresh_task.rs
-use embassy_sync::blocking_mutex::raw::NoopRawMutex;
+use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
 use embassy_sync::mutex::Mutex;
 use embassy_time::{Duration, Timer};
 use log::{debug, info};
 
 use crate::app_core::display_manager::{DisplayManager, RefreshPlan};
-use crate::common::error::{AppError, Result};
 use crate::common::types::DisplayData;
 use crate::render::RenderEngine;
 
 #[embassy_executor::task]
 pub async fn display_refresh_task(
-    display_manager: Mutex<NoopRawMutex, DisplayManager>,
-    display_data: Mutex<NoopRawMutex, DisplayData>,
-    render_engine: Mutex<NoopRawMutex, RenderEngine>,
+    display_manager: &'static Mutex<ThreadModeRawMutex, DisplayManager>,
+    display_data: &'static Mutex<ThreadModeRawMutex, DisplayData>,
+    render_engine: &'static Mutex<ThreadModeRawMutex, RenderEngine>,
 ) {
     debug!("Display refresh task started");
 
@@ -27,7 +26,7 @@ pub async fn display_refresh_task(
         // 获取刷新计划
         let refresh_plan = {
             let mut dm = display_manager.lock().await;
-            dm.get_refresh_areas()
+            dm.get_refresh_plan()
         };
 
         match refresh_plan {

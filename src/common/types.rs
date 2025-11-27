@@ -23,7 +23,7 @@ pub struct SystemConfig {
     pub partial_refresh_limit: u32,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct DisplayData {
     pub time: TimeData,
     pub weather: WeatherData,
@@ -31,6 +31,19 @@ pub struct DisplayData {
     pub status: StatusData,
     pub force_refresh: bool,
     pub last_display_update: Instant,
+}
+
+impl Default for DisplayData {
+    fn default() -> Self {
+        Self {
+            time: TimeData::default(),
+            weather: WeatherData::default(),
+            quote: String::new(),
+            status: StatusData::default(),
+            force_refresh: false,
+            last_display_update: Instant::now(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default)]

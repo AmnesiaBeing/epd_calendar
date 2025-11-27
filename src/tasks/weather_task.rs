@@ -1,5 +1,5 @@
 // src/tasks/weather_task.rs
-use embassy_sync::blocking_mutex::raw::NoopRawMutex;
+use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
 use embassy_sync::mutex::Mutex;
 use embassy_time::{Duration, Instant, Timer};
 
@@ -10,8 +10,8 @@ use crate::service::weather_service::WeatherService;
 
 #[embassy_executor::task]
 pub async fn weather_task(
-    display_manager: Mutex<NoopRawMutex, DisplayManager>,
-    display_data: Mutex<NoopRawMutex, DisplayData>,
+    display_manager: Mutex<ThreadModeRawMutex, DisplayManager>,
+    display_data: Mutex<ThreadModeRawMutex, DisplayData>,
     weather_service: WeatherService<impl crate::driver::network::NetworkDriver>,
 ) {
     debug!("Weather task started");

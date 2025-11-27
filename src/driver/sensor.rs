@@ -8,7 +8,6 @@ pub struct SensorData {
     pub pressure: Option<f32>,
 }
 
-#[async_trait::async_trait]
 pub trait SensorDriver {
     /// 读取传感器数据
     async fn read(&mut self) -> Result<SensorData>;
@@ -43,7 +42,6 @@ impl MockSensorDriver {
     }
 }
 
-#[async_trait::async_trait]
 impl SensorDriver for MockSensorDriver {
     async fn read(&mut self) -> Result<SensorData> {
         // 模拟轻微的读数变化
@@ -83,7 +81,6 @@ impl LinuxSensorDriver {
     }
 }
 
-#[async_trait::async_trait]
 impl SensorDriver for LinuxSensorDriver {
     async fn read(&mut self) -> Result<SensorData> {
         // 读取系统传感器数据

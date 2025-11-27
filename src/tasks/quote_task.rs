@@ -11,9 +11,9 @@ use crate::service::quote_service::QuoteService;
 
 #[embassy_executor::task]
 pub async fn quote_task(
-    display_manager: Mutex<NoopRawMutex, DisplayManager>,
-    display_data: Mutex<NoopRawMutex, DisplayData>,
-    quote_service: QuoteService,
+    display_manager: &'static Mutex<NoopRawMutex, DisplayManager>,
+    display_data: &'static Mutex<NoopRawMutex, DisplayData>,
+    quote_service: &'static QuoteService,
 ) {
     debug!("Quote task started");
 

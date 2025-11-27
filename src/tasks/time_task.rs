@@ -1,18 +1,25 @@
-use embassy_sync::{blocking_mutex::raw::NoopRawMutex, mutex::Mutex};
-
-use crate::common::types::{DisplayData, SystemConfig};
-
 // src/tasks/time_task.rs
+use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, mutex::Mutex};
+use embassy_time::{Duration, Timer};
+use log::{debug, info};
+
+use crate::{
+    app_core::display_manager::DisplayManager,
+    common::types::{DisplayData, SystemConfig},
+    service::TimeService,
+};
+
 #[embassy_executor::task]
 pub async fn time_task(
-    display_manager: Mutex<NoopRawMutex, DisplayManager>,
-    display_data: Mutex<NoopRawMutex, DisplayData>,
-    time_service: TimeService<impl TimeSource>,
-    config: Mutex<NoopRawMutex, SystemConfig>,
+    display_manager: &'static Mutex<ThreadModeRawMutex, DisplayManager>,
+    display_data: &'static Mutex<ThreadModeRawMutex, DisplayData>,
+    time_service: &'static Mutex<ThreadModeRawMutex, TimeService>,
+    config: &'static Mutex<ThreadModeRawMutex, SystemConfig>,
 ) {
     log::debug!("Time task started");
     let mut last_minute = None;
     let mut last_date = None;
+    let mut time_service = time_service.lock().await;
 
     loop {
         let current_config = config.lock().await.clone();

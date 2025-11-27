@@ -1,5 +1,5 @@
 // src/tasks/status_task.rs
-use embassy_sync::blocking_mutex::raw::NoopRawMutex;
+use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
 use embassy_sync::mutex::Mutex;
 use embassy_time::{Duration, Timer};
 use log::debug;
@@ -7,15 +7,14 @@ use log::debug;
 use crate::app_core::display_manager::DisplayManager;
 use crate::common::error::{AppError, Result};
 use crate::common::types::{DisplayData, StatusData};
-use crate::driver::network::NetworkDriver;
 use crate::driver::power::PowerMonitor;
 
 #[embassy_executor::task]
 pub async fn status_task(
-    display_manager: Mutex<NoopRawMutex, DisplayManager>,
-    display_data: Mutex<NoopRawMutex, DisplayData>,
-    power_monitor: impl PowerMonitor,
-    network_driver: impl NetworkDriver,
+    display_manager: &'static Mutex<ThreadModeRawMutex, DisplayManager>,
+    display_data: &'static Mutex<ThreadModeRawMutex, DisplayData>,
+    // power_monitor: impl PowerMonitor,
+    // network_driver: impl NetworkDriver,
 ) {
     debug!("Status task started");
 
@@ -23,31 +22,31 @@ pub async fn status_task(
 
     loop {
         // 获取当前系统状态
-        let current_status = StatusData {
-            is_charging: power_monitor.is_charging().await,
-            battery_level: power_monitor.battery_level().await,
-            is_online: network_driver.is_connected().await,
-        };
+        // let current_status = StatusData {
+        // is_charging: power_monitor.is_charging().await,
+        // battery_level: power_monitor.battery_level().await,
+        // is_online: network_driver.is_connected().await,
+        // };
 
         // 检查状态是否变化
-        if current_status != last_status {
-            debug!(
-                "Status changed: charging={}, battery={:?}, online={}",
-                current_status.is_charging, current_status.battery_level, current_status.is_online
-            );
+        // if current_status != last_status {
+        //     debug!(
+        //         "Status changed: charging={}, battery={:?}, online={}",
+        //         current_status.is_charging, current_status.battery_level, current_status.is_online
+        //     );
 
-            {
-                let mut data = display_data.lock().await;
-                data.status = current_status.clone();
-            }
+        //     {
+        //         let mut data = display_data.lock().await;
+        //         data.status = current_status.clone();
+        //     }
 
-            // 标记状态区域需要刷新
-            if let Err(e) = display_manager.lock().await.mark_dirty("status") {
-                log::warn!("Failed to mark status region dirty: {}", e);
-            }
+        //     // 标记状态区域需要刷新
+        //     if let Err(e) = display_manager.lock().await.mark_dirty("status") {
+        //         log::warn!("Failed to mark status region dirty: {}", e);
+        //     }
 
-            last_status = current_status;
-        }
+        //     last_status = current_status;
+        // }
 
         // 每30秒检查一次状态
         Timer::after(Duration::from_secs(30)).await;

@@ -2,7 +2,6 @@
 use crate::common::error::{AppError, Result};
 use crate::common::types::BatteryLevel;
 
-#[async_trait::async_trait]
 pub trait PowerMonitor {
     /// 检查是否正在充电
     async fn is_charging(&self) -> bool;
@@ -30,7 +29,7 @@ impl MockPowerMonitor {
     pub fn new() -> Self {
         Self {
             charging: false,
-            level: BatteryLevel::Medium,
+            level: BatteryLevel::Level0,
         }
     }
 
@@ -43,7 +42,6 @@ impl MockPowerMonitor {
     }
 }
 
-#[async_trait::async_trait]
 impl PowerMonitor for MockPowerMonitor {
     async fn is_charging(&self) -> bool {
         self.charging
@@ -55,11 +53,11 @@ impl PowerMonitor for MockPowerMonitor {
 
     async fn battery_voltage(&self) -> Result<f32> {
         match self.level {
-            BatteryLevel::Empty => Ok(3.2),
-            BatteryLevel::Low => Ok(3.5),
-            BatteryLevel::Medium => Ok(3.7),
-            BatteryLevel::High => Ok(3.9),
-            BatteryLevel::Full => Ok(4.1),
+            BatteryLevel::Level0 => Ok(3.2),
+            BatteryLevel::Level1 => Ok(3.5),
+            BatteryLevel::Level2 => Ok(3.7),
+            BatteryLevel::Level3 => Ok(3.9),
+            BatteryLevel::Level4 => Ok(4.1),
         }
     }
 
@@ -83,7 +81,6 @@ impl LinuxPowerMonitor {
     }
 }
 
-#[async_trait::async_trait]
 impl PowerMonitor for LinuxPowerMonitor {
     async fn is_charging(&self) -> bool {
         // 读取系统电源状态
@@ -94,7 +91,7 @@ impl PowerMonitor for LinuxPowerMonitor {
     async fn battery_level(&self) -> BatteryLevel {
         // 读取系统电池信息
         // 简化实现，返回中等电量
-        BatteryLevel::Medium
+        BatteryLevel::Level2
     }
 
     async fn battery_voltage(&self) -> Result<f32> {
