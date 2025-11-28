@@ -70,7 +70,7 @@ where
             key,
         )
         .await
-        .unwrap()
+        .unwrap_or(None)
     }
 
     /// 向存储中写入键值对（上层接口）
