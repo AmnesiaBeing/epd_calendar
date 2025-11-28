@@ -1,5 +1,5 @@
 // src/driver/sensor.rs
-use crate::common::error::{AppError, Result};
+use crate::common::error::Result;
 
 #[derive(Debug, Clone)]
 pub struct SensorData {

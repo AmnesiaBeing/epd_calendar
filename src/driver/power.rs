@@ -1,5 +1,5 @@
 // src/driver/power.rs
-use crate::common::error::{AppError, Result};
+use crate::common::error::Result;
 use crate::common::types::BatteryLevel;
 
 pub trait PowerMonitor {
@@ -20,11 +20,13 @@ pub trait PowerMonitor {
 }
 
 /// 模拟电源监控
+#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
 pub struct MockPowerMonitor {
     charging: bool,
     level: BatteryLevel,
 }
 
+#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
 impl MockPowerMonitor {
     pub fn new() -> Self {
         Self {
@@ -42,6 +44,7 @@ impl MockPowerMonitor {
     }
 }
 
+#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
 impl PowerMonitor for MockPowerMonitor {
     async fn is_charging(&self) -> bool {
         self.charging
@@ -72,39 +75,8 @@ impl PowerMonitor for MockPowerMonitor {
     }
 }
 
-/// Linux电源监控（读取系统电源信息）
-pub struct LinuxPowerMonitor;
+// TODO: 实现其他的PowerMonitor
 
-impl LinuxPowerMonitor {
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-impl PowerMonitor for LinuxPowerMonitor {
-    async fn is_charging(&self) -> bool {
-        // 读取系统电源状态
-        // 简化实现，返回false
-        false
-    }
-
-    async fn battery_level(&self) -> BatteryLevel {
-        // 读取系统电池信息
-        // 简化实现，返回中等电量
-        BatteryLevel::Level2
-    }
-
-    async fn battery_voltage(&self) -> Result<f32> {
-        Ok(3.7) // 模拟电压
-    }
-
-    async fn enter_low_power(&self) -> Result<()> {
-        log::info!("Linux power monitor entering low power mode");
-        Ok(())
-    }
-
-    async fn wake(&self) -> Result<()> {
-        log::info!("Linux power monitor waking up");
-        Ok(())
-    }
-}
+// Simulator和嵌入式Linux环境下的默认电源监控
+#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
+pub type DefaultPowerMonitor = MockPowerMonitor;

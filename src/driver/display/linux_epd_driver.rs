@@ -30,23 +30,35 @@ impl LinuxEpdDriver {
         info!("Initializing Linux EPD driver");
 
         // 初始化 GPIO 引脚
-        let epd_busy = init_gpio(101, linux_embedded_hal::sysfs_gpio::Direction::In).await?;
-        let epd_dc = init_gpio(102, linux_embedded_hal::sysfs_gpio::Direction::Out).await?;
-        let epd_rst = init_gpio(97, linux_embedded_hal::sysfs_gpio::Direction::Out).await?;
+        let epd_busy = init_gpio(101, linux_embedded_hal::sysfs_gpio::Direction::In)
+            .await
+            .map_err(|_| AppError::DisplayInit)?;
+        let epd_dc = init_gpio(102, linux_embedded_hal::sysfs_gpio::Direction::Out)
+            .await
+            .map_err(|_| AppError::DisplayInit)?;
+        let epd_rst = init_gpio(97, linux_embedded_hal::sysfs_gpio::Direction::Out)
+            .await
+            .map_err(|_| AppError::DisplayInit)?;
 
         // 根据特性选择 SPI 初始化方式
         #[cfg(feature = "spi_bitbang")]
         let mut spi = {
-            let mosi = init_gpio(147, linux_embedded_hal::sysfs_gpio::Direction::Out).await?;
-            let sck = init_gpio(146, linux_embedded_hal::sysfs_gpio::Direction::Out).await?;
-            let cs = init_gpio(150, linux_embedded_hal::sysfs_gpio::Direction::Out).await?;
+            let mosi = init_gpio(147, linux_embedded_hal::sysfs_gpio::Direction::Out)
+                .await
+                .map_err(|_| AppError::DisplayInit)?;
+            let sck = init_gpio(146, linux_embedded_hal::sysfs_gpio::Direction::Out)
+                .await
+                .map_err(|_| AppError::DisplayInit)?;
+            let cs = init_gpio(150, linux_embedded_hal::sysfs_gpio::Direction::Out)
+                .await
+                .map_err(|_| AppError::DisplayInit)?;
 
             let config = SpiConfig::default();
             SPIDevice::new(embedded_hal::spi::MODE_0, mosi, sck, cs, Delay, config)
         };
 
         #[cfg(not(feature = "spi_bitbang"))]
-        let mut spi = { SpidevDevice::open("/dev/spidev3.0").map_err(|_| AppError::DisplayInit)? };
+        let mut spi = SpidevDevice::open("/dev/spidev3.0").map_err(|_| AppError::DisplayInit)?;
 
         let epd = Epd7in5::new(&mut spi, epd_busy, epd_dc, epd_rst, &mut Delay, None)
             .map_err(|_| AppError::DisplayInit)?;

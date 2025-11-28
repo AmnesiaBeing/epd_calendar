@@ -4,8 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [features]
-default = ["simulator"]
+default = ["embedded_linux"]
 simulator = [
+    "critical-section/std",
     "embedded-hal-mock",
     "embedded-storage-std-async-mock",
     "epd-waveshare/simulator",
@@ -20,7 +21,9 @@ simulator = [
     "env_logger",
 ]
 embedded_linux = [
-    "linux-embedded-hal",
+    "critical-section/std",
+#    "linux-embedded-hal",
+    "embedded-hal-mock",
     "embedded-storage-std-async-mock",
     "embassy-sync/log",
     "embassy-sync/std",
@@ -61,17 +64,29 @@ sequential-storage = "5.0.1"
 
 embedded-hal = "1.0.0"
 embedded-graphics = "0.8.1"
+embedded-io-async = "0.7.0"
 embedded-storage = "0.3.1"
 embedded-storage-async = "0.4.1"
 
 embassy-sync = { version = "0.7.2", default-features = false }
 embassy-executor = { version = "0.9.1", default-features = false }
 embassy-time = { version = "0.5.0", default-features = false }
-embassy-net = { version = "0.7.1", default-features = false }
+embassy-net = { version = "0.7.1", default-features = false, features = ["udp", "tcp", "dns", "proto-ipv4", "dhcpv4"] }
+embassy-net-tuntap = "0.1.0"
+critical-section = "1.2.0"
+
+reqwless = "0.13.0"
+embedded-svc = { version = "0.28.1", default-features = false }
+
+static_cell = "2.1.1"
+heapless = { version = "0.8", default-features = false, features = ["serde"] }
 
 epd-waveshare = { path = "./../epd-waveshare/", features = [] }
-sntpc = { version = "0.6.1", features = ["embassy-socket"] }
+sntpc = { version = "0.7.0", default-features = false, features = ["embassy-socket"] }
 defmt = "1.0.1"
+
+serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] }
+serde_json = "1.0"
 
 sxtwl-rs = { path = "./../sxtwl-rs/" }
 
@@ -88,7 +103,6 @@ env_logger = { version = "0.11.8", optional = true }
 
 # 嵌入式ESP32依赖
 log-to-defmt = { version = "0.1.0", optional = true }
-static_cell = "2.1.1"
 
 # esp-hal = { version = "0.23.1", optional = true, features = ["esp32c6"]}
 

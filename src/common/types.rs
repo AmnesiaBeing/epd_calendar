@@ -2,6 +2,8 @@
 
 use embassy_time::Instant;
 
+use crate::service::weather_service::WeatherData;
+
 #[derive(Debug, Clone, Default)]
 pub struct SystemConfig {
     // WiFi配置
@@ -68,23 +70,11 @@ pub struct LunarData {
     pub avoid: Vec<String>,
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct WeatherData {
-    // pub icon: WeatherIcon,
-    pub temp_current: i8,
-    pub temp_high: i8,
-    pub temp_low: i8,
-    pub humidity: u8,
-    // pub wind_direction: WindDirection,
-    pub wind_speed: u8,
-    // pub air_quality: AirQuality,
-}
-
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct StatusData {
     pub is_charging: bool,
     pub battery_level: BatteryLevel,
-    pub is_online: bool,
+    // pub is_online: bool,
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]

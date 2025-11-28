@@ -1,12 +1,12 @@
 // src/tasks/time_task.rs
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, mutex::Mutex};
 use embassy_time::{Duration, Timer};
-use log::{debug, info};
+use log::debug;
 
 use crate::{
     app_core::display_manager::DisplayManager,
     common::types::{DisplayData, SystemConfig},
-    service::TimeService,
+    service::time_service::TimeService,
 };
 
 #[embassy_executor::task]
@@ -23,6 +23,11 @@ pub async fn time_task(
 
     loop {
         let current_config = config.lock().await.clone();
+
+        // 获取不到时间是正常的事情，可以忽略这个错误
+        if let Err(e) = time_service.update_time_by_sntp().await {
+            log::warn!("Failed to update time by SNTP: {}", e);
+        }
 
         // 应用配置到时间服务
         time_service.set_24_hour_format(current_config.time_format_24h);

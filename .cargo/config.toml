@@ -8,6 +8,9 @@ linker = "x86_64-w64-mingw32-gcc"
 bel = "build --target aarch64-unknown-linux-gnu --no-default-features --features embedded_linux"
 belr = "build --release --target aarch64-unknown-linux-gnu --no-default-features --features embedded_linux"
 
+blel = "build --no-default-features --features embedded_linux"
+blelr = "build --release --no-default-features --features embedded_linux"
+
 bsw = "build --target x86_64-pc-windows-gnu --no-default-features --features simulator"
 bswr = "build --release --target x86_64-pc-windows-gnu --no-default-features --features simulator"
 
@@ -15,4 +18,7 @@ bs = "build --no-default-features --features simulator"
 bsr = "build --no-default-features --release --features simulator"
 
 rs = "run --no-default-features --features simulator"
-rrs = "run --no-default-features --release --features simulator"
+rsr = "run --no-default-features --release --features simulator"
+
+rlel = "run --no-default-features --features embedded_linux"
+rlelr = "run --no-default-features --release --features embedded_linux"

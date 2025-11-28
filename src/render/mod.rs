@@ -1,18 +1,12 @@
 // src/render/mod.rs
-use embedded_graphics::Drawable;
 use embedded_graphics::draw_target::DrawTarget;
-use embedded_graphics::geometry::{Point, Size};
-use embedded_graphics::mono_font::{MonoFont, MonoTextStyle};
-use embedded_graphics::pixelcolor::BinaryColor;
-use embedded_graphics::primitives::{PrimitiveStyle, Rectangle};
-use embedded_graphics::text::{Baseline, Text};
+use embedded_graphics::primitives::Rectangle;
 use epd_waveshare::color::QuadColor;
 use epd_waveshare::epd7in5_yrd0750ryf665f60::Display7in5;
-use log::{debug, info, warn};
+use log::{debug, info};
 
-use crate::common::config::LayoutConfig;
-use crate::common::error::{AppError, Result};
-use crate::common::types::{DisplayData, StatusData, TimeData, WeatherData};
+use crate::common::error::Result;
+use crate::common::types::DisplayData;
 use crate::driver::display::{DefaultDisplayDriver, DisplayDriver};
 
 /// 渲染引擎 - 负责管理显示缓冲区和协调渲染
@@ -35,7 +29,7 @@ impl RenderEngine {
     }
 
     /// 渲染完整显示内容
-    pub async fn render_full_display(&mut self, data: &DisplayData) -> Result<()> {
+    pub async fn render_full_display(&mut self, _data: &DisplayData) -> Result<()> {
         info!("Rendering full display");
 
         // 清空显示缓冲区
@@ -59,7 +53,7 @@ impl RenderEngine {
     /// 渲染部分显示内容
     pub async fn render_partial_display(
         &mut self,
-        data: &DisplayData,
+        _data: &DisplayData,
         area: Rectangle,
     ) -> Result<()> {
         debug!("Rendering partial display for area: {:?}", area);

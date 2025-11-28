@@ -10,11 +10,11 @@ use crate::service::weather_service::WeatherService;
 
 #[embassy_executor::task]
 pub async fn weather_task(
-    display_manager: Mutex<ThreadModeRawMutex, DisplayManager>,
-    display_data: Mutex<ThreadModeRawMutex, DisplayData>,
-    weather_service: WeatherService<impl crate::driver::network::NetworkDriver>,
+    display_manager: &'static Mutex<ThreadModeRawMutex, DisplayManager>,
+    display_data: &'static Mutex<ThreadModeRawMutex, DisplayData>,
+    weather_service: &'static Mutex<ThreadModeRawMutex, WeatherService>,
 ) {
-    debug!("Weather task started");
+    log::debug!("Weather task started");
 
     let mut last_successful_update = Instant::now();
     let mut consecutive_failures = 0;
@@ -28,9 +28,9 @@ pub async fn weather_task(
             time_since_last_update > NORMAL_UPDATE_INTERVAL || consecutive_failures > 0;
 
         if should_update {
-            match weather_service.get_weather().await {
+            match weather_service.lock().await.get_weather().await {
                 Ok(weather) => {
-                    debug!("Weather data updated: {:?}", weather);
+                    log::debug!("Weather data updated: {:?}", weather);
 
                     {
                         let mut data = display_data.lock().await;

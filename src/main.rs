@@ -1,5 +1,6 @@
 // src/main.rs
 use embassy_executor::Spawner;
+use embassy_net::Stack;
 #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
 use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
 use embassy_sync::mutex::Mutex;
@@ -23,15 +24,22 @@ use crate::app_core::display_manager::{DisplayManager, RefreshMode};
 use crate::common::system_state::{SYSTEM_STATE, SystemState};
 use crate::common::types::SystemConfig;
 use crate::driver::display::DefaultDisplayDriver;
-use crate::driver::time_source::DefaultTimeSource;
+use crate::driver::network::NetworkDriver;
+use crate::driver::power::DefaultPowerMonitor;
+use crate::driver::time_source::{DefaultNtpTimeSource, DefaultTimeSource};
 use crate::render::RenderEngine;
-use crate::service::{ConfigService, TimeService};
+use crate::service::weather_service::WeatherService;
+use crate::service::{config_service::ConfigService, time_service::TimeService};
 
 static DISPLAY_MANAGER: StaticCell<Mutex<ThreadModeRawMutex, DisplayManager>> = StaticCell::new();
 static DISPLAY_DATA: StaticCell<Mutex<ThreadModeRawMutex, DisplayData>> = StaticCell::new();
 static RENDER_ENGINE: StaticCell<Mutex<ThreadModeRawMutex, RenderEngine>> = StaticCell::new();
 static CONFIG: StaticCell<Mutex<ThreadModeRawMutex, SystemConfig>> = StaticCell::new();
 static TIME_SERVICE: StaticCell<Mutex<ThreadModeRawMutex, TimeService>> = StaticCell::new();
+static POWER_MONITOR: StaticCell<Mutex<ThreadModeRawMutex, DefaultPowerMonitor>> =
+    StaticCell::new();
+static WEATHER_SERVICE: StaticCell<Mutex<ThreadModeRawMutex, WeatherService>> = StaticCell::new();
+static NETWORK_DRIVER: StaticCell<Mutex<ThreadModeRawMutex, NetworkDriver>> = StaticCell::new();
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
@@ -53,10 +61,14 @@ async fn main(spawner: Spawner) {
         let system_config = config_service.load_config().await.unwrap_or_default();
 
         // 初始化硬件驱动
-        let display_driver: DefaultDisplayDriver = DefaultDisplayDriver::new().await.unwrap();
-        let time_source = DefaultTimeSource::new();
-        // let network_driver = init_network_driver().await;
-        // let power_monitor = init_power_monitor().await;
+        let display_driver = DefaultDisplayDriver::new().await.unwrap();
+        let network_driver = driver::network::init_network_driver(spawner).await.unwrap();
+
+        let network_driver = NETWORK_DRIVER.init(Mutex::new(network_driver));
+
+        let ntp_time_source = DefaultNtpTimeSource::new(network_driver);
+        let time_source = DefaultTimeSource::new(ntp_time_source);
+        let power_monitor = DefaultPowerMonitor::new();
 
         // 初始化服务层（传入配置）
         let time_service = TimeService::new(
@@ -64,10 +76,8 @@ async fn main(spawner: Spawner) {
             system_config.time_format_24h,
             system_config.temperature_celsius,
         );
-        // let weather_service = service::weather_service::WeatherService::new(
-        //     network_driver.clone(),
-        //     system_config.temperature_celsius,
-        // );
+        let weather_service =
+            WeatherService::new(network_driver, system_config.temperature_celsius);
         // let quote_service = QuoteService::new();
 
         // 初始化核心管理器
@@ -82,6 +92,8 @@ async fn main(spawner: Spawner) {
         let render_engine = RENDER_ENGINE.init(Mutex::new(render_engine));
         let config = CONFIG.init(Mutex::new(system_config));
         let time_service = TIME_SERVICE.init(Mutex::new(time_service));
+        let power_monitor = POWER_MONITOR.init(Mutex::new(power_monitor));
+        let weather_service = WEATHER_SERVICE.init(Mutex::new(weather_service));
 
         // 注册显示区域
         register_display_regions(&display_manager).await;
@@ -109,10 +121,10 @@ async fn main(spawner: Spawner) {
             render_engine,
             time_service,
             config,
-            // weather_service,
+            weather_service,
             // quote_service,
-            // power_monitor,
-            // network_driver,
+            power_monitor,
+            network_driver,
         )
         .await;
 
@@ -138,11 +150,6 @@ async fn init_logging() {
 /// 初始化网络驱动
 // async fn init_network_driver() -> Result<impl driver::network::NetworkDriver> {
 //     driver::network::MockNetworkDriver::new() // 先用模拟实现
-// }
-
-/// 初始化电源监控
-// async fn init_power_monitor() -> Result<impl driver::power::PowerMonitor> {
-//     driver::power::MockPowerMonitor::new() // 先用模拟实现
 // }
 
 /// 注册显示区域
@@ -214,10 +221,10 @@ async fn spawn_tasks(
     render_engine: &'static Mutex<ThreadModeRawMutex, RenderEngine>,
     time_service: &'static Mutex<ThreadModeRawMutex, TimeService>,
     config: &'static Mutex<ThreadModeRawMutex, SystemConfig>,
-    // weather_service: service::weather_service::WeatherService<impl driver::network::NetworkDriver>,
+    weather_service: &'static Mutex<ThreadModeRawMutex, WeatherService>,
     // quote_service: service::quote_service::QuoteService,
-    // power_monitor: impl driver::power::PowerMonitor,
-    // network_driver: impl driver::network::NetworkDriver,
+    power_monitor: &'static Mutex<ThreadModeRawMutex, DefaultPowerMonitor>,
+    network_driver: &'static Mutex<ThreadModeRawMutex, NetworkDriver>,
 ) {
     // 时间任务
     if let Err(e) = spawner.spawn(tasks::time_task::time_task(
@@ -230,13 +237,13 @@ async fn spawn_tasks(
     }
 
     // 天气任务
-    // if let Err(e) = spawner.spawn(tasks::weather_task::weather_task(
-    //     display_manager.clone(),
-    //     display_data.clone(),
-    //     weather_service,
-    // )) {
-    //     log::error!("Failed to spawn weather task: {}", e);
-    // }
+    if let Err(e) = spawner.spawn(tasks::weather_task::weather_task(
+        display_manager.clone(),
+        display_data.clone(),
+        weather_service,
+    )) {
+        log::error!("Failed to spawn weather task: {}", e);
+    }
 
     // 格言任务
     // if let Err(e) = spawner.spawn(tasks::quote_task::quote_task(
@@ -251,7 +258,7 @@ async fn spawn_tasks(
     if let Err(e) = spawner.spawn(tasks::status_task::status_task(
         display_manager,
         display_data,
-        // power_monitor,
+        power_monitor,
         // network_driver,
     )) {
         log::error!("Failed to spawn status task: {}", e);
