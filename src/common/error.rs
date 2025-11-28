@@ -32,6 +32,9 @@ pub enum AppError {
 
     #[error("Weather API error")]
     WeatherApiError,
+
+    #[error("Quote error")]
+    QuoteError,
 }
 
 pub type Result<T> = core::result::Result<T, AppError>;

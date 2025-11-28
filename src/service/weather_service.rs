@@ -1,10 +1,8 @@
 // src/service/weather_service.rs
 use crate::common::error::{AppError, Result};
 use crate::driver::network::NetworkDriver;
-use core::str::FromStr;
 use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
 use embassy_sync::mutex::Mutex;
-use log::{debug, info, warn};
 use serde::Deserialize;
 
 // 对外暴露的天气数据结构
@@ -65,7 +63,7 @@ pub enum WindDirection {
 pub struct DailyWeather {
     /// 预报日期（yyyy-MM-dd）
     #[serde(rename = "fxDate")]
-    pub date: heapless::String<10>,
+    pub date: heapless::String<20>,
     /// 最高温度（℃）
     #[serde(rename = "tempMax")]
     pub temp_max: i8,
@@ -127,30 +125,22 @@ impl WeatherService {
     pub async fn get_weather(&mut self) -> Result<WeatherData> {
         // 首先检查网络连接
         if !self.network.lock().await.is_connected().await {
-            warn!("Network not available, using cached or default weather data");
-            return self.get_fallback_weather().await;
+            log::warn!("Network not available, using cached or default weather data");
+            return Err(AppError::WeatherApiError);
         }
 
         // 尝试从API获取天气数据
         match self.fetch_weather_from_api().await {
             Ok(weather) => {
-                debug!("Successfully fetched weather data from API");
+                log::debug!("Successfully fetched weather data from API");
                 self.last_weather_data = Some(weather.clone());
                 Ok(weather)
             }
             Err(e) => {
-                warn!("Failed to fetch weather from API: {}, using fallback", e);
-                self.get_fallback_weather().await
+                log::warn!("Failed to fetch weather from API: {}, using fallback", e);
+                return Err(AppError::WeatherApiError);
             }
         }
-    }
-
-    pub fn set_temperature_celsius(&mut self, enabled: bool) {
-        self.temperature_celsius = enabled;
-    }
-
-    pub fn has_valid_data(&self) -> bool {
-        self.last_weather_data.is_some()
     }
 
     async fn fetch_weather_from_api(&self) -> Result<WeatherData> {
@@ -166,7 +156,7 @@ impl WeatherService {
         );
 
         // 发送HTTP请求
-        debug!(
+        log::debug!(
             "Fetching weather from API for location: {}",
             self.location_id
         );
@@ -180,7 +170,7 @@ impl WeatherService {
             .https_get("devapi.qweather.com", &path, &mut buffer)
             .await
             .map_err(|e| {
-                warn!("HTTP request failed: {:?}", e);
+                log::warn!("HTTP request failed: {:?}", e);
                 AppError::NetworkError
             })?;
 
@@ -188,24 +178,13 @@ impl WeatherService {
         self.parse_weather_response(&response)
     }
 
-    async fn get_fallback_weather(&self) -> Result<WeatherData> {
-        // 返回缓存的天气数据或默认数据
-        if let Some(ref weather) = self.last_weather_data {
-            debug!("Using cached weather data");
-            Ok(weather.clone())
-        } else {
-            debug!("Using default weather data");
-            Ok(self.create_default_weather_data())
-        }
-    }
-
     /// 解析和风天气API的JSON响应
     fn parse_weather_response(&self, response: &[u8]) -> Result<WeatherData> {
-        info!("Parsing weather response ({} bytes)", response.len());
+        log::info!("Parsing weather response ({} bytes)", response.len());
 
         // 反序列化JSON
         let qweather_resp: QWeatherResponse = serde_json::from_slice(response).map_err(|e| {
-            warn!("JSON parse error: {:?}", e);
+            log::warn!("JSON parse error: {:?}", e);
             AppError::WeatherApiError
         })?;
 
@@ -237,65 +216,6 @@ impl WeatherService {
         }
 
         Ok(weather_data)
-    }
-
-    /// 创建默认天气数据（无网络时使用）
-    fn create_default_weather_data(&self) -> WeatherData {
-        let mut weather_data = WeatherData::default();
-        weather_data.location_id = self.location_id.clone();
-        weather_data.update_time = heapless::String::from_str("2024-01-01T00:00+08:00").unwrap();
-
-        // 默认3天数据
-        let default_days = [
-            DailyWeather {
-                date: heapless::String::from_str("2024-01-01").unwrap(),
-                temp_max: 20,
-                temp_min: 10,
-                icon_day: WeatherIcon::Sunny,
-                text_day: heapless::String::from_str("晴").unwrap(),
-                icon_night: WeatherIcon::Cloudy,
-                text_night: heapless::String::from_str("多云").unwrap(),
-                wind_direction: WindDirection::East,
-                wind_speed: 2,
-                humidity: 60,
-                precip: 0.0,
-                uv_index: 2,
-            },
-            DailyWeather {
-                date: heapless::String::from_str("2024-01-02").unwrap(),
-                temp_max: 19,
-                temp_min: 9,
-                icon_day: WeatherIcon::Cloudy,
-                text_day: heapless::String::from_str("多云").unwrap(),
-                icon_night: WeatherIcon::Cloudy,
-                text_night: heapless::String::from_str("多云").unwrap(),
-                wind_direction: WindDirection::Southeast,
-                wind_speed: 3,
-                humidity: 65,
-                precip: 0.0,
-                uv_index: 2,
-            },
-            DailyWeather {
-                date: heapless::String::from_str("2024-01-03").unwrap(),
-                temp_max: 18,
-                temp_min: 8,
-                icon_day: WeatherIcon::FewClouds,
-                text_day: heapless::String::from_str("少云").unwrap(),
-                icon_night: WeatherIcon::Sunny,
-                text_night: heapless::String::from_str("晴").unwrap(),
-                wind_direction: WindDirection::South,
-                wind_speed: 2,
-                humidity: 70,
-                precip: 0.0,
-                uv_index: 1,
-            },
-        ];
-
-        for day in default_days {
-            let _ = weather_data.daily_forecast.push(day);
-        }
-
-        weather_data
     }
 
     // 温度单位转换

@@ -238,9 +238,9 @@ where
 use embedded_storage_std_async_mock::FlashMock;
 
 #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
-pub type SimulatorLinuxStorage = KvStorageDriver<FlashMock<32, 32, 512>>;
+pub type DefaultStorageDriver = KvStorageDriver<FlashMock<32, 32, 512>>;
 
-pub async fn create_default_storage() -> Result<impl StorageDriver> {
+pub async fn create_default_storage() -> Result<DefaultStorageDriver> {
     #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
     {
         // 初始化 Flash（使用文件模拟）
@@ -259,6 +259,6 @@ pub async fn create_default_storage() -> Result<impl StorageDriver> {
             _key: core::marker::PhantomData,
         };
 
-        Ok(SimulatorLinuxStorage::new(kv_storage))
+        Ok(DefaultStorageDriver::new(kv_storage))
     }
 }

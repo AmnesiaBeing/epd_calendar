@@ -29,7 +29,7 @@ pub struct NetworkDriver {
 }
 
 impl NetworkDriver {
-    pub async fn new(spawner: Spawner) -> Result<Self> {
+    pub async fn new(spawner: &Spawner) -> Result<Self> {
         // 运行此代码前，需执行'sudo tap.sh'创建"tap99"这个通道
         let device = TunTapDevice::new("tap99").map_err(|_| AppError::NetworkError)?;
 
@@ -124,9 +124,4 @@ impl NetworkDriver {
         log::debug!("Received {} bytes from {}", bytes_read.len(), host);
         Ok(bytes_read)
     }
-}
-
-// 保持向后兼容的初始化函数
-pub async fn init_network_driver(spawner: Spawner) -> Result<NetworkDriver> {
-    NetworkDriver::new(spawner).await
 }

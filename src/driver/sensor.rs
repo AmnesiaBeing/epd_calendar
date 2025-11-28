@@ -20,11 +20,13 @@ pub trait SensorDriver {
 }
 
 /// 模拟传感器驱动
+#[cfg(any(feature = "simulator"))]
 pub struct MockSensorDriver {
     temperature: f32,
     humidity: f32,
 }
 
+#[cfg(any(feature = "simulator"))]
 impl MockSensorDriver {
     pub fn new() -> Self {
         Self {
@@ -42,6 +44,7 @@ impl MockSensorDriver {
     }
 }
 
+#[cfg(any(feature = "simulator"))]
 impl SensorDriver for MockSensorDriver {
     async fn read(&mut self) -> Result<SensorData> {
         // 模拟轻微的读数变化
@@ -73,14 +76,17 @@ impl SensorDriver for MockSensorDriver {
 }
 
 /// Linux传感器驱动（读取系统传感器）
+#[cfg(feature = "embedded_linux")]
 pub struct LinuxSensorDriver;
 
+#[cfg(feature = "embedded_linux")]
 impl LinuxSensorDriver {
     pub fn new() -> Self {
         Self
     }
 }
 
+#[cfg(feature = "embedded_linux")]
 impl SensorDriver for LinuxSensorDriver {
     async fn read(&mut self) -> Result<SensorData> {
         // 读取系统传感器数据
@@ -102,3 +108,9 @@ impl SensorDriver for LinuxSensorDriver {
         Ok(())
     }
 }
+
+#[cfg(any(feature = "simulator"))]
+pub type DefaultSensorDriver = MockSensorDriver;
+
+#[cfg(feature = "embedded_linux")]
+pub type DefaultSensorDriver = LinuxSensorDriver;
