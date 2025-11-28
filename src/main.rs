@@ -31,15 +31,16 @@ use crate::render::RenderEngine;
 use crate::service::weather_service::WeatherService;
 use crate::service::{config_service::ConfigService, time_service::TimeService};
 
-static DISPLAY_MANAGER: StaticCell<Mutex<ThreadModeRawMutex, DisplayManager>> = StaticCell::new();
-static DISPLAY_DATA: StaticCell<Mutex<ThreadModeRawMutex, DisplayData>> = StaticCell::new();
-static RENDER_ENGINE: StaticCell<Mutex<ThreadModeRawMutex, RenderEngine>> = StaticCell::new();
-static CONFIG: StaticCell<Mutex<ThreadModeRawMutex, SystemConfig>> = StaticCell::new();
-static TIME_SERVICE: StaticCell<Mutex<ThreadModeRawMutex, TimeService>> = StaticCell::new();
-static POWER_MONITOR: StaticCell<Mutex<ThreadModeRawMutex, DefaultPowerMonitor>> =
-    StaticCell::new();
-static WEATHER_SERVICE: StaticCell<Mutex<ThreadModeRawMutex, WeatherService>> = StaticCell::new();
-static NETWORK_DRIVER: StaticCell<Mutex<ThreadModeRawMutex, NetworkDriver>> = StaticCell::new();
+
+// 批量定义所有服务（一行一个，无需重复写静态变量）
+define_static_service!(DISPLAY_MANAGER, DisplayManager);
+define_static_service!(DISPLAY_DATA, DisplayData);
+define_static_service!(RENDER_ENGINE, RenderEngine);
+define_static_service!(POWER_MONITOR, DefaultPowerMonitor);
+define_static_service!(NETWORK_DRIVER, NetworkDriver);
+define_static_service!(WEATHER_SERVICE, WeatherService);
+define_static_service!(CONFIG_SERVICE, SystemConfig);
+define_static_service!(TIME_SERVICE, TimeService);
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
@@ -90,7 +91,7 @@ async fn main(spawner: Spawner) {
         let display_manager = DISPLAY_MANAGER.init(Mutex::new(display_manager));
         let display_data = DISPLAY_DATA.init(Mutex::new(DisplayData::default()));
         let render_engine = RENDER_ENGINE.init(Mutex::new(render_engine));
-        let config = CONFIG.init(Mutex::new(system_config));
+        let config = CONFIG_SERVICE.init(Mutex::new(system_config));
         let time_service = TIME_SERVICE.init(Mutex::new(time_service));
         let power_monitor = POWER_MONITOR.init(Mutex::new(power_monitor));
         let weather_service = WEATHER_SERVICE.init(Mutex::new(weather_service));
@@ -134,8 +135,19 @@ async fn main(spawner: Spawner) {
         log::info!("EPD Calendar started successfully");
     }
 
-    // 10. 主循环
-    main_loop().await;
+    // 主循环
+    main_loop(
+        display_manager,
+        display_data,
+        render_engine,
+        time_service,
+        config,
+        weather_service,
+        // quote_service,
+        power_monitor,
+        network_driver,
+    )
+    .await;
 }
 
 /// 初始化日志系统
@@ -238,8 +250,8 @@ async fn spawn_tasks(
 
     // 天气任务
     if let Err(e) = spawner.spawn(tasks::weather_task::weather_task(
-        display_manager.clone(),
-        display_data.clone(),
+        display_manager,
+        display_data,
         weather_service,
     )) {
         log::error!("Failed to spawn weather task: {}", e);
@@ -277,23 +289,46 @@ async fn spawn_tasks(
 }
 
 /// 主循环 - 处理系统级事件
-async fn main_loop() {
+async fn main_loop(
+    display_manager: &'static Mutex<ThreadModeRawMutex, DisplayManager>,
+    display_data: &'static Mutex<ThreadModeRawMutex, DisplayData>,
+    render_engine: &'static Mutex<ThreadModeRawMutex, RenderEngine>,
+    time_service: &'static Mutex<ThreadModeRawMutex, TimeService>,
+    config: &'static Mutex<ThreadModeRawMutex, SystemConfig>,
+    weather_service: &'static Mutex<ThreadModeRawMutex, WeatherService>,
+    // quote_service: service::quote_service::QuoteService,
+    power_monitor: &'static Mutex<ThreadModeRawMutex, DefaultPowerMonitor>,
+    network_driver: &'static Mutex<ThreadModeRawMutex, NetworkDriver>,
+) {
     let mut last_system_check = Instant::now();
 
     loop {
         // 每分钟检查一次系统状态
         if last_system_check.elapsed() > Duration::from_secs(60) {
-            check_system_health().await;
+            // 记录系统运行状态
+            log::debug!("System health check");
+
+            // 安全检查锁的状态（非阻塞）
+            macro_rules! check_lock {
+                ($name:expr, $lock:expr) => {
+                    match $lock.try_lock() {
+                        Ok(_) => log::info!("{}: Unlocked (healthy)", $name),
+                        Err(_) => log::warn!("{}: Locked (potential deadlock)", $name),
+                    }
+                };
+            }
+
+            check_lock!("DISPLAY_MANAGER", display_manager);
+            check_lock!("RENDER_ENGINE", render_engine);
+            check_lock!("TIME_SERVICE", time_service);
+            check_lock!("WEATHER_SERVICE", weather_service);
+            check_lock!("POWER_MONITOR", power_monitor);
+            check_lock!("NETWORK_DRIVER", network_driver);
+
             last_system_check = Instant::now();
         }
 
         // 主循环休眠，让任务运行
         Timer::after(Duration::from_secs(30)).await;
     }
-}
-
-/// 系统健康检查
-async fn check_system_health() {
-    // 记录系统运行状态
-    log::debug!("System health check");
 }
