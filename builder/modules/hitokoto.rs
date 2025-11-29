@@ -233,10 +233,14 @@ fn generate_font_files(
     half_width_result: &FontRenderResult,
 ) -> Result<()> {
     // 生成二进制字体文件
-    let full_width_bin_path = config.output_dir.join("generated_hitokoto_full_width_font.bin");
+    let full_width_bin_path = config
+        .output_dir
+        .join("generated_hitokoto_full_width_font.bin");
     utils::file_utils::write_file(&full_width_bin_path, &full_width_result.glyph_data)?;
 
-    let half_width_bin_path = config.output_dir.join("generated_hitokoto_half_width_font.bin");
+    let half_width_bin_path = config
+        .output_dir
+        .join("generated_hitokoto_half_width_font.bin");
     utils::file_utils::write_file(&half_width_bin_path, &half_width_result.glyph_data)?;
 
     // 生成字体描述文件

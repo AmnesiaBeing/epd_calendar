@@ -53,9 +53,11 @@ impl SimulatedRtc {
 
     /// 更新时间戳（内部方法）
     fn update_timestamp(&self, new_timestamp_us: u64) {
-        log::debug!("Updating timestamp from {} to {} us", 
-                    self.timestamp_us.load(Ordering::Acquire), 
-                    new_timestamp_us);
+        log::debug!(
+            "Updating timestamp from {} to {} us",
+            self.timestamp_us.load(Ordering::Acquire),
+            new_timestamp_us
+        );
         self.timestamp_us.store(new_timestamp_us, Ordering::Release);
     }
 }
@@ -64,29 +66,34 @@ impl TimeSource for SimulatedRtc {
     async fn get_time(&self) -> Result<DateTime<Local>> {
         let timestamp_us = self.timestamp_us.load(Ordering::Acquire);
         log::debug!("Getting time from timestamp: {timestamp_us} us");
-        
+
         let seconds = (timestamp_us / 1_000_000) as i64;
         let micros = (timestamp_us % 1_000_000) as u32;
 
-        let utc = DateTime::from_timestamp(seconds, micros * 1000)
-            .ok_or_else(|| {
-                log::warn!("Failed to create DateTime from timestamp: {timestamp_us} us");
-                AppError::TimeError
-            })?;
+        let utc = DateTime::from_timestamp(seconds, micros * 1000).ok_or_else(|| {
+            log::warn!("Failed to create DateTime from timestamp: {timestamp_us} us");
+            AppError::TimeError
+        })?;
 
         // 转换为本地时间
         let local_time = utc.with_timezone(&Local);
-        log::debug!("Current local time: {}", local_time.format("%Y-%m-%d %H:%M:%S"));
+        log::debug!(
+            "Current local time: {}",
+            local_time.format("%Y-%m-%d %H:%M:%S")
+        );
         Ok(local_time)
     }
 
     async fn update_time_by_sntp(&mut self) -> Result<()> {
         log::info!("Starting SNTP time update");
-        
+
         match self.ntp_time_source.get_ntp_time().await {
             Ok(ntp_time) => {
-                log::info!("SNTP time received: {}", ntp_time.format("%Y-%m-%d %H:%M:%S"));
-                
+                log::info!(
+                    "SNTP time received: {}",
+                    ntp_time.format("%Y-%m-%d %H:%M:%S")
+                );
+
                 // 将NTP时间转换为微秒时间戳
                 let timestamp_us = (ntp_time.timestamp() * 1_000_000
                     + ntp_time.timestamp_subsec_micros() as i64)
@@ -109,7 +116,9 @@ impl TimeSource for SimulatedRtc {
         let elapsed = self.start_time.elapsed().as_micros() as u64;
         let base_timestamp = self.timestamp_us.load(Ordering::Acquire);
         let current_timestamp = base_timestamp + elapsed;
-        log::debug!("Getting current timestamp: {current_timestamp} us (base: {base_timestamp}, elapsed: {elapsed})");
+        log::debug!(
+            "Getting current timestamp: {current_timestamp} us (base: {base_timestamp}, elapsed: {elapsed})"
+        );
         Ok(current_timestamp)
     }
 }
@@ -142,7 +151,8 @@ impl NtpTimestampGenerator for EmbassyTimestampGenerator {
     }
 
     fn timestamp_sec(&self) -> u64 {
-        let sec = self.start_time
+        let sec = self
+            .start_time
             .map(|start| start.elapsed().as_secs())
             .unwrap_or(0);
         log::trace!("Timestamp seconds: {sec}");
@@ -150,7 +160,8 @@ impl NtpTimestampGenerator for EmbassyTimestampGenerator {
     }
 
     fn timestamp_subsec_micros(&self) -> u32 {
-        let micros = self.start_time
+        let micros = self
+            .start_time
             .map(|start| {
                 let elapsed = start.elapsed();
                 (elapsed.as_micros() % 1_000_000) as u32
@@ -208,7 +219,7 @@ impl NtpTimeSource for SimulatedNtp {
             &mut tx_meta,
             &mut tx_buffer,
         );
-        
+
         if let Err(e) = socket.bind(123) {
             log::error!("Failed to bind UDP socket to port 123: {:?}", e);
             return Err(AppError::NetworkError);
@@ -227,7 +238,7 @@ impl NtpTimeSource for SimulatedNtp {
                 log::error!("DNS query failed: {:?}", e);
                 AppError::DnsError
             })?;
-            
+
         if ntp_addrs.is_empty() {
             log::error!("Failed to resolve DNS: no addresses found");
             return Err(AppError::DnsError);
@@ -235,7 +246,7 @@ impl NtpTimeSource for SimulatedNtp {
 
         let addr: IpAddr = ntp_addrs[0].into();
         log::info!("NTP server IP resolved: {addr}");
-        
+
         log::debug!("Sending NTP request to {addr}:123");
         let result = get_time(SocketAddr::from((addr, 123)), &socket, context).await;
 
@@ -245,24 +256,41 @@ impl NtpTimeSource for SimulatedNtp {
 
                 // 将NTP时间转换为UTC DateTime
                 let ntp_seconds = ntp_result.sec();
-                log::debug!("NTP seconds: {}, NTP fraction: {}", ntp_seconds, ntp_result.sec_fraction());
-                
+                log::debug!(
+                    "NTP seconds: {}, NTP fraction: {}",
+                    ntp_seconds,
+                    ntp_result.sec_fraction()
+                );
+
                 // 分析：从日志看，sntpc库返回的秒数已经是适合直接使用的值，不需要减去2208988800
                 // 直接将秒数转换为i64作为Unix时间戳
                 let unix_timestamp = ntp_seconds as i64;
-                log::debug!("Using NTP seconds directly as Unix timestamp: {}", unix_timestamp);
+                log::debug!(
+                    "Using NTP seconds directly as Unix timestamp: {}",
+                    unix_timestamp
+                );
                 let subsec_nanos = (u64::from(ntp_result.sec_fraction()) * 1_000_000_000
                     / u64::from(u32::MAX)) as u32;
-                
-                log::debug!("Calculated Unix timestamp: {}, nanoseconds: {}", unix_timestamp, subsec_nanos);
 
-                let utc = DateTime::from_timestamp(unix_timestamp, subsec_nanos)
-                    .ok_or_else(|| {
-                        log::warn!("Failed to create DateTime from Unix timestamp: {}", unix_timestamp);
+                log::debug!(
+                    "Calculated Unix timestamp: {}, nanoseconds: {}",
+                    unix_timestamp,
+                    subsec_nanos
+                );
+
+                let utc =
+                    DateTime::from_timestamp(unix_timestamp, subsec_nanos).ok_or_else(|| {
+                        log::warn!(
+                            "Failed to create DateTime from Unix timestamp: {}",
+                            unix_timestamp
+                        );
                         AppError::TimeError
                     })?;
 
-                log::debug!("Converted NTP time to UTC: {}", utc.format("%Y-%m-%d %H:%M:%S"));
+                log::debug!(
+                    "Converted NTP time to UTC: {}",
+                    utc.format("%Y-%m-%d %H:%M:%S")
+                );
                 Ok(utc)
             }
             Err(e) => {

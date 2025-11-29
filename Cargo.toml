@@ -39,8 +39,11 @@ embedded_esp = []
 spi_bitbang = ["bitbang-hal"]
 
 [profile.release]
-# 优化编译大小
-opt-level = "z"
+opt-level = 'z'
+lto = true
+codegen-units = 1
+panic = 'abort'
+strip = true
 
 # [profile.dev.package.esp-radio]
 # opt-level = 3

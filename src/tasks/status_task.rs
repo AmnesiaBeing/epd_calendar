@@ -11,7 +11,7 @@ use crate::driver::power::{DefaultPowerMonitor, PowerMonitor};
 #[embassy_executor::task]
 pub async fn status_task(
     display_manager: &'static Mutex<ThreadModeRawMutex, DisplayManager>,
-    display_data: &'static Mutex<ThreadModeRawMutex, DisplayData>,
+    display_data: &'static Mutex<ThreadModeRawMutex, DisplayData<'static>>,
     power_monitor: &'static Mutex<ThreadModeRawMutex, DefaultPowerMonitor>,
     // network_driver: impl NetworkDriver,
 ) {

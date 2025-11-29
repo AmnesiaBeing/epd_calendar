@@ -11,7 +11,7 @@ use crate::render::RenderEngine;
 #[embassy_executor::task]
 pub async fn display_refresh_task(
     display_manager: &'static Mutex<ThreadModeRawMutex, DisplayManager>,
-    display_data: &'static Mutex<ThreadModeRawMutex, DisplayData>,
+    display_data: &'static Mutex<ThreadModeRawMutex, DisplayData<'static>>,
     render_engine: &'static Mutex<ThreadModeRawMutex, RenderEngine>,
 ) {
     debug!("Display refresh task started");

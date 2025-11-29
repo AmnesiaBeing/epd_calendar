@@ -67,7 +67,7 @@ fn process_network_icons(
 
     for (index, &network_icon) in network_icons.iter().enumerate() {
         let svg_filename = format!("{}.svg", network_icon.filename());
-        let svg_path = format!("assets/{}", svg_filename);
+        let svg_path = format!("assets/icons/network/{}", svg_filename);
 
         // 使用通用图标渲染器渲染图标
         let icon_config = IconConfig {

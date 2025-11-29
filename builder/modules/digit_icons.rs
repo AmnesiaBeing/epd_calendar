@@ -99,7 +99,7 @@ fn process_digit_icons(
 
     for (index, &digit_icon) in digit_icons.iter().enumerate() {
         let svg_filename = format!("{}.svg", digit_icon.filename());
-        let svg_path = format!("assets/{}", svg_filename);
+        let svg_path = format!("assets/icons/time_digit/{}", svg_filename);
 
         // 使用通用图标渲染器渲染图标
         let icon_config = IconConfig {

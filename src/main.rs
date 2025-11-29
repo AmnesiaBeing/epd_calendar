@@ -227,7 +227,7 @@ async fn register_display_regions(display_manager: &'static GlobalMutex<DisplayM
 /// 初始显示设置
 async fn initial_display_setup(
     display_manager: &'static GlobalMutex<DisplayManager>,
-    display_data: &'static GlobalMutex<DisplayData>,
+    display_data: &'static GlobalMutex<DisplayData<'static>>,
     render_engine: &'static GlobalMutex<RenderEngine>,
     time_service: &'static GlobalMutex<TimeService>,
 ) -> Result<()> {
@@ -274,7 +274,7 @@ async fn initial_display_setup(
 async fn spawn_tasks(
     spawner: &Spawner,
     display_manager: &'static GlobalMutex<DisplayManager>,
-    display_data: &'static GlobalMutex<DisplayData>,
+    display_data: &'static GlobalMutex<DisplayData<'static>>,
     render_engine: &'static GlobalMutex<RenderEngine>,
     time_service: &'static GlobalMutex<TimeService>,
     config: &'static GlobalMutex<ConfigService<DefaultStorageDriver>>,

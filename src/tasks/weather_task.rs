@@ -11,7 +11,7 @@ use crate::service::weather_service::WeatherService;
 #[embassy_executor::task]
 pub async fn weather_task(
     display_manager: &'static Mutex<ThreadModeRawMutex, DisplayManager>,
-    display_data: &'static Mutex<ThreadModeRawMutex, DisplayData>,
+    display_data: &'static Mutex<ThreadModeRawMutex, DisplayData<'static>>,
     weather_service: &'static Mutex<ThreadModeRawMutex, WeatherService>,
     sensor_driver: &'static Mutex<ThreadModeRawMutex, DefaultSensorDriver>,
 ) {

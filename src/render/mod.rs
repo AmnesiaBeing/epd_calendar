@@ -29,7 +29,7 @@ impl RenderEngine {
     }
 
     /// 渲染完整显示内容
-    pub async fn render_full_display(&mut self, _data: &DisplayData) -> Result<()> {
+    pub async fn render_full_display<'a>(&mut self, _data: &'a DisplayData<'_>) -> Result<()> {
         info!("Rendering full display");
 
         // 清空显示缓冲区
@@ -51,9 +51,9 @@ impl RenderEngine {
     }
 
     /// 渲染部分显示内容
-    pub async fn render_partial_display(
+    pub async fn render_partial_display<'a>(
         &mut self,
-        _data: &DisplayData,
+        _data: &'a DisplayData<'_>,
         area: Rectangle,
     ) -> Result<()> {
         debug!("Rendering partial display for area: {:?}", area);

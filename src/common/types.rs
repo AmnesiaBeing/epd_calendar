@@ -2,7 +2,10 @@
 
 use embassy_time::Instant;
 
-use crate::service::weather_service::WeatherData;
+use crate::{
+    assets::generated_hitokoto_data::{HITOKOTOS, Hitokoto},
+    service::weather_service::WeatherData,
+};
 
 #[derive(Debug, Clone, Default)]
 pub struct SystemConfig {
@@ -25,22 +28,22 @@ pub struct SystemConfig {
     pub partial_refresh_limit: u32,
 }
 
-#[derive(Debug, Clone)]
-pub struct DisplayData {
+#[derive(Clone)]
+pub struct DisplayData<'a> {
     pub time: TimeData,
     pub weather: WeatherData,
-    pub quote: String,
+    pub quote: &'a Hitokoto,
     pub status: StatusData,
     pub force_refresh: bool,
     pub last_display_update: Instant,
 }
 
-impl Default for DisplayData {
+impl Default for DisplayData<'_> {
     fn default() -> Self {
         Self {
             time: TimeData::default(),
             weather: WeatherData::default(),
-            quote: String::new(),
+            quote: &HITOKOTOS[0],
             status: StatusData::default(),
             force_refresh: false,
             last_display_update: Instant::now(),

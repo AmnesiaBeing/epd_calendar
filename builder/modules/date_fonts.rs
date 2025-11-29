@@ -142,11 +142,8 @@ fn generate_fonts_rs_content(
 ) -> Result<String> {
     let mut content = String::new();
 
-    content.push_str("// 自动生成的格言字体描述文件\n");
+    content.push_str("// 自动生成的日期字体文件\n");
     content.push_str("// 不要手动修改此文件\n\n");
-
-    content.push_str("use crate::drv::text_renderer::{BinarySearchGlyphMapping, FontConfig};\n\n");
-    content.push_str("use embedded_graphics::prelude::Size;\n\n");
 
     // 生成全角字符映射
     let full_width_offsets: Vec<u32> = full_width_char_mapping.values().cloned().collect();
@@ -199,12 +196,6 @@ fn generate_fonts_rs_content(
         content.push_str(&format!("    {},\n", offset));
     }
     content.push_str("];\n\n");
-
-    content.push_str("pub static DATE_FULL_WIDTH_GLYPH_MAPPING: BinarySearchGlyphMapping = BinarySearchGlyphMapping {\n    chars: DATE_FULL_WIDTH_CHARS,\n    offsets: DATE_FULL_WIDTH_OFFSETS,\n};\n\n");
-
-    content.push_str("pub static DATE_HALF_WIDTH_GLYPH_MAPPING: BinarySearchGlyphMapping = BinarySearchGlyphMapping {\n    chars: DATE_HALF_WIDTH_CHARS,\n    offsets: DATE_HALF_WIDTH_OFFSETS,\n};\n\n");
-
-    content.push_str("pub static DATE_FONT_CONFIG: FontConfig = FontConfig {\n    full_width_data: include_bytes!(\"generated_date_full_width_font.bin\"),\n    full_width_glyph_mapping: &DATE_FULL_WIDTH_GLYPH_MAPPING,\n    full_width_size: Size::new(40, 40),\n    half_width_data: include_bytes!(\"generated_date_half_width_font.bin\"),\n    half_width_glyph_mapping: &DATE_HALF_WIDTH_GLYPH_MAPPING,\n    half_width_size: Size::new(20, 40),\n};\n\n");
 
     Ok(content)
 }

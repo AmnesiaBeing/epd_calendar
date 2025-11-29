@@ -12,7 +12,7 @@ use crate::{
 #[embassy_executor::task]
 pub async fn time_task(
     display_manager: &'static Mutex<ThreadModeRawMutex, DisplayManager>,
-    display_data: &'static Mutex<ThreadModeRawMutex, DisplayData>,
+    display_data: &'static Mutex<ThreadModeRawMutex, DisplayData<'static>>,
     time_service: &'static Mutex<ThreadModeRawMutex, TimeService>,
     config: &'static Mutex<ThreadModeRawMutex, ConfigService<DefaultStorageDriver>>,
 ) {

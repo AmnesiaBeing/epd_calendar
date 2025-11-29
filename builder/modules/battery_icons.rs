@@ -82,7 +82,7 @@ fn process_battery_icons(
 
     for (index, &battery_icon) in battery_icons.iter().enumerate() {
         let svg_filename = format!("{}.svg", battery_icon.filename());
-        let svg_path = format!("assets/{}", svg_filename);
+        let svg_path = format!("assets/icons/battery/{}", svg_filename);
 
         // 使用通用图标渲染器渲染图标
         let icon_config = IconConfig {
