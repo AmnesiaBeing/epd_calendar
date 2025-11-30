@@ -1,5 +1,15 @@
 // src/main.rs
+#![cfg_attr(feature = "embedded_esp", no_std)]
+#![cfg_attr(feature = "embedded_esp", no_main)]
+
+#[cfg(feature = "embedded_esp")]
+use core::prelude::v1::*;
+
+extern crate alloc;
+
 use embassy_executor::Spawner;
+#[cfg(feature = "embedded_esp")]
+use embassy_sync::blocking_mutex::raw::NoopRawMutex;
 #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
 use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
 use embassy_sync::mutex::Mutex;
@@ -32,7 +42,10 @@ use crate::service::weather_service::WeatherService;
 use crate::service::{config_service::ConfigService, time_service::TimeService};
 
 // 全局状态管理
+#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
 type GlobalMutex<T> = Mutex<ThreadModeRawMutex, T>;
+#[cfg(feature = "embedded_esp")]
+type GlobalMutex<T> = Mutex<NoopRawMutex, T>;
 
 static NETWORK_DRIVER: StaticCell<GlobalMutex<NetworkDriver>> = StaticCell::new();
 static DISPLAY_MANAGER: StaticCell<GlobalMutex<DisplayManager>> = StaticCell::new();
@@ -45,6 +58,10 @@ static CONFIG_SERVICE: StaticCell<GlobalMutex<ConfigService<DefaultStorageDriver
     StaticCell::new();
 static DISPLAY_DATA: StaticCell<GlobalMutex<DisplayData>> = StaticCell::new();
 
+#[cfg(feature = "embedded_esp")]
+esp_bootloader_esp_idf::esp_app_desc!();
+
+#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
     // 初始化日志系统
@@ -196,9 +213,8 @@ async fn init_logging() {
 
     #[cfg(feature = "embedded_esp")]
     {
-        // ESP32 特定的日志初始化
+        rtt_target::rtt_init_print!();
         log::info!("Initializing logger for ESP32");
-        // 实际的 ESP32 日志初始化代码
     }
 
     #[cfg(not(any(

@@ -1,108 +1,147 @@
 // src/driver/time_source.rs
-use chrono::{DateTime, Local, Utc};
 use core::net::{IpAddr, SocketAddr};
-use core::sync::atomic::{AtomicU64, Ordering};
-use embassy_net::dns::DnsQueryType;
-use embassy_net::udp::{PacketMetadata, UdpSocket};
-#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
-use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
-#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
+
+#[cfg(feature = "embedded_esp")]
+use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
+#[cfg(feature = "embedded_esp")]
 use embassy_sync::mutex::Mutex;
-#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
 use embassy_time::Instant;
+#[cfg(feature = "embedded_esp")]
+use esp_hal::{rtc_cntl::Rtc, timer::SystemTimer};
+use jiff::Timestamp;
 use sntpc::{NtpContext, NtpTimestampGenerator};
 
 use crate::common::error::{AppError, Result};
-#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
+#[cfg(feature = "embedded_esp")]
 use crate::driver::network::NetworkDriver;
 
 pub trait TimeSource {
     /// 获取当前时间
-    async fn get_time(&self) -> Result<DateTime<Local>>;
+    async fn get_time(&self) -> Result<Timestamp>;
 
     /// 通过SNTP更新时间
     async fn update_time_by_sntp(&mut self) -> Result<()>;
 
-    /// 获取时间戳（64位微秒，模拟ESP32 RTC精度）
+    /// 获取时间戳（64位微秒，使用ESP32 RTC精度）
     fn get_timestamp_us(&self) -> Result<u64>;
 }
 
-/// 模拟器RTC时间源 - 模拟ESP32的RTC行为
-#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
-pub struct SimulatedRtc {
-    // 模拟ESP32 RTC的64位微秒时间戳
-    timestamp_us: AtomicU64,
-    // 起始时间点
-    start_time: Instant,
+/// ESP32 RTC时间源 - 使用硬件RTC
+#[cfg(feature = "embedded_esp")]
+pub struct RtcTimeSource {
+    // ESP32 RTC实例
+    rtc: Rtc,
+    // 系统定时器用于高精度计时
+    systimer: SystemTimer,
     // NTP时间源
-    ntp_time_source: DefaultNtpTimeSource,
+    ntp_time_source: EspNtp,
+    // 基础时间戳（RTC时间）
+    base_timestamp_us: u64,
+    // 是否已同步
+    synchronized: bool,
 }
 
-impl SimulatedRtc {
-    pub fn new(ntp_time_source: DefaultNtpTimeSource) -> Self {
-        let now = Utc::now();
-        let timestamp_us =
-            (now.timestamp() * 1_000_000 + now.timestamp_subsec_micros() as i64) as u64;
-        log::info!("SimulatedRtc initialized with timestamp: {timestamp_us} us");
+#[cfg(feature = "embedded_esp")]
+impl RtcTimeSource {
+    pub fn new(rtc: Rtc, systimer: SystemTimer, ntp_time_source: EspNtp) -> Self {
+        log::info!("Initializing RtcTimeSource with hardware RTC");
+
+        // 从RTC获取当前时间
+        let base_timestamp_us = Self::read_rtc_time_us(&rtc, &systimer);
+
         Self {
-            timestamp_us: AtomicU64::new(timestamp_us),
-            start_time: Instant::now(),
+            rtc,
+            systimer,
             ntp_time_source,
+            base_timestamp_us,
+            synchronized: false,
         }
     }
 
-    /// 更新时间戳（内部方法）
-    fn update_timestamp(&self, new_timestamp_us: u64) {
+    /// 从ESP32 RTC读取时间（微秒）
+    fn read_rtc_time_us(rtc: &Rtc, systimer: &SystemTimer) -> u64 {
+        // 使用RTC的慢速时钟计数器
+        // RTC时钟通常是150kHz或32kHz，需要转换为微秒
+        let rtc_count = rtc.get_count();
+
+        // 根据RTC时钟频率转换为微秒
+        // ESP32 RTC通常运行在150kHz (SLOW_CLK)
+        let rtc_frequency = 150_000; // 150kHz
+        let microseconds = (rtc_count * 1_000_000) / rtc_frequency;
+
         log::debug!(
-            "Updating timestamp from {} to {} us",
-            self.timestamp_us.load(Ordering::Acquire),
-            new_timestamp_us
+            "RTC count: {}, converted to us: {}",
+            rtc_count,
+            microseconds
         );
-        self.timestamp_us.store(new_timestamp_us, Ordering::Release);
+        microseconds
+    }
+
+    /// 写入时间到ESP32 RTC（微秒）
+    fn write_rtc_time_us(&mut self, timestamp_us: u64) -> Result<()> {
+        log::info!("Writing time to RTC: {} us", timestamp_us);
+
+        // 将微秒转换为RTC计数
+        let rtc_frequency = 150_000; // 150kHz
+        let rtc_count = (timestamp_us * rtc_frequency) / 1_000_000;
+
+        // 设置RTC计数器
+        self.rtc.set_count(rtc_count);
+
+        // 验证写入
+        let read_back = Self::read_rtc_time_us(&self.rtc, &self.systimer);
+        if (read_back as i64 - timestamp_us as i64).abs() > 1000 {
+            log::error!(
+                "RTC time write verification failed: wrote {}, read back {}",
+                timestamp_us,
+                read_back
+            );
+            return Err(AppError::TimeError);
+        }
+
+        self.base_timestamp_us = timestamp_us;
+        self.synchronized = true;
+        log::info!("RTC time updated successfully");
+        Ok(())
+    }
+
+    /// 获取当前RTC时间（考虑RTC漂移补偿）
+    fn get_current_rtc_time_us(&self) -> u64 {
+        Self::read_rtc_time_us(&self.rtc, &self.systimer)
     }
 }
 
-impl TimeSource for SimulatedRtc {
-    async fn get_time(&self) -> Result<DateTime<Local>> {
-        let timestamp_us = self.timestamp_us.load(Ordering::Acquire);
-        log::debug!("Getting time from timestamp: {timestamp_us} us");
+#[cfg(feature = "embedded_esp")]
+impl TimeSource for RtcTimeSource {
+    async fn get_time(&self) -> Result<Timestamp> {
+        let timestamp_us = self.get_timestamp_us()?;
+        log::debug!("Getting time from RTC timestamp: {timestamp_us} us");
 
-        let seconds = (timestamp_us / 1_000_000) as i64;
-        let micros = (timestamp_us % 1_000_000) as u32;
-
-        let utc = DateTime::from_timestamp(seconds, micros * 1000).ok_or_else(|| {
-            log::warn!("Failed to create DateTime from timestamp: {timestamp_us} us");
-            AppError::TimeError
-        })?;
-
-        // 转换为本地时间
-        let local_time = utc.with_timezone(&Local);
+        // 从微秒时间戳创建Timestamp
+        let timestamp = Timestamp::from_micros(timestamp_us);
         log::debug!(
-            "Current local time: {}",
-            local_time.format("%Y-%m-%d %H:%M:%S")
+            "Current RTC time: {}",
+            timestamp.to_utc().format("%Y-%m-%d %H:%M:%S")
         );
-        Ok(local_time)
+        Ok(timestamp)
     }
 
     async fn update_time_by_sntp(&mut self) -> Result<()> {
-        log::info!("Starting SNTP time update");
+        log::info!("Starting SNTP time update for ESP32 RTC");
 
         match self.ntp_time_source.get_ntp_time().await {
             Ok(ntp_time) => {
                 log::info!(
                     "SNTP time received: {}",
-                    ntp_time.format("%Y-%m-%d %H:%M:%S")
+                    ntp_time.to_utc().format("%Y-%m-%d %H:%M:%S")
                 );
 
                 // 将NTP时间转换为微秒时间戳
-                let timestamp_us = (ntp_time.timestamp() * 1_000_000
-                    + ntp_time.timestamp_subsec_micros() as i64)
-                    as u64;
+                let timestamp_us = ntp_time.as_micros();
 
-                // 更新RTC时间戳
-                self.update_timestamp(timestamp_us);
-                self.start_time = Instant::now(); // 重置起始时间
-                log::info!("SNTP time update successful");
+                // 写入到硬件RTC
+                self.write_rtc_time_us(timestamp_us)?;
+                log::info!("RTC time synchronized with SNTP");
                 Ok(())
             }
             Err(e) => {
@@ -113,23 +152,147 @@ impl TimeSource for SimulatedRtc {
     }
 
     fn get_timestamp_us(&self) -> Result<u64> {
-        let elapsed = self.start_time.elapsed().as_micros() as u64;
-        let base_timestamp = self.timestamp_us.load(Ordering::Acquire);
-        let current_timestamp = base_timestamp + elapsed;
+        let current_timestamp = self.get_current_rtc_time_us();
+
         log::debug!(
-            "Getting current timestamp: {current_timestamp} us (base: {base_timestamp}, elapsed: {elapsed})"
+            "Getting current RTC timestamp: {current_timestamp} us (synchronized: {})",
+            self.synchronized
         );
+
         Ok(current_timestamp)
     }
 }
 
-// 默认时间源选择
-#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
-pub type DefaultTimeSource = SimulatedRtc;
+// ESP32 NTP时间源
+#[cfg(feature = "embedded_esp")]
+pub struct EspNtp {
+    network_driver: &'static Mutex<CriticalSectionRawMutex, NetworkDriver>,
+}
 
 #[cfg(feature = "embedded_esp")]
-pub type DefaultTimeSource = RtcTimeSource;
+impl EspNtp {
+    pub fn new(network_driver: &'static Mutex<CriticalSectionRawMutex, NetworkDriver>) -> Self {
+        log::info!("Creating new EspNtp for ESP32");
+        Self { network_driver }
+    }
 
+    /// 创建SNTP上下文
+    fn create_ntp_context(&self) -> NtpContext<EmbassyTimestampGenerator> {
+        log::debug!("Creating NTP context for ESP32");
+        let timestamp_gen = EmbassyTimestampGenerator::new();
+        NtpContext::new(timestamp_gen)
+    }
+}
+
+#[cfg(feature = "embedded_esp")]
+impl NtpTimeSource for EspNtp {
+    async fn get_ntp_time(&self) -> Result<Timestamp> {
+        use sntpc::get_time;
+
+        log::info!("Starting NTP time request on ESP32");
+        let context = self.create_ntp_context();
+
+        // Create UDP socket
+        log::debug!("Creating UDP socket for NTP on ESP32");
+        let mut rx_meta = [PacketMetadata::EMPTY; 16];
+        let mut rx_buffer = [0; 4096];
+        let mut tx_meta = [PacketMetadata::EMPTY; 16];
+        let mut tx_buffer = [0; 4096];
+
+        let mut socket = UdpSocket::new(
+            self.network_driver.lock().await.stack,
+            &mut rx_meta,
+            &mut rx_buffer,
+            &mut tx_meta,
+            &mut tx_buffer,
+        );
+
+        // 使用临时端口
+        if let Err(e) = socket.bind(0) {
+            log::error!("Failed to bind UDP socket: {:?}", e);
+            return Err(AppError::NetworkError);
+        }
+        log::debug!("UDP socket bound to ephemeral port");
+
+        // 使用多个NTP服务器以提高可靠性
+        let ntp_servers = [
+            "pool.ntp.org",
+            "time.google.com",
+            "time.windows.com",
+            "ntp.ntsc.ac.cn",
+        ];
+
+        let mut last_error = None;
+
+        for server in ntp_servers.iter() {
+            log::info!("Resolving NTP server: {server}");
+
+            let ntp_addrs = match self
+                .network_driver
+                .lock()
+                .await
+                .stack
+                .dns_query(server, DnsQueryType::A)
+                .await
+            {
+                Ok(addrs) => addrs,
+                Err(e) => {
+                    log::warn!("DNS query for {server} failed: {:?}", e);
+                    last_error = Some(AppError::DnsError);
+                    continue;
+                }
+            };
+
+            if ntp_addrs.is_empty() {
+                log::warn!("No addresses found for {server}");
+                last_error = Some(AppError::DnsError);
+                continue;
+            }
+
+            let addr: IpAddr = ntp_addrs[0].into();
+            log::info!("NTP server {server} resolved to: {addr}");
+
+            log::debug!("Sending NTP request to {addr}:123");
+            let result = get_time(SocketAddr::from((addr, 123)), &socket, context).await;
+
+            match result {
+                Ok(ntp_result) => {
+                    log::info!("NTP request to {server} success");
+
+                    // 将NTP时间转换为Timestamp
+                    let ntp_seconds = ntp_result.sec();
+
+                    // 直接将秒数转换为Unix时间戳
+                    let unix_timestamp = ntp_seconds as i64;
+
+                    // 计算纳秒部分
+                    let subsec_nanos = (u64::from(ntp_result.sec_fraction()) * 1_000_000_000
+                        / u64::from(u32::MAX)) as u32;
+
+                    // 使用jiff创建Timestamp
+                    let timestamp =
+                        Timestamp::from_secs_and_nanos(unix_timestamp as u64, subsec_nanos);
+
+                    log::info!(
+                        "NTP time from {server}: {}",
+                        timestamp.to_utc().format("%Y-%m-%d %H:%M:%S")
+                    );
+                    return Ok(timestamp);
+                }
+                Err(e) => {
+                    log::warn!("NTP request to {server} failed: {:?}", e);
+                    last_error = Some(AppError::TimeError);
+                    continue;
+                }
+            }
+        }
+
+        log::error!("All NTP servers failed");
+        Err(last_error.unwrap_or(AppError::TimeError))
+    }
+}
+
+// 共享的时间戳生成器
 #[derive(Clone, Copy)]
 pub struct EmbassyTimestampGenerator {
     start_time: Option<Instant>,
@@ -174,133 +337,19 @@ impl NtpTimestampGenerator for EmbassyTimestampGenerator {
 
 pub trait NtpTimeSource {
     /// 获取NTP时间（返回UTC时间）
-    async fn get_ntp_time(&self) -> Result<DateTime<Utc>>;
+    async fn get_ntp_time(&self) -> Result<Timestamp>;
 }
 
-/// 模拟器NTP时间源
+// 默认时间源选择
 #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
-pub struct SimulatedNtp {
-    network_driver: &'static Mutex<ThreadModeRawMutex, NetworkDriver>,
-}
+pub type DefaultTimeSource = SimulatedRtc;
 
-#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
-impl SimulatedNtp {
-    pub fn new(network_driver: &'static Mutex<ThreadModeRawMutex, NetworkDriver>) -> Self {
-        log::info!("Creating new SimulatedNtp");
-        Self { network_driver }
-    }
-
-    /// 创建SNTP上下文
-    fn create_ntp_context(&self) -> NtpContext<EmbassyTimestampGenerator> {
-        log::debug!("Creating NTP context");
-        let timestamp_gen = EmbassyTimestampGenerator::new();
-        NtpContext::new(timestamp_gen)
-    }
-}
-
-impl NtpTimeSource for SimulatedNtp {
-    async fn get_ntp_time(&self) -> Result<DateTime<Utc>> {
-        use sntpc::get_time;
-
-        log::info!("Starting NTP time request");
-        let context = self.create_ntp_context();
-
-        // Create UDP socket
-        log::debug!("Creating UDP socket for NTP");
-        let mut rx_meta = [PacketMetadata::EMPTY; 16];
-        let mut rx_buffer = [0; 4096];
-        let mut tx_meta = [PacketMetadata::EMPTY; 16];
-        let mut tx_buffer = [0; 4096];
-
-        let mut socket = UdpSocket::new(
-            self.network_driver.lock().await.stack,
-            &mut rx_meta,
-            &mut rx_buffer,
-            &mut tx_meta,
-            &mut tx_buffer,
-        );
-
-        if let Err(e) = socket.bind(123) {
-            log::error!("Failed to bind UDP socket to port 123: {:?}", e);
-            return Err(AppError::NetworkError);
-        }
-        log::debug!("UDP socket bound to port 123");
-
-        log::info!("Resolving NTP server: ntp.ntsc.ac.cn");
-        let ntp_addrs = self
-            .network_driver
-            .lock()
-            .await
-            .stack
-            .dns_query("ntp.ntsc.ac.cn", DnsQueryType::A)
-            .await
-            .map_err(|e| {
-                log::error!("DNS query failed: {:?}", e);
-                AppError::DnsError
-            })?;
-
-        if ntp_addrs.is_empty() {
-            log::error!("Failed to resolve DNS: no addresses found");
-            return Err(AppError::DnsError);
-        }
-
-        let addr: IpAddr = ntp_addrs[0].into();
-        log::info!("NTP server IP resolved: {addr}");
-
-        log::debug!("Sending NTP request to {addr}:123");
-        let result = get_time(SocketAddr::from((addr, 123)), &socket, context).await;
-
-        match result {
-            Ok(ntp_result) => {
-                log::info!("NTP request success, Time: {:?}", ntp_result);
-
-                // 将NTP时间转换为UTC DateTime
-                let ntp_seconds = ntp_result.sec();
-                log::debug!(
-                    "NTP seconds: {}, NTP fraction: {}",
-                    ntp_seconds,
-                    ntp_result.sec_fraction()
-                );
-
-                // 分析：从日志看，sntpc库返回的秒数已经是适合直接使用的值，不需要减去2208988800
-                // 直接将秒数转换为i64作为Unix时间戳
-                let unix_timestamp = ntp_seconds as i64;
-                log::debug!(
-                    "Using NTP seconds directly as Unix timestamp: {}",
-                    unix_timestamp
-                );
-                let subsec_nanos = (u64::from(ntp_result.sec_fraction()) * 1_000_000_000
-                    / u64::from(u32::MAX)) as u32;
-
-                log::debug!(
-                    "Calculated Unix timestamp: {}, nanoseconds: {}",
-                    unix_timestamp,
-                    subsec_nanos
-                );
-
-                let utc =
-                    DateTime::from_timestamp(unix_timestamp, subsec_nanos).ok_or_else(|| {
-                        log::warn!(
-                            "Failed to create DateTime from Unix timestamp: {}",
-                            unix_timestamp
-                        );
-                        AppError::TimeError
-                    })?;
-
-                log::debug!(
-                    "Converted NTP time to UTC: {}",
-                    utc.format("%Y-%m-%d %H:%M:%S")
-                );
-                Ok(utc)
-            }
-            Err(e) => {
-                log::error!("NTP request failed: {:?}", e);
-                return Err(AppError::TimeError);
-            }
-        }
-    }
-}
+#[cfg(feature = "embedded_esp")]
+pub type DefaultTimeSource = RtcTimeSource;
 
 // 默认NTP时间源选择
 #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
 pub type DefaultNtpTimeSource = SimulatedNtp;
+
+#[cfg(feature = "embedded_esp")]
+pub type DefaultNtpTimeSource = EspNtp;

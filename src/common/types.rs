@@ -57,7 +57,7 @@ pub struct TimeData {
     pub minute: u8,
     pub is_24_hour: bool,
     pub date_string: String,
-    pub weekday: String,
+    pub weekday: &str,
     // pub holiday: Option<String>,
     // pub lunar: LunarData,
 }

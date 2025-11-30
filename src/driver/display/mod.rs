@@ -1,18 +1,18 @@
 // src/driver/display/mod.rs
 use crate::common::error::Result;
 
-// #[cfg(feature = "simulator")]
+#[cfg(feature = "simulator")]
 mod simulator;
 
-// #[cfg(feature = "embedded_linux")]
-// mod linux_epd_driver;
+#[cfg(feature = "embedded_linux")]
+mod linux_epd_driver;
 
 // 条件编译导入
-// #[cfg(feature = "simulator")]
+#[cfg(feature = "simulator")]
 pub type DefaultDisplayDriver = simulator::SimulatorEpdDriver;
 
-// #[cfg(feature = "embedded_linux")]
-// pub type DefaultDisplayDriver = linux_epd_driver::LinuxEpdDriver;
+#[cfg(feature = "embedded_linux")]
+pub type DefaultDisplayDriver = linux_epd_driver::LinuxEpdDriver;
 
 /// 简化的显示驱动 trait
 /// 直接提供 EPD 硬件操作，不包含显示缓冲区
