@@ -46,7 +46,7 @@ impl SntpSource {
 
     /// 发送SNTP请求并获取时间
     async fn request_time(&mut self) -> Result<Timestamp, AppError> {
-        if let Some(stack) = self.network_driver.lock().await.get_stack().as_mut() {
+        if let Some(stack) = self.network_driver.lock().await.get_stack() {
             log::info!("Starting NTP time request");
             let context = self.create_ntp_context();
 
@@ -58,7 +58,7 @@ impl SntpSource {
 
             // 创建UDP套接字
             let socket = UdpSocket::new(
-                stack,
+                *stack,
                 &mut rx_meta,
                 &mut rx_buffer,
                 &mut tx_meta,

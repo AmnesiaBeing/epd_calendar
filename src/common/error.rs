@@ -68,6 +68,18 @@ pub enum AppError {
 
     #[error("Network stack not initialized")]
     NetworkStackNotInitialized,
+
+    #[error("Configuration invalid")]
+    ConfigInvalid,
+
+    #[error("Configuration serialization error")]
+    ConfigSerializationError,
+
+    #[error("Configuration deserialization error")]
+    ConfigDeserializationError,
+
+    #[error("Configuration too large")]
+    ConfigTooLarge,
 }
 
 pub type Result<T> = core::result::Result<T, AppError>;
