@@ -3,10 +3,10 @@ use crate::common::config::{CONFIG_MAGIC, MAX_CONFIG_SIZE, SystemConfig, default
 use crate::common::error::{AppError, Result};
 use crate::driver::storage::ConfigStorage;
 use alloc::vec::Vec;
-use postcard::{from_bytes, to_vec};
+use postcard::{from_bytes, to_allocvec};
 
 /// 配置管理器，处理配置的序列化、存储和验证
-pub struct ConfigManager<S>
+pub struct ConfigService<S>
 where
     S: ConfigStorage,
 {
@@ -15,7 +15,7 @@ where
     config_dirty: bool,
 }
 
-impl<S> ConfigManager<S>
+impl<S> ConfigService<S>
 where
     S: ConfigStorage,
 {
@@ -87,7 +87,7 @@ where
     pub fn save_config(&mut self) -> Result<()> {
         // 序列化配置
         let serialized =
-            to_vec(&self.current_config).map_err(|_| AppError::ConfigSerializationError)?;
+            to_allocvec(&self.current_config).map_err(|_| AppError::ConfigSerializationError)?;
 
         // 检查大小
         if serialized.len() + 8 > MAX_CONFIG_SIZE {

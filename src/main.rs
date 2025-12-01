@@ -18,7 +18,6 @@ mod render;
 mod service;
 mod tasks;
 
-use common::config::LayoutConfig;
 use common::error::Result;
 use common::types::{DisplayData, GlobalMutex};
 use static_cell::StaticCell;
@@ -30,21 +29,19 @@ use crate::driver::network::{DefaultNetworkDriver, NetworkDriver};
 use crate::driver::ntp_source::SntpSource;
 use crate::driver::power::DefaultPowerMonitor;
 use crate::driver::sensor::DefaultSensorDriver;
-use crate::driver::storage::DefaultStorageDriver;
+use crate::driver::storage::DefaultConfigStorage;
 use crate::driver::time_source::DefaultTimeSource;
-use crate::render::{DisplayManager, RefreshMode, RenderEngine};
-use crate::service::weather_service::WeatherService;
-use crate::service::{config_service::ConfigService, time_service::TimeService};
+use crate::render::RenderEngine;
+use crate::service::{ConfigService, QuoteService, TimeService, WeatherService};
 
 // 全局状态管理
 static NETWORK_DRIVER: StaticCell<GlobalMutex<DefaultNetworkDriver>> = StaticCell::new();
-static DISPLAY_MANAGER: StaticCell<GlobalMutex<DisplayManager>> = StaticCell::new();
 static SENSOR_DRIVER: StaticCell<GlobalMutex<DefaultSensorDriver>> = StaticCell::new();
 static WEATHER_SERVICE: StaticCell<GlobalMutex<WeatherService>> = StaticCell::new();
 static TIME_SERVICE: StaticCell<GlobalMutex<TimeService>> = StaticCell::new();
 static RENDER_ENGINE: StaticCell<GlobalMutex<RenderEngine>> = StaticCell::new();
 static POWER_MONITOR: StaticCell<GlobalMutex<DefaultPowerMonitor>> = StaticCell::new();
-static CONFIG_SERVICE: StaticCell<GlobalMutex<ConfigService<DefaultStorageDriver>>> =
+static CONFIG_SERVICE: StaticCell<GlobalMutex<ConfigService<DefaultConfigStorage>>> =
     StaticCell::new();
 static DISPLAY_DATA: StaticCell<GlobalMutex<DisplayData>> = StaticCell::new();
 
@@ -70,16 +67,12 @@ async fn cold_start(spawner: &Spawner) {
     log::info!("EPD Calendar starting...");
 
     log::info!("Cold start initializing system...");
-    cold_start(&spawner).await;
+
+    #[cfg(feature = "embedded_esp")]
+    let peripherals = esp_hal::init(esp_hal::Config::default());
 
     // 初始化存储驱动与配置服务
-    let storage_driver = match driver::storage::create_default_storage().await {
-        Ok(driver) => driver,
-        Err(e) => {
-            log::error!("Failed to create storage driver: {}", e);
-            return;
-        }
-    };
+    let storage_driver = DefaultConfigStorage::new(peripherals.FLASH);
 
     let mut config_service = ConfigService::new(storage_driver);
     let system_config = match config_service.load_config().await {
@@ -91,7 +84,7 @@ async fn cold_start(spawner: &Spawner) {
     };
 
     // 初始化硬件驱动
-    let display_driver = match DefaultDisplayDriver::new().await {
+    let display_driver = match DefaultDisplayDriver::new(peripherals) {
         Ok(driver) => driver,
         Err(e) => {
             log::error!("Failed to create display driver: {}", e);
@@ -99,8 +92,6 @@ async fn cold_start(spawner: &Spawner) {
         }
     };
 
-    #[cfg(feature = "embedded_esp")]
-    let peripherals = esp_hal::init(esp_hal::Config::default());
     #[cfg(feature = "embedded_esp")]
     let mut network_driver = DefaultNetworkDriver::new(peripherals.WIFI).unwrap();
     #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
@@ -118,7 +109,10 @@ async fn cold_start(spawner: &Spawner) {
 
     // 初始化时间服务
     let ntp_time_source = SntpSource::new(network_driver_mutex);
-    let time_source = DefaultTimeSource::new(ntp_time_source);
+    #[cfg(feature = "embedded_esp")]
+    let time_source = DefaultTimeSource::new(peripherals.LPWR);
+    #[cfg(not(feature = "embedded_esp"))]
+    let time_source = DefaultTimeSource::new();
     let time_service = TimeService::new(
         time_source,
         system_config.time_format_24h,

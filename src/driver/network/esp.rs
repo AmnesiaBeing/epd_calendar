@@ -2,9 +2,7 @@ use embassy_executor::Spawner;
 use embassy_net::Stack;
 use embassy_net::{Config, StackResources};
 use embassy_time::{Duration, Timer};
-use esp_hal::interrupt::software::SoftwareInterruptControl;
-use esp_hal::peripherals::{SW_INTERRUPT, TIMG0, WIFI};
-use esp_hal::timer::timg::TimerGroup;
+use esp_hal::peripherals::WIFI;
 use esp_radio::Controller;
 use esp_radio::wifi::{ClientConfig, ModeConfig, WifiController, WifiDevice};
 use static_cell::StaticCell;
@@ -13,8 +11,6 @@ use crate::common::error::AppError;
 use crate::common::error::Result;
 use crate::driver::network::NetworkDriver;
 
-static TIMG0_GROUP: StaticCell<TimerGroup<TIMG0>> = StaticCell::new();
-static SW_INT_CTRL: StaticCell<SoftwareInterruptControl> = StaticCell::new();
 static ESP_RADIO_CTRL: StaticCell<Controller> = StaticCell::new();
 
 #[embassy_executor::task]
@@ -114,7 +110,7 @@ impl NetworkDriver for EspNetworkDriver {
         controller.set_config(&client_config);
         controller
             .start()
-            .map_err(|e| AppError::WifiConnectionFailed)?;
+            .map_err(|_| AppError::WifiConnectionFailed)?;
         controller.connect();
 
         // 等待网络连接

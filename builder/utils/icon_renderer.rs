@@ -126,9 +126,9 @@ impl IconRenderer {
                 // 使用不同的字符来创建更好的视觉效果
                 line.push(if pixel == 1 { '█' } else { ' ' });
             }
-            println!("cargo:warning=  {}", line);
+            // println!("cargo:warning=  {}", line);
         }
-        println!("cargo:warning=");
+        // println!("cargo:warning=");
     }
 
     /// 预览多个图标（并排显示）

@@ -1,8 +1,8 @@
 // src/service/weather_service.rs
 use crate::common::error::{AppError, Result};
+use crate::common::types::GlobalMutex;
 use crate::driver::network::{DefaultNetworkDriver, NetworkDriver};
-use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
-use embassy_sync::mutex::Mutex;
+use alloc::format;
 use serde::Deserialize;
 
 // 对外暴露的天气数据结构
@@ -17,7 +17,7 @@ pub struct WeatherData {
 }
 
 pub struct WeatherService {
-    network: &'static Mutex<ThreadModeRawMutex, DefaultNetworkDriver>,
+    network: &'static GlobalMutex<DefaultNetworkDriver>,
     temperature_celsius: bool,
     location_id: heapless::String<20>,
     last_weather_data: Option<WeatherData>,
@@ -111,7 +111,7 @@ struct QWeatherResponse {
 
 impl WeatherService {
     pub fn new(
-        network: &'static Mutex<ThreadModeRawMutex, DefaultNetworkDriver>,
+        network: &'static GlobalMutex<DefaultNetworkDriver>,
         temperature_celsius: bool,
     ) -> Self {
         Self {

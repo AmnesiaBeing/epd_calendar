@@ -190,8 +190,8 @@ impl FontRenderer {
                     line.push_str(&" ".repeat(result.char_width as usize));
                 }
             }
-            println!("cargo:warning=  {}", line);
+            // println!("cargo:warning=  {}", line);
         }
-        println!("cargo:warning=");
+        // println!("cargo:warning=");
     }
 }
