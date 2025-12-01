@@ -5,14 +5,20 @@ use crate::common::error::Result;
 mod simulator;
 
 #[cfg(feature = "embedded_linux")]
-mod linux_epd_driver;
+mod linux;
+
+#[cfg(feature = "embedded_esp")]
+mod esp;
 
 // 条件编译导入
 #[cfg(feature = "simulator")]
 pub type DefaultDisplayDriver = simulator::SimulatorEpdDriver;
 
 #[cfg(feature = "embedded_linux")]
-pub type DefaultDisplayDriver = linux_epd_driver::LinuxEpdDriver;
+pub type DefaultDisplayDriver = linux::LinuxEpdDriver;
+
+#[cfg(feature = "embedded_esp")]
+pub type DefaultDisplayDriver = esp::EspEpdDriver;
 
 /// 简化的显示驱动 trait
 /// 直接提供 EPD 硬件操作，不包含显示缓冲区

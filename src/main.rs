@@ -8,14 +8,9 @@ use core::prelude::v1::*;
 extern crate alloc;
 
 use embassy_executor::Spawner;
-#[cfg(feature = "embedded_esp")]
-use embassy_sync::blocking_mutex::raw::NoopRawMutex;
-#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
-use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
 use embassy_sync::mutex::Mutex;
 use embassy_time::{Duration, Instant, Timer};
 
-mod app_core;
 mod assets;
 mod common;
 mod driver;
@@ -25,29 +20,24 @@ mod tasks;
 
 use common::config::LayoutConfig;
 use common::error::Result;
-use common::types::DisplayData;
+use common::types::{DisplayData, GlobalMutex};
 use static_cell::StaticCell;
 
-use crate::app_core::display_manager::{DisplayManager, RefreshMode};
 use crate::common::system_state::{SYSTEM_STATE, SystemState};
 use crate::common::types::SystemConfig;
 use crate::driver::display::DefaultDisplayDriver;
-use crate::driver::network::NetworkDriver;
+use crate::driver::network::{DefaultNetworkDriver, NetworkDriver};
+use crate::driver::ntp_source::SntpSource;
 use crate::driver::power::DefaultPowerMonitor;
 use crate::driver::sensor::DefaultSensorDriver;
 use crate::driver::storage::DefaultStorageDriver;
-use crate::driver::time_source::{DefaultNtpTimeSource, DefaultTimeSource};
-use crate::render::RenderEngine;
+use crate::driver::time_source::DefaultTimeSource;
+use crate::render::{DisplayManager, RefreshMode, RenderEngine};
 use crate::service::weather_service::WeatherService;
 use crate::service::{config_service::ConfigService, time_service::TimeService};
 
 // 全局状态管理
-#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
-type GlobalMutex<T> = Mutex<ThreadModeRawMutex, T>;
-#[cfg(feature = "embedded_esp")]
-type GlobalMutex<T> = Mutex<NoopRawMutex, T>;
-
-static NETWORK_DRIVER: StaticCell<GlobalMutex<NetworkDriver>> = StaticCell::new();
+static NETWORK_DRIVER: StaticCell<GlobalMutex<DefaultNetworkDriver>> = StaticCell::new();
 static DISPLAY_MANAGER: StaticCell<GlobalMutex<DisplayManager>> = StaticCell::new();
 static SENSOR_DRIVER: StaticCell<GlobalMutex<DefaultSensorDriver>> = StaticCell::new();
 static WEATHER_SERVICE: StaticCell<GlobalMutex<WeatherService>> = StaticCell::new();
@@ -64,24 +54,24 @@ esp_bootloader_esp_idf::esp_app_desc!();
 #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
-    // 初始化日志系统
-    init_logging().await;
-    log::info!("EPD Calendar starting...");
+    cold_start(&spawner).await;
+}
 
-    // 检查是否已经初始化（从休眠唤醒）
-    if SYSTEM_STATE.try_get().is_some() {
-        // 从休眠中恢复
-        log::info!("System already initialized, resuming from sleep");
-        resume_from_sleep(&spawner).await;
-    } else {
-        // 冷启动
-        log::info!("Cold start initializing system...");
-        cold_start(&spawner).await;
-    }
+#[cfg(feature = "embedded_esp")]
+#[esp_rtos::main]
+async fn main(spawner: Spawner) {
+    cold_start(&spawner).await;
 }
 
 /// 冷启动初始化
 async fn cold_start(spawner: &Spawner) {
+    // 初始化日志系统
+    init_logging().await;
+    log::info!("EPD Calendar starting...");
+
+    log::info!("Cold start initializing system...");
+    cold_start(&spawner).await;
+
     // 初始化存储驱动与配置服务
     let storage_driver = match driver::storage::create_default_storage().await {
         Ok(driver) => driver,
@@ -109,7 +99,13 @@ async fn cold_start(spawner: &Spawner) {
         }
     };
 
-    let network_driver = match NetworkDriver::new(spawner).await {
+    #[cfg(feature = "embedded_esp")]
+    let peripherals = esp_hal::init(esp_hal::Config::default());
+    #[cfg(feature = "embedded_esp")]
+    let mut network_driver = DefaultNetworkDriver::new(peripherals.WIFI).unwrap();
+    #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
+    let mut network_driver = DefaultNetworkDriver::new();
+    match network_driver.initialize(spawner).await {
         Ok(driver) => driver,
         Err(e) => {
             log::error!("Failed to initialize network driver: {}", e);
@@ -118,10 +114,10 @@ async fn cold_start(spawner: &Spawner) {
     };
 
     // 初始化网络驱动
-    let network_mutex = NETWORK_DRIVER.init(Mutex::new(network_driver));
+    let network_driver_mutex = NETWORK_DRIVER.init(Mutex::new(network_driver));
 
     // 初始化时间服务
-    let ntp_time_source = DefaultNtpTimeSource::new(network_mutex);
+    let ntp_time_source = SntpSource::new(network_driver_mutex);
     let time_source = DefaultTimeSource::new(ntp_time_source);
     let time_service = TimeService::new(
         time_source,
@@ -133,7 +129,7 @@ async fn cold_start(spawner: &Spawner) {
     let sensor_driver = SENSOR_DRIVER.init(Mutex::new(DefaultSensorDriver::new()));
     let power_monitor = POWER_MONITOR.init(Mutex::new(DefaultPowerMonitor::new()));
     let weather_service = WEATHER_SERVICE.init(Mutex::new(WeatherService::new(
-        network_mutex,
+        network_driver_mutex,
         system_config.temperature_celsius,
     )));
 
@@ -150,12 +146,9 @@ async fn cold_start(spawner: &Spawner) {
     let config_service_mutex = CONFIG_SERVICE.init(Mutex::new(config_service));
     let time_service_mutex = TIME_SERVICE.init(Mutex::new(time_service));
 
-    // 注册显示区域
-    register_display_regions(display_manager_mutex).await;
-
     // 执行初始全局显示设置
     if let Err(e) = initial_display_setup(
-        display_manager_mutex,
+        // display_manager_mutex,
         display_data_mutex,
         render_engine_mutex,
         time_service_mutex,
@@ -176,7 +169,7 @@ async fn cold_start(spawner: &Spawner) {
         config_service_mutex,
         weather_service,
         power_monitor,
-        network_mutex,
+        network_driver_mutex,
         sensor_driver,
     )
     .await;
@@ -185,22 +178,6 @@ async fn cold_start(spawner: &Spawner) {
     let _ = SYSTEM_STATE.init(SystemState::default());
 
     log::info!("EPD Calendar started successfully");
-
-    // 进入主循环
-    main_loop().await;
-}
-
-/// 从休眠中恢复
-async fn resume_from_sleep(spawner: &Spawner) {
-    log::info!("Resuming from sleep...");
-
-    // 这里可以实现从休眠恢复的具体逻辑
-    // 例如：重新初始化网络连接、更新显示数据等
-
-    log::info!("System resumed from sleep");
-
-    // 进入主循环
-    main_loop().await;
 }
 
 /// 初始化日志系统
@@ -227,22 +204,9 @@ async fn init_logging() {
     }
 }
 
-/// 注册显示区域
-async fn register_display_regions(display_manager: &'static GlobalMutex<DisplayManager>) {
-    let mut dm = display_manager.lock().await;
-
-    dm.register_region("time", LayoutConfig::TIME_REGION);
-    dm.register_region("date", LayoutConfig::DATE_REGION);
-    dm.register_region("weather", LayoutConfig::WEATHER_REGION);
-    dm.register_region("quote", LayoutConfig::QUOTE_REGION);
-    dm.register_region("status", LayoutConfig::STATUS_REGION);
-
-    log::info!("Display regions registered successfully");
-}
-
 /// 初始显示设置
 async fn initial_display_setup(
-    display_manager: &'static GlobalMutex<DisplayManager>,
+    // display_manager: &'static GlobalMutex<DisplayManager>,
     display_data: &'static GlobalMutex<DisplayData<'static>>,
     render_engine: &'static GlobalMutex<RenderEngine>,
     time_service: &'static GlobalMutex<TimeService>,
@@ -250,10 +214,10 @@ async fn initial_display_setup(
     log::info!("Performing initial global display setup");
 
     // 强制全局刷新模式
-    {
-        let mut dm = display_manager.lock().await;
-        dm.set_refresh_mode(RefreshMode::Global);
-    }
+    // {
+    //     let mut dm = display_manager.lock().await;
+    //     dm.set_refresh_mode(RefreshMode::Global);
+    // }
 
     // 获取初始数据
     let initial_time = {
@@ -276,11 +240,11 @@ async fn initial_display_setup(
     }
 
     // 重置刷新模式为局部刷新
-    {
-        let mut dm = display_manager.lock().await;
-        dm.set_refresh_mode(RefreshMode::Partial);
-        dm.reset_refresh_counters();
-    }
+    // {
+    //     let mut dm = display_manager.lock().await;
+    //     dm.set_refresh_mode(RefreshMode::Partial);
+    //     dm.reset_refresh_counters();
+    // }
 
     log::info!("Initial display setup completed");
     Ok(())
@@ -296,12 +260,12 @@ async fn spawn_tasks(
     config: &'static GlobalMutex<ConfigService<DefaultStorageDriver>>,
     weather_service: &'static GlobalMutex<WeatherService>,
     power_monitor: &'static GlobalMutex<DefaultPowerMonitor>,
-    network_driver: &'static GlobalMutex<NetworkDriver>,
+    network_driver: &'static GlobalMutex<DefaultNetworkDriver>,
     sensor_driver: &'static GlobalMutex<DefaultSensorDriver>,
 ) {
     // 时间任务
     if let Err(e) = spawner.spawn(tasks::time_task::time_task(
-        display_manager,
+        // display_manager,
         display_data,
         time_service,
         config,
@@ -313,7 +277,7 @@ async fn spawn_tasks(
 
     // 天气任务
     if let Err(e) = spawner.spawn(tasks::weather_task::weather_task(
-        display_manager,
+        // display_manager,
         display_data,
         weather_service,
         sensor_driver,
@@ -325,7 +289,7 @@ async fn spawn_tasks(
 
     // 状态任务
     if let Err(e) = spawner.spawn(tasks::status_task::status_task(
-        display_manager,
+        // display_manager,
         display_data,
         power_monitor,
     )) {

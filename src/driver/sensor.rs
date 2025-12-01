@@ -109,8 +109,47 @@ impl SensorDriver for LinuxSensorDriver {
     }
 }
 
+// TODO: 真正实现驱动
+
+/// ESP32传感器驱动（读取系统传感器）
+#[cfg(feature = "embedded_esp")]
+pub struct EspSensorDriver;
+
+#[cfg(feature = "embedded_esp")]
+impl EspSensorDriver {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+#[cfg(feature = "embedded_esp")]
+impl SensorDriver for EspSensorDriver {
+    async fn read(&mut self) -> Result<SensorData> {
+        // 读取系统传感器数据
+        // 简化实现，返回模拟数据
+        Ok(SensorData {
+            temperature: 23.5,
+            humidity: 55.0,
+            pressure: Some(1013.25),
+        })
+    }
+
+    async fn is_available(&self) -> bool {
+        // 检查系统传感器是否可用
+        true
+    }
+
+    async fn calibrate(&mut self) -> Result<()> {
+        log::info!("Linux sensor calibrated");
+        Ok(())
+    }
+}
+
 #[cfg(any(feature = "simulator"))]
 pub type DefaultSensorDriver = MockSensorDriver;
 
 #[cfg(feature = "embedded_linux")]
 pub type DefaultSensorDriver = LinuxSensorDriver;
+
+#[cfg(feature = "embedded_esp")]
+pub type DefaultSensorDriver = EspSensorDriver;

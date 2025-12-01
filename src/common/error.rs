@@ -35,6 +35,39 @@ pub enum AppError {
 
     #[error("Quote error")]
     QuoteError,
+
+    #[error("WiFi connection failed")]
+    WifiConnectionFailed,
+
+    #[error("SNTP time synchronization failed")]
+    SntpSyncFailed,
+
+    #[error("HTTPS request failed")]
+    HttpsRequestFailed,
+
+    #[error("TLS handshake failed")]
+    TlsHandshakeFailed,
+
+    #[error("Network stack initialization failed")]
+    NetworkStackInitFailed,
+
+    #[error("DNS resolution failed")]
+    DnsResolutionFailed,
+
+    #[error("Socket operation failed")]
+    SocketError,
+
+    #[error("NTP packet invalid")]
+    NtpPacketInvalid,
+
+    #[error("RTC update failed")]
+    RtcUpdateFailed,
+
+    #[error("DHCP failed")]
+    DhcpFailed,
+
+    #[error("Network stack not initialized")]
+    NetworkStackNotInitialized,
 }
 
 pub type Result<T> = core::result::Result<T, AppError>;

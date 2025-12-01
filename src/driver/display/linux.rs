@@ -1,7 +1,6 @@
-// src/driver/display/linux_driver.rs
+// src/driver/display/linux.rs
 use epd_waveshare::{epd7in5_yrd0750ryf665f60::Epd7in5, prelude::WaveshareDisplay};
 use linux_embedded_hal::{Delay, SysfsPin};
-use log::{debug, info};
 
 use super::DisplayDriver;
 use crate::common::error::{AppError, Result};
@@ -27,7 +26,7 @@ pub struct LinuxEpdDriver {
 
 impl LinuxEpdDriver {
     pub async fn new() -> Result<Self> {
-        info!("Initializing Linux EPD driver");
+        log::info!("Initializing Linux EPD driver");
 
         // 初始化 GPIO 引脚
         let epd_busy = init_gpio(101, linux_embedded_hal::sysfs_gpio::Direction::In)
@@ -63,7 +62,7 @@ impl LinuxEpdDriver {
         let epd = Epd7in5::new(&mut spi, epd_busy, epd_dc, epd_rst, &mut Delay, None)
             .map_err(|_| AppError::DisplayInit)?;
 
-        info!("EPD display initialized successfully");
+        log::info!("EPD display initialized successfully");
         Ok(Self { spi, epd })
     }
 }
@@ -82,7 +81,7 @@ impl DisplayDriver for LinuxEpdDriver {
             .update_and_display_frame(&mut self.spi, buffer, &mut Delay)
             .map_err(|_| AppError::DisplayUpdateFailed)?;
 
-        debug!("EPD frame updated and displayed");
+        log::debug!("EPD frame updated and displayed");
         Ok(())
     }
 
@@ -90,13 +89,13 @@ impl DisplayDriver for LinuxEpdDriver {
         self.epd
             .sleep(&mut self.spi, &mut Delay)
             .map_err(|_| AppError::DisplaySleepFailed)?;
-        debug!("EPD entered sleep mode");
+        log::debug!("EPD entered sleep mode");
         Ok(())
     }
 
     fn wake(&mut self) -> Result<()> {
         self.init()?;
-        debug!("EPD woke from sleep");
+        log::debug!("EPD woke from sleep");
         Ok(())
     }
 }

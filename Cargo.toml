@@ -39,6 +39,7 @@ embedded_linux = [
 ]
 embedded_esp = [
     "esp-rtos",
+    "esp-radio",
     "esp-hal",
     "esp-alloc",
     "esp-println",

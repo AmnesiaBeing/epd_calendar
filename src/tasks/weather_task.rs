@@ -1,19 +1,16 @@
 // src/tasks/weather_task.rs
-use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
-use embassy_sync::mutex::Mutex;
 use embassy_time::{Duration, Instant, Timer};
 
-use crate::app_core::display_manager::DisplayManager;
 use crate::common::types::DisplayData;
+use crate::common::types::GlobalMutex;
 use crate::driver::sensor::DefaultSensorDriver;
 use crate::service::weather_service::WeatherService;
 
 #[embassy_executor::task]
 pub async fn weather_task(
-    display_manager: &'static Mutex<ThreadModeRawMutex, DisplayManager>,
-    display_data: &'static Mutex<ThreadModeRawMutex, DisplayData<'static>>,
-    weather_service: &'static Mutex<ThreadModeRawMutex, WeatherService>,
-    sensor_driver: &'static Mutex<ThreadModeRawMutex, DefaultSensorDriver>,
+    display_data: &'static GlobalMutex<DisplayData<'static>>,
+    weather_service: &'static GlobalMutex<WeatherService>,
+    sensor_driver: &'static GlobalMutex<DefaultSensorDriver>,
 ) {
     log::info!("Weather task initialized and started");
 
@@ -50,9 +47,9 @@ pub async fn weather_task(
 
                     // 标记天气区域需要刷新
                     log::debug!("Marking weather region as dirty for refresh");
-                    if let Err(e) = display_manager.lock().await.mark_dirty("weather") {
-                        log::warn!("Failed to mark weather region dirty: {}", e);
-                    }
+                    // if let Err(e) = display_manager.lock().await.mark_dirty("weather") {
+                    //     log::warn!("Failed to mark weather region dirty: {}", e);
+                    // }
 
                     last_successful_update = Instant::now();
                     consecutive_failures = 0;

@@ -1,24 +1,22 @@
 // src/tasks/time_task.rs
-use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, mutex::Mutex};
 use embassy_time::{Duration, Timer};
 
 use crate::{
-    app_core::display_manager::DisplayManager,
-    common::types::DisplayData,
+    common::types::{DisplayData, GlobalMutex},
     driver::storage::DefaultStorageDriver,
     service::{config_service::ConfigService, time_service::TimeService},
 };
 
 #[embassy_executor::task]
 pub async fn time_task(
-    display_manager: &'static Mutex<ThreadModeRawMutex, DisplayManager>,
-    display_data: &'static Mutex<ThreadModeRawMutex, DisplayData<'static>>,
-    time_service: &'static Mutex<ThreadModeRawMutex, TimeService>,
-    config: &'static Mutex<ThreadModeRawMutex, ConfigService<DefaultStorageDriver>>,
+    // display_manager: &'static Mutex<ThreadModeRawMutex, DisplayManager>,
+    display_data: &'static GlobalMutex<DisplayData<'static>>,
+    time_service: &'static GlobalMutex<TimeService>,
+    config: &'static GlobalMutex<ConfigService<DefaultStorageDriver>>,
 ) {
     log::info!("Time task initialized and started");
     let mut last_minute = None;
-    let mut last_date = None;
+    // let mut last_date = None;
     let mut time_service = time_service.lock().await;
 
     log::debug!("Time task entering main loop");
@@ -51,13 +49,13 @@ pub async fn time_task(
         // 获取当前时间
         match time_service.get_current_time().await {
             Ok(current_time) => {
-                log::debug!(
-                    "Successfully retrieved current time: {}",
-                    current_time.date_string,
-                );
+                // log::debug!(
+                //     "Successfully retrieved current time: {}",
+                //     current_time.date_string,
+                // );
 
                 let current_minute = (current_time.hour, current_time.minute);
-                let current_date = &current_time.date_string;
+                // let current_date = &current_time.date_string;
 
                 // 检查分钟是否变化
                 if Some(current_minute) != last_minute {
@@ -74,25 +72,25 @@ pub async fn time_task(
 
                     // 标记时间区域需要刷新
                     log::debug!("Marking time region as dirty for refresh");
-                    if let Err(e) = display_manager.lock().await.mark_dirty("time") {
-                        log::warn!("Failed to mark time region dirty: {}", e);
-                    }
+                    // if let Err(e) = display_manager.lock().await.mark_dirty("time") {
+                    //     log::warn!("Failed to mark time region dirty: {}", e);
+                    // }
 
                     last_minute = Some(current_minute);
                 }
 
                 // 检查日期是否变化（跨天时）
-                if Some(current_date) != last_date.as_ref() {
-                    log::info!("Date changed: {}", current_date);
+                // if Some(current_date) != last_date.as_ref() {
+                //     log::info!("Date changed: {}", current_date);
 
-                    // 标记日期区域需要刷新
-                    log::debug!("Marking date region as dirty for refresh");
-                    if let Err(e) = display_manager.lock().await.mark_dirty("date") {
-                        log::warn!("Failed to mark date region dirty: {}", e);
-                    }
+                //     // 标记日期区域需要刷新
+                //     log::debug!("Marking date region as dirty for refresh");
+                //     if let Err(e) = display_manager.lock().await.mark_dirty("date") {
+                //         log::warn!("Failed to mark date region dirty: {}", e);
+                //     }
 
-                    last_date = Some(current_date.clone());
-                }
+                //     last_date = Some(current_date.clone());
+                // }
             }
             Err(e) => {
                 log::warn!("Time service error: {}", e);

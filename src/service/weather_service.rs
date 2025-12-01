@@ -1,6 +1,6 @@
 // src/service/weather_service.rs
 use crate::common::error::{AppError, Result};
-use crate::driver::network::NetworkDriver;
+use crate::driver::network::{DefaultNetworkDriver, NetworkDriver};
 use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
 use embassy_sync::mutex::Mutex;
 use serde::Deserialize;
@@ -17,7 +17,7 @@ pub struct WeatherData {
 }
 
 pub struct WeatherService {
-    network: &'static Mutex<ThreadModeRawMutex, NetworkDriver>,
+    network: &'static Mutex<ThreadModeRawMutex, DefaultNetworkDriver>,
     temperature_celsius: bool,
     location_id: heapless::String<20>,
     last_weather_data: Option<WeatherData>,
@@ -111,7 +111,7 @@ struct QWeatherResponse {
 
 impl WeatherService {
     pub fn new(
-        network: &'static Mutex<ThreadModeRawMutex, NetworkDriver>,
+        network: &'static Mutex<ThreadModeRawMutex, DefaultNetworkDriver>,
         temperature_celsius: bool,
     ) -> Self {
         Self {
@@ -124,7 +124,7 @@ impl WeatherService {
 
     pub async fn get_weather(&mut self) -> Result<WeatherData> {
         // 首先检查网络连接
-        if !self.network.lock().await.is_connected().await {
+        if !self.network.lock().await.is_connected() {
             log::warn!("Network not available, using cached or default weather data");
             return Err(AppError::WeatherApiError);
         }
@@ -163,16 +163,18 @@ impl WeatherService {
 
         let mut buffer: [u8; 4096] = [0; 4096];
 
-        let response = self
-            .network
-            .lock()
-            .await
-            .https_get("devapi.qweather.com", &path, &mut buffer)
-            .await
-            .map_err(|e| {
-                log::warn!("HTTP request failed: {:?}", e);
-                AppError::NetworkError
-            })?;
+        // let response = self
+        //     .network
+        //     .lock()
+        //     .await
+        //     .https_get("devapi.qweather.com", &path, &mut buffer)
+        //     .await
+        //     .map_err(|e| {
+        //         log::warn!("HTTP request failed: {:?}", e);
+        //         AppError::NetworkError
+        //     })?;
+
+        let response = [0u8; 4096];
 
         // 解析响应
         self.parse_weather_response(&response)

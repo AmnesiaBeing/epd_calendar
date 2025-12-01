@@ -1,4 +1,4 @@
-// src/driver/display/linux_driver.rs
+// src/driver/display/simulator.rs
 use embedded_hal_mock::eh1::{
     delay::NoopDelay as Delay,
     digital::{Mock as SysfsPin, State as PinState, Transaction as PinTransaction},

@@ -1,16 +1,12 @@
 // src/tasks/quote_task.rs
-use embassy_sync::blocking_mutex::raw::NoopRawMutex;
-use embassy_sync::mutex::Mutex;
 use embassy_time::{Duration, Timer};
 
-use crate::app_core::display_manager::DisplayManager;
-use crate::common::types::DisplayData;
+use crate::common::types::{DisplayData, GlobalMutex};
 use crate::service::quote_service::QuoteService;
 
 #[embassy_executor::task]
 pub async fn quote_task(
-    display_manager: &'static Mutex<NoopRawMutex, DisplayManager>,
-    display_data: &'static Mutex<NoopRawMutex, DisplayData<'static>>,
+    display_data: &'static GlobalMutex<DisplayData<'static>>,
     quote_service: &'static QuoteService,
 ) {
     log::debug!("Quote task started");
@@ -32,9 +28,9 @@ pub async fn quote_task(
                 }
 
                 // 标记格言区域需要刷新
-                if let Err(e) = display_manager.lock().await.mark_dirty("quote") {
-                    log::warn!("Failed to mark quote region dirty: {}", e);
-                }
+                // if let Err(e) = display_manager.lock().await.mark_dirty("quote") {
+                //     log::warn!("Failed to mark quote region dirty: {}", e);
+                // }
             }
             Err(e) => {
                 log::warn!("Quote service error: {}", e);
