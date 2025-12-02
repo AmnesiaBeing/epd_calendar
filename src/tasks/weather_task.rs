@@ -5,7 +5,7 @@ use crate::service::WeatherService;
 use crate::tasks::{ComponentData, ComponentType, DISPLAY_EVENTS, DisplayEvent};
 
 #[embassy_executor::task]
-pub async fn run(mut weather_service: WeatherService) {
+pub async fn weather_task(mut weather_service: WeatherService) {
     let mut ticker = Ticker::every(Duration::from_secs(2 * 60 * 60)); // 每2小时
 
     loop {

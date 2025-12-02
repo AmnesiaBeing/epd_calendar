@@ -5,7 +5,7 @@ use crate::service::QuoteService;
 use crate::tasks::{ComponentData, ComponentType, DISPLAY_EVENTS, DisplayEvent};
 
 #[embassy_executor::task]
-pub async fn run(quote_service: QuoteService) {
+pub async fn quote_task(quote_service: QuoteService) {
     let mut ticker = Ticker::every(Duration::from_secs(1 * 60 * 60)); // 每2小时
 
     loop {

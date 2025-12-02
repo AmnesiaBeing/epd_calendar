@@ -3,6 +3,13 @@ name = "epd_calendar"
 version = "0.1.0"
 edition = "2024"
 
+[[bin]]
+name = "epd_calendar"
+path = "src/main.rs"
+test = false
+doctest = false
+bench = false
+
 [features]
 default = ["embedded_esp"]
 simulator = [

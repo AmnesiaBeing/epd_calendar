@@ -1,10 +1,7 @@
 // src/driver/display/esp.rs
 
 use embedded_hal_bus::spi::ExclusiveDevice;
-use epd_waveshare::{
-    epd7in5_yrd0750ryf665f60::{Display7in5, Epd7in5},
-    prelude::WaveshareDisplay,
-};
+use epd_waveshare::{epd7in5_yrd0750ryf665f60::Epd7in5, prelude::WaveshareDisplay};
 use esp_hal::{
     Blocking,
     delay::Delay,
@@ -38,7 +35,7 @@ impl EspEpdDriver {
     /// - BUSY: GPIO2
     /// - DC: GPIO3
     /// - RST: GPIO4
-    pub fn new(peripherals: Peripherals) -> Result<Self> {
+    pub fn new(peripherals: &Peripherals) -> Result<Self> {
         log::info!("Initializing ESP EPD driver with fixed pin configuration");
 
         // 配置 SPI 引脚
@@ -67,7 +64,7 @@ impl EspEpdDriver {
         );
 
         // 获取 SPI2 实例
-        let spi2 = peripherals.SPI2;
+        let spi2 = unsafe { peripherals.SPI2.clone_unchecked() };
 
         // 创建 SPI 总线（SpiBus 实现）
         let spi_bus = Spi::new(

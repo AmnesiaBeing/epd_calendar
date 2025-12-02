@@ -1,6 +1,8 @@
 // src/driver/time_source/esp.rs
 
-use esp_hal::{peripherals::LPWR, rtc_cntl::Rtc};
+#[cfg(feature = "embedded_esp")]
+use esp_hal::peripherals::Peripherals;
+use esp_hal::rtc_cntl::Rtc;
 use jiff::Timestamp;
 
 use crate::common::error::{AppError, Result};
@@ -17,10 +19,10 @@ pub struct RtcTimeSource {
 
 #[cfg(feature = "embedded_esp")]
 impl RtcTimeSource {
-    pub fn new(lpwr: LPWR<'static>) -> Self {
+    pub fn new(peripherals: &Peripherals) -> Self {
         log::info!("Initializing RtcTimeSource with hardware RTC");
 
-        let rtc = Rtc::new(lpwr);
+        let rtc = Rtc::new(unsafe { peripherals.LPWR.clone_unchecked() });
 
         Self {
             rtc,

@@ -11,7 +11,6 @@ use embassy_executor::Spawner;
 use embassy_sync::mutex::Mutex;
 use embassy_time::{Duration, Instant, Timer};
 
-use common::error::Result;
 use static_cell::StaticCell;
 
 mod assets;
@@ -31,8 +30,8 @@ use crate::driver::sensor::DefaultSensorDriver;
 use crate::driver::storage::DefaultConfigStorage;
 use crate::driver::time_source::DefaultTimeSource;
 use crate::render::RenderEngine;
-use crate::service::{ConfigService, TimeService, WeatherService};
-use crate::tasks::display_task;
+use crate::service::{ConfigService, QuoteService, TimeService, WeatherService};
+use crate::tasks::{display_task, quote_task, status_task, time_task, weather_task};
 
 // 全局状态管理
 static NETWORK_DRIVER: StaticCell<GlobalMutex<DefaultNetworkDriver>> = StaticCell::new();
@@ -41,8 +40,7 @@ static POWER_MONITOR: StaticCell<GlobalMutex<DefaultPowerMonitor>> = StaticCell:
 
 static WEATHER_SERVICE: StaticCell<GlobalMutex<WeatherService>> = StaticCell::new();
 static TIME_SERVICE: StaticCell<GlobalMutex<TimeService>> = StaticCell::new();
-static CONFIG_SERVICE: StaticCell<GlobalMutex<ConfigService<DefaultConfigStorage>>> =
-    StaticCell::new();
+static CONFIG_SERVICE: StaticCell<GlobalMutex<ConfigService>> = StaticCell::new();
 
 static RENDER_ENGINE: StaticCell<GlobalMutex<RenderEngine>> = StaticCell::new();
 
@@ -57,8 +55,10 @@ async fn main(spawner: Spawner) {
 
 #[cfg(feature = "embedded_esp")]
 #[esp_rtos::main]
-async fn main(spawner: Spawner) {
+async fn main(spawner: Spawner) -> ! {
     cold_start(&spawner).await;
+
+    loop {}
 }
 
 /// 冷启动初始化
@@ -73,7 +73,7 @@ async fn cold_start(spawner: &Spawner) {
     let peripherals = esp_hal::init(esp_hal::Config::default());
 
     // 初始化存储驱动与配置服务
-    let storage_driver = DefaultConfigStorage::new(peripherals.FLASH)
+    let storage_driver = DefaultConfigStorage::new(&peripherals)
         .map_err(|e| {
             log::error!("Failed to create config storage driver: {}", e);
             e
@@ -83,7 +83,7 @@ async fn cold_start(spawner: &Spawner) {
     let mut config_service = ConfigService::new(storage_driver);
 
     // 初始化硬件驱动
-    let display_driver = match DefaultDisplayDriver::new(peripherals) {
+    let display_driver = match DefaultDisplayDriver::new(&peripherals) {
         Ok(driver) => driver,
         Err(e) => {
             log::error!("Failed to create display driver: {}", e);
@@ -92,7 +92,7 @@ async fn cold_start(spawner: &Spawner) {
     };
 
     #[cfg(feature = "embedded_esp")]
-    let mut network_driver = DefaultNetworkDriver::new(peripherals.WIFI).unwrap();
+    let mut network_driver = DefaultNetworkDriver::new(&peripherals).unwrap();
     #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
     let mut network_driver = DefaultNetworkDriver::new();
 
@@ -110,34 +110,30 @@ async fn cold_start(spawner: &Spawner) {
     // 初始化时间服务
     let ntp_time_source = SntpSource::new(network_driver_mutex);
     #[cfg(feature = "embedded_esp")]
-    let time_source = DefaultTimeSource::new(peripherals.LPWR);
+    let time_source = DefaultTimeSource::new(&peripherals);
     #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
     let time_source = DefaultTimeSource::new();
-    let time_service = TimeService::new(time_source);
+    let time_service = TimeService::new(time_source, ntp_time_source);
 
     // 初始化其他驱动和服务
-    let sensor_driver = SENSOR_DRIVER.init(Mutex::new(DefaultSensorDriver::new()));
+    // let sensor_driver = SENSOR_DRIVER.init(Mutex::new(DefaultSensorDriver::new()));
     let power_monitor = POWER_MONITOR.init(Mutex::new(DefaultPowerMonitor::new()));
-    let weather_service =
-        WEATHER_SERVICE.init(Mutex::new(WeatherService::new(network_driver_mutex)));
 
     // 初始化渲染引擎
-    let render_engine = RenderEngine::new(display_driver);
-
-    // 初始化共享状态
-    let system_state_mutex = SYSTEM_STATE.init(Mutex::new(SystemState::default()));
-    let render_engine_mutex = RENDER_ENGINE.init(Mutex::new(render_engine));
-    let config_service_mutex = CONFIG_SERVICE.init(Mutex::new(config_service));
-    let time_service_mutex = TIME_SERVICE.init(Mutex::new(time_service));
+    let render_engine = RenderEngine::new(display_driver, config_service);
 
     // 启动显示任务
     spawner.spawn(display_task(render_engine)).unwrap();
 
     // 启动其他任务
-    spawner.spawn(quote_task()).unwrap();
-    spawner.spawn(status_task()).unwrap();
-    spawner.spawn(time_task()).unwrap();
-    spawner.spawn(weather_task()).unwrap();
+    spawner.spawn(quote_task(QuoteService::new())).unwrap();
+    spawner
+        .spawn(status_task(power_monitor, network_driver_mutex))
+        .unwrap();
+    spawner.spawn(time_task(time_service)).unwrap();
+    spawner
+        .spawn(weather_task(WeatherService::new(network_driver_mutex)))
+        .unwrap();
 
     log::info!("EPD Calendar started successfully");
 }

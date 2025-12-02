@@ -4,6 +4,7 @@ use embedded_storage::nor_flash::ReadNorFlash;
 use esp_bootloader_esp_idf::partitions::{self, FlashRegion};
 use esp_bootloader_esp_idf::partitions::{DataPartitionSubType, PartitionType};
 use esp_hal::peripherals::FLASH;
+use esp_hal::peripherals::Peripherals;
 use esp_storage::FlashStorage;
 use static_cell::StaticCell;
 
@@ -22,9 +23,11 @@ pub struct EspConfigStorage {
 }
 
 impl EspConfigStorage {
-    pub fn new(flash: FLASH<'static>) -> Result<Self> {
+    pub fn new(peripherals: &Peripherals) -> Result<Self> {
         // 1. 初始化 FlashStorage 并获取静态引用
-        let flash_storage_ref = FLASH_STORAGE.init(FlashStorage::new(flash));
+        let flash_storage_ref = FLASH_STORAGE.init(FlashStorage::new(unsafe {
+            peripherals.FLASH.clone_unchecked()
+        }));
 
         // 2. 初始化分区表缓冲区并获取静态引用
         let pt_mem_ref = PT_MEM.init([0u8; partitions::PARTITION_TABLE_MAX_LEN]);

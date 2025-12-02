@@ -2,7 +2,7 @@ use embassy_executor::Spawner;
 use embassy_net::Stack;
 use embassy_net::{Config, StackResources};
 use embassy_time::{Duration, Timer};
-use esp_hal::peripherals::WIFI;
+use esp_hal::peripherals::{Peripherals, WIFI};
 use esp_radio::Controller;
 use esp_radio::wifi::{ClientConfig, ModeConfig, WifiController, WifiDevice};
 use static_cell::StaticCell;
@@ -26,16 +26,18 @@ pub struct EspNetworkDriver {
 }
 
 impl EspNetworkDriver {
-    // pub fn new(timg0: TIMG0, sw_interrupt: SW_INTERRUPT, wifi: WIFI) -> Result<Self> {
-    pub fn new(wifi: WIFI<'static>) -> Result<Self> {
+    pub fn new(peripherals: &Peripherals) -> Result<Self> {
         // 初始化ESP-RADIO
         let esp_radio_ctrl =
             ESP_RADIO_CTRL.init(esp_radio::init().map_err(|_| AppError::NetworkStackInitFailed)?);
 
         // 创建WiFi控制器和接口
-        let (controller, interfaces) =
-            esp_radio::wifi::new(esp_radio_ctrl, wifi, Default::default())
-                .map_err(|_| AppError::NetworkStackInitFailed)?;
+        let (controller, interfaces) = esp_radio::wifi::new(
+            esp_radio_ctrl,
+            unsafe { peripherals.WIFI.clone_unchecked() },
+            Default::default(),
+        )
+        .map_err(|_| AppError::NetworkStackInitFailed)?;
 
         let device = interfaces.sta;
 
@@ -66,8 +68,7 @@ impl NetworkDriver for EspNetworkDriver {
         // 配置网络 - 使用DHCP
         let config = Config::dhcpv4(Default::default());
 
-        let seed = getrandom::u64()
-            .map_err(|_| AppError::NetworkStackInitFailed)?;
+        let seed = getrandom::u64().map_err(|_| AppError::NetworkStackInitFailed)?;
 
         // 初始化网络栈资源
         static RESOURCES: StaticCell<StackResources<3>> = StaticCell::new();

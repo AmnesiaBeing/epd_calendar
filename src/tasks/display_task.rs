@@ -133,7 +133,6 @@ async fn handle_partial_refresh(
 /// 处理组件更新
 async fn handle_component_update(
     render_engine: &mut RenderEngine,
-    SYSTEM_STATE: &SystemState,
     component_type: ComponentType,
     component_data: ComponentData,
     last_full_refresh: &mut Option<Instant>,

@@ -3,9 +3,10 @@ use embedded_graphics::primitives::Rectangle;
 use epd_waveshare::color::QuadColor;
 use epd_waveshare::epd7in5_yrd0750ryf665f60::Display7in5;
 
-use crate::common::display::DisplayData;
 use crate::common::error::Result;
+use crate::common::system_state::SystemState;
 use crate::driver::display::{DefaultDisplayDriver, DisplayDriver};
+use crate::service::ConfigService;
 
 /// 渲染引擎 - 负责管理显示缓冲区和协调渲染
 pub struct RenderEngine {
@@ -13,10 +14,15 @@ pub struct RenderEngine {
     display_buffer: Display7in5,
     /// 显示驱动引用
     display_driver: DefaultDisplayDriver,
+    /// 配置服务引用
+    config_service: &'a mut ConfigService,
 }
 
 impl RenderEngine {
-    pub fn new(display_driver: DefaultDisplayDriver) -> Self {
+    pub fn new(
+        display_driver: DefaultDisplayDriver,
+        config_service: &'a mut ConfigService,
+    ) -> Self {
         Self {
             display_buffer: Display7in5::default(),
             // text_styles: TextStyles::new(),

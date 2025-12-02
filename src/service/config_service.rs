@@ -1,25 +1,19 @@
 // src/service/config_manager.rs
 use crate::common::config::{CONFIG_MAGIC, MAX_CONFIG_SIZE, SystemConfig, default_config_version};
 use crate::common::error::{AppError, Result};
-use crate::driver::storage::ConfigStorage;
+use crate::driver::storage::{ConfigStorage, DefaultConfigStorage};
 use alloc::vec::Vec;
 use postcard::{from_bytes, to_allocvec};
 
 /// 配置管理器，处理配置的序列化、存储和验证
-pub struct ConfigService<S>
-where
-    S: ConfigStorage,
-{
-    storage: S,
+pub struct ConfigService {
+    storage: DefaultConfigStorage,
     current_config: SystemConfig,
     config_dirty: bool,
 }
 
-impl<S> ConfigService<S>
-where
-    S: ConfigStorage,
-{
-    pub fn new(storage: S) -> Self {
+impl ConfigService {
+    pub fn new(storage: DefaultConfigStorage) -> Self {
         Self {
             storage,
             current_config: SystemConfig::default(),

@@ -7,7 +7,7 @@ use crate::{
 };
 
 #[embassy_executor::task]
-pub async fn run(time_service: TimeService) {
+pub async fn time_task(time_service: TimeService) {
     let mut ticker = Ticker::every(Duration::from_secs(60));
 
     loop {
