@@ -120,7 +120,7 @@ async fn cold_start(spawner: &Spawner) {
     let power_monitor = POWER_MONITOR.init(Mutex::new(DefaultPowerMonitor::new()));
 
     // 初始化渲染引擎
-    let render_engine = RenderEngine::new(display_driver, config_service);
+    let render_engine = RenderEngine::new(display_driver);
 
     // 启动显示任务
     spawner.spawn(display_task(render_engine)).unwrap();

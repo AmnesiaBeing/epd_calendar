@@ -20,18 +20,29 @@ pub type DefaultDisplayDriver = linux::LinuxEpdDriver;
 #[cfg(feature = "embedded_esp")]
 pub type DefaultDisplayDriver = esp::EspEpdDriver;
 
-/// 简化的显示驱动 trait
-/// 直接提供 EPD 硬件操作，不包含显示缓冲区
 pub trait DisplayDriver {
     /// 初始化显示设备
     fn init(&mut self) -> Result<()>;
 
-    /// 更新并显示帧缓冲区
-    fn update_and_display_frame(&mut self, buffer: &[u8]) -> Result<()>;
+    /// 更新缓冲区
+    fn update_frame(&mut self, buffer: &[u8]) -> Result<()>;
+
+    /// 更新部分帧缓冲区
+    fn update_partial_frame(
+        &mut self,
+        buffer: &[u8],
+        x: u32,
+        y: u32,
+        width: u32,
+        height: u32,
+    ) -> Result<()>;
+
+    /// 刷新显示缓冲区
+    fn display_frame(&mut self) -> Result<()>;
 
     /// 进入睡眠模式
     fn sleep(&mut self) -> Result<()>;
 
     /// 从睡眠模式唤醒
-    fn wake(&mut self) -> Result<()>;
+    fn wake_up(&mut self) -> Result<()>;
 }

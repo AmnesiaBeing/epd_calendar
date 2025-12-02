@@ -27,10 +27,16 @@ pub struct SystemState {
     pub date: Option<DateData>,
     pub weather: Option<WeatherData>, // 天气数据过多，统一放置在weather.rs中
     pub quote: Option<&'static Hitokoto>,
-    pub is_charging: bool,
+    pub is_charging: ChargingStatus,
     pub battery_level: BatteryLevel,
     pub is_online: bool,
 }
+
+#[derive(Default)]
+pub struct ChargingStatus(bool);
+
+#[derive(Default)]
+pub struct OnlineStatus(bool);
 
 #[derive(Debug, Clone)]
 pub struct TimeData {
@@ -44,6 +50,7 @@ pub struct DateData {
     pub week: u8,
     pub holiday: Option<LegalHoliday>,   // 节假日
     pub festival: Option<SolarFestival>, // 阳历节日
+    pub lunar: Option<LunarData>,
 }
 
 #[derive(Debug, Clone)]
