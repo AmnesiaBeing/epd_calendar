@@ -11,6 +11,9 @@ use embassy_executor::Spawner;
 use embassy_sync::mutex::Mutex;
 use embassy_time::{Duration, Instant, Timer};
 
+use common::error::Result;
+use static_cell::StaticCell;
+
 mod assets;
 mod common;
 mod driver;
@@ -18,12 +21,8 @@ mod render;
 mod service;
 mod tasks;
 
-use common::error::Result;
-use common::types::{DisplayData, GlobalMutex};
-use static_cell::StaticCell;
-
+use crate::common::GlobalMutex;
 use crate::common::system_state::{SYSTEM_STATE, SystemState};
-use crate::common::types::SystemConfig;
 use crate::driver::display::DefaultDisplayDriver;
 use crate::driver::network::{DefaultNetworkDriver, NetworkDriver};
 use crate::driver::ntp_source::SntpSource;
@@ -32,18 +31,20 @@ use crate::driver::sensor::DefaultSensorDriver;
 use crate::driver::storage::DefaultConfigStorage;
 use crate::driver::time_source::DefaultTimeSource;
 use crate::render::RenderEngine;
-use crate::service::{ConfigService, QuoteService, TimeService, WeatherService};
+use crate::service::{ConfigService, TimeService, WeatherService};
+use crate::tasks::display_task;
 
 // 全局状态管理
 static NETWORK_DRIVER: StaticCell<GlobalMutex<DefaultNetworkDriver>> = StaticCell::new();
 static SENSOR_DRIVER: StaticCell<GlobalMutex<DefaultSensorDriver>> = StaticCell::new();
+static POWER_MONITOR: StaticCell<GlobalMutex<DefaultPowerMonitor>> = StaticCell::new();
+
 static WEATHER_SERVICE: StaticCell<GlobalMutex<WeatherService>> = StaticCell::new();
 static TIME_SERVICE: StaticCell<GlobalMutex<TimeService>> = StaticCell::new();
-static RENDER_ENGINE: StaticCell<GlobalMutex<RenderEngine>> = StaticCell::new();
-static POWER_MONITOR: StaticCell<GlobalMutex<DefaultPowerMonitor>> = StaticCell::new();
 static CONFIG_SERVICE: StaticCell<GlobalMutex<ConfigService<DefaultConfigStorage>>> =
     StaticCell::new();
-static DISPLAY_DATA: StaticCell<GlobalMutex<DisplayData>> = StaticCell::new();
+
+static RENDER_ENGINE: StaticCell<GlobalMutex<RenderEngine>> = StaticCell::new();
 
 #[cfg(feature = "embedded_esp")]
 esp_bootloader_esp_idf::esp_app_desc!();
@@ -72,16 +73,14 @@ async fn cold_start(spawner: &Spawner) {
     let peripherals = esp_hal::init(esp_hal::Config::default());
 
     // 初始化存储驱动与配置服务
-    let storage_driver = DefaultConfigStorage::new(peripherals.FLASH);
+    let storage_driver = DefaultConfigStorage::new(peripherals.FLASH)
+        .map_err(|e| {
+            log::error!("Failed to create config storage driver: {}", e);
+            e
+        })
+        .unwrap();
 
     let mut config_service = ConfigService::new(storage_driver);
-    let system_config = match config_service.load_config().await {
-        Ok(config) => config,
-        Err(e) => {
-            log::warn!("Failed to load config, using defaults: {}", e);
-            SystemConfig::default()
-        }
-    };
 
     // 初始化硬件驱动
     let display_driver = match DefaultDisplayDriver::new(peripherals) {
@@ -96,6 +95,7 @@ async fn cold_start(spawner: &Spawner) {
     let mut network_driver = DefaultNetworkDriver::new(peripherals.WIFI).unwrap();
     #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
     let mut network_driver = DefaultNetworkDriver::new();
+
     match network_driver.initialize(spawner).await {
         Ok(driver) => driver,
         Err(e) => {
@@ -111,65 +111,33 @@ async fn cold_start(spawner: &Spawner) {
     let ntp_time_source = SntpSource::new(network_driver_mutex);
     #[cfg(feature = "embedded_esp")]
     let time_source = DefaultTimeSource::new(peripherals.LPWR);
-    #[cfg(not(feature = "embedded_esp"))]
+    #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
     let time_source = DefaultTimeSource::new();
-    let time_service = TimeService::new(
-        time_source,
-        system_config.time_format_24h,
-        system_config.temperature_celsius,
-    );
+    let time_service = TimeService::new(time_source);
 
     // 初始化其他驱动和服务
     let sensor_driver = SENSOR_DRIVER.init(Mutex::new(DefaultSensorDriver::new()));
     let power_monitor = POWER_MONITOR.init(Mutex::new(DefaultPowerMonitor::new()));
-    let weather_service = WEATHER_SERVICE.init(Mutex::new(WeatherService::new(
-        network_driver_mutex,
-        system_config.temperature_celsius,
-    )));
-
-    // 初始化核心管理器
-    let display_manager = DisplayManager::new(LayoutConfig::MAX_PARTIAL_REFRESHES);
+    let weather_service =
+        WEATHER_SERVICE.init(Mutex::new(WeatherService::new(network_driver_mutex)));
 
     // 初始化渲染引擎
     let render_engine = RenderEngine::new(display_driver);
 
     // 初始化共享状态
-    let display_manager_mutex = DISPLAY_MANAGER.init(Mutex::new(display_manager));
-    let display_data_mutex = DISPLAY_DATA.init(Mutex::new(DisplayData::default()));
+    let system_state_mutex = SYSTEM_STATE.init(Mutex::new(SystemState::default()));
     let render_engine_mutex = RENDER_ENGINE.init(Mutex::new(render_engine));
     let config_service_mutex = CONFIG_SERVICE.init(Mutex::new(config_service));
     let time_service_mutex = TIME_SERVICE.init(Mutex::new(time_service));
 
-    // 执行初始全局显示设置
-    if let Err(e) = initial_display_setup(
-        // display_manager_mutex,
-        display_data_mutex,
-        render_engine_mutex,
-        time_service_mutex,
-    )
-    .await
-    {
-        log::error!("Initial display setup failed: {}", e);
-        return;
-    }
+    // 启动显示任务
+    spawner.spawn(display_task(render_engine)).unwrap();
 
-    // 启动所有任务
-    spawn_tasks(
-        spawner,
-        display_manager_mutex,
-        display_data_mutex,
-        render_engine_mutex,
-        time_service_mutex,
-        config_service_mutex,
-        weather_service,
-        power_monitor,
-        network_driver_mutex,
-        sensor_driver,
-    )
-    .await;
-
-    // 初始化全局系统状态
-    let _ = SYSTEM_STATE.init(SystemState::default());
+    // 启动其他任务
+    spawner.spawn(quote_task()).unwrap();
+    spawner.spawn(status_task()).unwrap();
+    spawner.spawn(time_task()).unwrap();
+    spawner.spawn(weather_task()).unwrap();
 
     log::info!("EPD Calendar started successfully");
 }
@@ -187,123 +155,6 @@ async fn init_logging() {
         rtt_target::rtt_init_print!();
         log::info!("Initializing logger for ESP32");
     }
-
-    #[cfg(not(any(
-        feature = "simulator",
-        feature = "embedded_linux",
-        feature = "embedded_esp"
-    )))]
-    {
-        log::info!("No specific logger initialized - using default");
-    }
-}
-
-/// 初始显示设置
-async fn initial_display_setup(
-    // display_manager: &'static GlobalMutex<DisplayManager>,
-    display_data: &'static GlobalMutex<DisplayData<'static>>,
-    render_engine: &'static GlobalMutex<RenderEngine>,
-    time_service: &'static GlobalMutex<TimeService>,
-) -> Result<()> {
-    log::info!("Performing initial global display setup");
-
-    // 强制全局刷新模式
-    // {
-    //     let mut dm = display_manager.lock().await;
-    //     dm.set_refresh_mode(RefreshMode::Global);
-    // }
-
-    // 获取初始数据
-    let initial_time = {
-        let time_svc = time_service.lock().await;
-        time_svc.get_current_time().await?
-    };
-
-    // 更新显示数据
-    {
-        let mut data = display_data.lock().await;
-        data.time = initial_time;
-        data.force_refresh = true;
-    }
-
-    // 执行首次全局渲染
-    {
-        let data = display_data.lock().await.clone();
-        let mut engine = render_engine.lock().await;
-        engine.render_full_display(&data).await?;
-    }
-
-    // 重置刷新模式为局部刷新
-    // {
-    //     let mut dm = display_manager.lock().await;
-    //     dm.set_refresh_mode(RefreshMode::Partial);
-    //     dm.reset_refresh_counters();
-    // }
-
-    log::info!("Initial display setup completed");
-    Ok(())
-}
-
-/// 启动所有任务
-async fn spawn_tasks(
-    spawner: &Spawner,
-    display_manager: &'static GlobalMutex<DisplayManager>,
-    display_data: &'static GlobalMutex<DisplayData<'static>>,
-    render_engine: &'static GlobalMutex<RenderEngine>,
-    time_service: &'static GlobalMutex<TimeService>,
-    config: &'static GlobalMutex<ConfigService<DefaultStorageDriver>>,
-    weather_service: &'static GlobalMutex<WeatherService>,
-    power_monitor: &'static GlobalMutex<DefaultPowerMonitor>,
-    network_driver: &'static GlobalMutex<DefaultNetworkDriver>,
-    sensor_driver: &'static GlobalMutex<DefaultSensorDriver>,
-) {
-    // 时间任务
-    if let Err(e) = spawner.spawn(tasks::time_task::time_task(
-        // display_manager,
-        display_data,
-        time_service,
-        config,
-    )) {
-        log::error!("Failed to spawn time task: {}", e);
-    } else {
-        log::info!("Time task spawned successfully");
-    }
-
-    // 天气任务
-    if let Err(e) = spawner.spawn(tasks::weather_task::weather_task(
-        // display_manager,
-        display_data,
-        weather_service,
-        sensor_driver,
-    )) {
-        log::error!("Failed to spawn weather task: {}", e);
-    } else {
-        log::info!("Weather task spawned successfully");
-    }
-
-    // 状态任务
-    if let Err(e) = spawner.spawn(tasks::status_task::status_task(
-        // display_manager,
-        display_data,
-        power_monitor,
-    )) {
-        log::error!("Failed to spawn status task: {}", e);
-    } else {
-        log::info!("Status task spawned successfully");
-    }
-
-    // 显示刷新任务
-    if let Err(e) = spawner.spawn(tasks::display_refresh_task::display_refresh_task(
-        display_manager,
-        display_data,
-        render_engine,
-    )) {
-        log::error!("Failed to spawn display refresh task: {}", e);
-    } else {
-        log::info!("Display refresh task spawned successfully");
-    }
-
-    log::info!("All tasks spawned successfully");
 }
 
 /// 主循环 - 处理系统级事件

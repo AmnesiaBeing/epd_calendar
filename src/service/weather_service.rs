@@ -1,24 +1,12 @@
 // src/service/weather_service.rs
+use crate::common::GlobalMutex;
 use crate::common::error::{AppError, Result};
-use crate::common::types::GlobalMutex;
+use crate::common::weather::{QWeatherResponse, QWeatherStatusCode, WeatherData};
 use crate::driver::network::{DefaultNetworkDriver, NetworkDriver};
 use alloc::format;
-use serde::Deserialize;
-
-// 对外暴露的天气数据结构
-#[derive(Debug, Clone, Default)]
-pub struct WeatherData {
-    /// 地区ID
-    pub location_id: heapless::String<20>,
-    /// 数据更新时间
-    pub update_time: heapless::String<20>,
-    /// 3天预报数据
-    pub daily_forecast: heapless::Vec<DailyWeather, 3>,
-}
 
 pub struct WeatherService {
     network: &'static GlobalMutex<DefaultNetworkDriver>,
-    temperature_celsius: bool,
     location_id: heapless::String<20>,
     last_weather_data: Option<WeatherData>,
 }
@@ -27,96 +15,10 @@ const API_HOST: &str = "devapi.qweather.com";
 const API_PATH: &str = "/v7/weather/3d";
 const API_KAY: &str = "";
 
-// 天气图标枚举（适配和风天气icon代码）
-#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum WeatherIcon {
-    Sunny,        // 100
-    Cloudy,       // 101
-    FewClouds,    // 102
-    Overcast,     // 103
-    Fog,          // 104
-    LightRain,    // 300
-    ModerateRain, // 301
-    HeavyRain,    // 302
-    Snow,         // 400
-    Unknown,      // 其他未定义值
-}
-
-// 风向枚举
-#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
-#[serde(rename_all = "PascalCase")]
-pub enum WindDirection {
-    North,     // 北风
-    Northeast, // 东北风
-    East,      // 东风
-    Southeast, // 东南风
-    South,     // 南风
-    Southwest, // 西南风
-    West,      // 西风
-    Northwest, // 西北风
-    Unknown,   // 未知风向
-}
-
-// 单天天气预报
-#[derive(Debug, Clone, Deserialize)]
-pub struct DailyWeather {
-    /// 预报日期（yyyy-MM-dd）
-    #[serde(rename = "fxDate")]
-    pub date: heapless::String<20>,
-    /// 最高温度（℃）
-    #[serde(rename = "tempMax")]
-    pub temp_max: i8,
-    /// 最低温度（℃）
-    #[serde(rename = "tempMin")]
-    pub temp_min: i8,
-    /// 白天天气图标
-    #[serde(rename = "iconDay")]
-    pub icon_day: WeatherIcon,
-    /// 白天天气描述
-    #[serde(rename = "textDay")]
-    pub text_day: heapless::String<20>,
-    /// 夜间天气图标
-    #[serde(rename = "iconNight")]
-    pub icon_night: WeatherIcon,
-    /// 夜间天气描述
-    #[serde(rename = "textNight")]
-    pub text_night: heapless::String<20>,
-    /// 白天风向
-    #[serde(rename = "windDirDay")]
-    pub wind_direction: WindDirection,
-    /// 白天风速（km/h）
-    #[serde(rename = "windSpeedDay")]
-    pub wind_speed: u8,
-    /// 相对湿度（%）
-    pub humidity: u8,
-    /// 降水量（mm）
-    pub precip: f32,
-    /// 紫外线指数
-    #[serde(rename = "uvIndex")]
-    pub uv_index: u8,
-}
-
-// 和风天气API响应根结构
-#[derive(Debug, Deserialize)]
-struct QWeatherResponse {
-    /// 状态码（200=成功）
-    pub code: heapless::String<3>,
-    /// API更新时间（yyyy-MM-ddTHH:mm+08:00）
-    #[serde(rename = "updateTime")]
-    pub update_time: heapless::String<20>,
-    /// 3天预报数据
-    pub daily: heapless::Vec<DailyWeather, 3>,
-}
-
 impl WeatherService {
-    pub fn new(
-        network: &'static GlobalMutex<DefaultNetworkDriver>,
-        temperature_celsius: bool,
-    ) -> Self {
+    pub fn new(network: &'static GlobalMutex<DefaultNetworkDriver>) -> Self {
         Self {
             network,
-            temperature_celsius,
             location_id: heapless::String::new(),
             last_weather_data: None,
         }
@@ -191,8 +93,8 @@ impl WeatherService {
         })?;
 
         // 2. 校验API状态码
-        if qweather_resp.code != "200" {
-            log::warn!("API returned error code: {}", qweather_resp.code);
+        if qweather_resp.code != QWeatherStatusCode::Success {
+            log::warn!("API returned error code: {:?}", qweather_resp.code);
             return Err(AppError::WeatherApiError);
         }
 
@@ -218,15 +120,5 @@ impl WeatherService {
         }
 
         Ok(weather_data)
-    }
-
-    // 温度单位转换
-    pub fn convert_temperature(&self, temp: i8) -> i8 {
-        if self.temperature_celsius {
-            temp
-        } else {
-            // 摄氏度转华氏度
-            (temp * 9 / 5) + 32
-        }
     }
 }

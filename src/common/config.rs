@@ -35,7 +35,6 @@ pub struct SystemConfig {
     // 显示配置
     pub time_format_24h: bool,
     pub temperature_celsius: bool,
-    pub show_am_pm: bool,
 
     // 天气配置
     pub weather_api_key: String<64>,  // 最多 64 字符
@@ -58,7 +57,6 @@ impl Default for SystemConfig {
             wifi_encryption: WifiEncryption::default(),
             time_format_24h: true,
             temperature_celsius: true,
-            show_am_pm: true,
             weather_api_key: String::new(),
             weather_location: String::new(),
             auto_refresh_interval: 60, // 默认 60 秒

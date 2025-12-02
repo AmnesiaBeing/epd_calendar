@@ -2,7 +2,6 @@ pub mod battery_renderer;
 pub mod datetime_renderer;
 pub mod hitokoto_renderer;
 pub mod image_renderer;
-pub mod lcg;
 pub mod network_renderer;
 pub mod text_renderer;
 

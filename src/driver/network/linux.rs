@@ -6,7 +6,7 @@ use static_cell::StaticCell;
 
 use crate::common::error::Result;
 use crate::driver::network::NetworkDriver;
-use crate::{common::error::AppError, driver::lcg};
+use crate::{common::error::AppError};
 
 #[embassy_executor::task]
 async fn net_task(mut runner: embassy_net::Runner<'static, TunTapDevice>) -> ! {
@@ -35,8 +35,7 @@ impl NetworkDriver for LinuxNetworkDriver {
         });
 
         // Generate random seed
-        let mut lcg = lcg::Lcg::new();
-        let seed = lcg.next();
+        let seed = getrandom::u64().map_err(|_| AppError::NetworkStackInitFailed)?;
 
         // Init network stack
         static RESOURCES: StaticCell<StackResources<3>> = StaticCell::new();

@@ -1,4 +1,6 @@
 // src/driver/storage/esp.rs
+use embedded_storage::nor_flash::NorFlash;
+use embedded_storage::nor_flash::ReadNorFlash;
 use esp_bootloader_esp_idf::partitions::{self, FlashRegion};
 use esp_bootloader_esp_idf::partitions::{DataPartitionSubType, PartitionType};
 use esp_hal::peripherals::FLASH;
@@ -11,9 +13,12 @@ use crate::driver::storage::ConfigStorage;
 static FLASH_STORAGE: StaticCell<FlashStorage<'static>> = StaticCell::new();
 static PT_MEM: StaticCell<[u8; partitions::PARTITION_TABLE_MAX_LEN]> = StaticCell::new();
 
+const CONFIG_SIZE: usize = 4096;
+
 /// ESP32 配置存储实现
 pub struct EspConfigStorage {
-    flash: FlashRegion<'static, FlashStorage<'static>>,
+    flash_storage: FlashRegion<'static, FlashStorage<'static>>,
+    config_address: u32,
 }
 
 impl EspConfigStorage {
@@ -36,22 +41,65 @@ impl EspConfigStorage {
             .as_embedded_storage(flash_storage_ref);
 
         Ok(Self {
-            flash: config_partition,
+            flash_storage: config_partition,
+            config_address: 0,
         })
     }
 }
 
 impl ConfigStorage for EspConfigStorage {
     fn read_config_block(&mut self) -> Result<Option<alloc::vec::Vec<u8>>> {
-        todo!()
+        // 创建配置大小的缓冲区
+        let mut buffer = alloc::vec![0u8; CONFIG_SIZE];
+
+        // 从Flash读取数据
+        if let Err(_) = self
+            .flash_storage
+            .read(self.config_address, &mut buffer[..])
+        {
+            return Err(AppError::StorageError);
+        }
+
+        // 检查数据是否全为0xFF（未初始化或已擦除）
+        let all_erased = buffer.iter().all(|&b| b == 0xFF);
+        if all_erased {
+            Ok(None)
+        } else {
+            Ok(Some(buffer))
+        }
     }
 
     fn write_config_block(&mut self, data: &[u8]) -> Result<()> {
-        todo!()
+        // 检查输入数据是否为空
+        if data.is_empty() {
+            return Err(AppError::StorageError);
+        }
+
+        // 确保数据不会超出预定义的配置大小
+        let write_size = data.len().min(CONFIG_SIZE);
+
+        // 创建写入缓冲区
+        let mut buffer = alloc::vec![0u8; write_size];
+        buffer.copy_from_slice(&data[..write_size]);
+
+        // 写入数据到Flash
+        if let Err(_) = self.flash_storage.write(self.config_address, &buffer[..]) {
+            return Err(AppError::StorageError);
+        }
+
+        Ok(())
     }
 
     fn erase_config(&mut self) -> Result<()> {
-        todo!()
+        // 创建全0xFF的缓冲区（表示擦除状态）
+        let buffer = alloc::vec![0xFF; CONFIG_SIZE];
+
+        // 写入全0xFF来模拟擦除
+        if let Err(_) = self.flash_storage.write(self.config_address, &buffer[..]) {
+            return Err(AppError::StorageError);
+        }
+
+        Ok(())
     }
 }
 

@@ -1,7 +1,10 @@
 // src/driver/display/esp.rs
 
 use embedded_hal_bus::spi::ExclusiveDevice;
-use epd_waveshare::{epd7in5_yrd0750ryf665f60::Epd7in5, prelude::WaveshareDisplay};
+use epd_waveshare::{
+    epd7in5_yrd0750ryf665f60::{Display7in5, Epd7in5},
+    prelude::WaveshareDisplay,
+};
 use esp_hal::{
     Blocking,
     delay::Delay,

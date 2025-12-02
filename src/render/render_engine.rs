@@ -3,16 +3,14 @@ use embedded_graphics::primitives::Rectangle;
 use epd_waveshare::color::QuadColor;
 use epd_waveshare::epd7in5_yrd0750ryf665f60::Display7in5;
 
+use crate::common::display::DisplayData;
 use crate::common::error::Result;
-use crate::common::types::DisplayData;
 use crate::driver::display::{DefaultDisplayDriver, DisplayDriver};
 
 /// 渲染引擎 - 负责管理显示缓冲区和协调渲染
 pub struct RenderEngine {
     /// 显示缓冲区
     display_buffer: Display7in5,
-    /// 文本样式缓存
-    // text_styles: TextStyles,
     /// 显示驱动引用
     display_driver: DefaultDisplayDriver,
 }

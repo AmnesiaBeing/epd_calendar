@@ -262,15 +262,11 @@ impl HitokotoTextRenderer {
 }
 
 // 格言渲染器
-pub struct HitokotoRenderer {
-    rng: crate::drv::lcg::Lcg,
-}
+pub struct HitokotoRenderer {}
 
 impl HitokotoRenderer {
     pub fn new() -> Self {
-        Self {
-            rng: crate::drv::lcg::Lcg::new(),
-        }
+        Self {}
     }
 
     /// 渲染格言到显示设备

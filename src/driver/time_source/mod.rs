@@ -19,11 +19,11 @@ use crate::common::error::Result;
 // 模拟器内，使用一个task来模拟中断时间
 
 pub trait TimeSource {
-    /// 获取当前时间（带时区）
-    async fn get_time(&self) -> Result<Timestamp>;
+    /// 获取当前时间（UTC时间戳）
+    fn get_time(&self) -> Result<Timestamp>;
 
-    /// 通过SNTP更新时间
-    async fn set_time(&mut self, new_time: Timestamp) -> Result<()>;
+    /// 设置新时间
+    fn set_time(&mut self, new_time: Timestamp) -> Result<()>;
 }
 
 // 默认时间源选择

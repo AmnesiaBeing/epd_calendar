@@ -45,7 +45,7 @@ impl SimulatedRtc {
 
 #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
 impl TimeSource for SimulatedRtc {
-    async fn get_time(&self) -> Result<Zoned> {
+    fn get_time(&self) -> Result<Zoned> {
         let timestamp_us = self.timestamp_us.load(Ordering::Acquire) as i64;
 
         let utc = Zoned::new(
@@ -56,7 +56,7 @@ impl TimeSource for SimulatedRtc {
         Ok(utc)
     }
 
-    async fn update_time_by_sntp(&mut self) -> Result<()> {
+    fn update_time_by_sntp(&mut self) -> Result<()> {
         match self.ntp_time_source.sync_time().await {
             Ok(ntp_time) => {
                 // 更新RTC时间戳

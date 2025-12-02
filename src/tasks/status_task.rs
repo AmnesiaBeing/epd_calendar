@@ -1,51 +1,55 @@
 // src/tasks/status_task.rs
-use embassy_time::{Duration, Timer};
+use embassy_time::{Duration, Ticker};
 
-use crate::common::types::{DisplayData, GlobalMutex, StatusData};
-use crate::driver::network::DefaultNetworkDriver;
+use crate::driver::network::{DefaultNetworkDriver, NetworkDriver};
 use crate::driver::power::{DefaultPowerMonitor, PowerMonitor};
+use crate::tasks::{ComponentData, ComponentType, DISPLAY_EVENTS, DisplayEvent};
 
 #[embassy_executor::task]
-pub async fn status_task(
-    display_data: &'static GlobalMutex<DisplayData<'static>>,
-    power_monitor: &'static GlobalMutex<DefaultPowerMonitor>,
-    network_driver: &'static GlobalMutex<DefaultNetworkDriver>,
-) {
-    log::debug!("Status task started");
+pub async fn run(power_monitor: DefaultPowerMonitor, network_driver: DefaultNetworkDriver) {
+    let mut ticker = Ticker::every(Duration::from_secs(1 * 60)); // 每1分钟检查一次状态
 
-    let mut last_status = StatusData::default();
+    let mut last_battery = None;
+    let mut last_charging = None;
+    let mut last_network = None;
 
     loop {
-        // 获取当前系统状态
-        let current_status = StatusData {
-            is_charging: power_monitor.lock().await.is_charging().await,
-            battery_level: power_monitor.lock().await.battery_level().await,
-            is_online: network_driver.lock().await.is_connected().await,
-        };
+        ticker.next().await;
 
-        // 检查状态是否变化
-        if current_status != last_status {
-            log::debug!(
-                "Status changed: charging={}, battery={:?}, online={}",
-                current_status.is_charging,
-                current_status.battery_level,
-                current_status.is_online
-            );
-
-            {
-                let mut data = display_data.lock().await;
-                data.status = current_status.clone();
-            }
-
-            // 标记状态区域需要刷新
-            // if let Err(e) = display_manager.lock().await.mark_dirty("status") {
-            //     log::warn!("Failed to mark status region dirty: {}", e);
-            // }
-
-            last_status = current_status;
+        // 检查电池状态变化
+        let battery = power_monitor.battery_level().await;
+        if last_battery != Some(battery) {
+            last_battery = Some(battery);
+            DISPLAY_EVENTS
+                .send(DisplayEvent::UpdateComponent(
+                    ComponentType::Battery,
+                    ComponentData::BatteryData(battery),
+                ))
+                .await;
         }
 
-        // 每30秒检查一次状态
-        Timer::after(Duration::from_secs(30)).await;
+        // 检查充电状态变化
+        let charging = power_monitor.is_charging().await;
+        if last_charging != Some(charging) {
+            last_charging = Some(charging);
+            DISPLAY_EVENTS
+                .send(DisplayEvent::UpdateComponent(
+                    ComponentType::Battery,
+                    ComponentData::ChargingStatus(charging),
+                ))
+                .await;
+        }
+
+        // 检查网络状态变化
+        let network = network_driver.is_connected();
+        if last_network != Some(network) {
+            last_network = Some(network);
+            DISPLAY_EVENTS
+                .send(DisplayEvent::UpdateComponent(
+                    ComponentType::Network,
+                    ComponentData::NetworkStatus(network),
+                ))
+                .await;
+        }
     }
 }

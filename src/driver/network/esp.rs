@@ -66,9 +66,8 @@ impl NetworkDriver for EspNetworkDriver {
         // 配置网络 - 使用DHCP
         let config = Config::dhcpv4(Default::default());
 
-        // 生成随机种子（与Linux版本保持一致）
-        let mut lcg = crate::driver::lcg::Lcg::new();
-        let seed = lcg.next();
+        let seed = getrandom::u64()
+            .map_err(|_| AppError::NetworkStackInitFailed)?;
 
         // 初始化网络栈资源
         static RESOURCES: StaticCell<StackResources<3>> = StaticCell::new();

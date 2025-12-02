@@ -1,4 +1,3 @@
-
 pub async fn https_get<'a>(
     &self,
     host: &str,
@@ -10,8 +9,8 @@ pub async fn https_get<'a>(
     let dns_socket = DnsSocket::new(self.stack);
 
     // 配置 TLS（使用默认配置，不验证证书 - 注意：生产环境应该验证）
-    let mut lcg = lcg::Lcg::new();
-    let seed = lcg.next();
+    let seed = getrandom::u64().map_err(|_| AppError::NetworkStackInitFailed)?;
+
     let mut rx_buffer: [u8; 4096] = [0; 4096];
     let mut tx_buffer: [u8; 4096] = [0; 4096];
 

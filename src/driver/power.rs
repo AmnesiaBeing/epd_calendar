@@ -1,6 +1,6 @@
 // src/driver/power.rs
+use crate::common::system_state::BatteryLevel;
 use crate::common::error::Result;
-use crate::common::types::BatteryLevel;
 
 pub trait PowerMonitor {
     /// 检查是否正在充电
@@ -91,14 +91,6 @@ impl MockPowerMonitor {
             charging: false,
             level: BatteryLevel::Level0,
         }
-    }
-
-    pub fn set_charging(&mut self, charging: bool) {
-        self.charging = charging;
-    }
-
-    pub fn set_battery_level(&mut self, level: BatteryLevel) {
-        self.level = level;
     }
 }
 

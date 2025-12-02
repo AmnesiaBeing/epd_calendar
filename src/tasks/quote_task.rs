@@ -1,43 +1,23 @@
 // src/tasks/quote_task.rs
-use embassy_time::{Duration, Timer};
+use embassy_time::{Duration, Ticker};
 
-use crate::common::types::{DisplayData, GlobalMutex};
-use crate::service::quote_service::QuoteService;
+use crate::service::QuoteService;
+use crate::tasks::{ComponentData, ComponentType, DISPLAY_EVENTS, DisplayEvent};
 
 #[embassy_executor::task]
-pub async fn quote_task(
-    display_data: &'static GlobalMutex<DisplayData<'static>>,
-    quote_service: &'static QuoteService,
-) {
-    log::debug!("Quote task started");
-
-    // 初始延迟，让其他更重要的任务先运行
-    Timer::after(Duration::from_secs(1)).await;
+pub async fn run(quote_service: QuoteService) {
+    let mut ticker = Ticker::every(Duration::from_secs(1 * 60 * 60)); // 每2小时
 
     loop {
-        match quote_service.get_random_quote().await {
-            Ok(new_hitokoto) => {
-                log::debug!(
-                    "Selected Random Quote: {}",
-                    &new_hitokoto.hitokoto[..new_hitokoto.hitokoto.len().min(20)]
-                );
+        ticker.next().await;
 
-                {
-                    let mut data = display_data.lock().await;
-                    data.quote = new_hitokoto;
-                }
-
-                // 标记格言区域需要刷新
-                // if let Err(e) = display_manager.lock().await.mark_dirty("quote") {
-                //     log::warn!("Failed to mark quote region dirty: {}", e);
-                // }
-            }
-            Err(e) => {
-                log::warn!("Quote service error: {}", e);
-            }
+        if let Ok(quote) = quote_service.get_random_quote().await {
+            DISPLAY_EVENTS
+                .send(DisplayEvent::UpdateComponent(
+                    ComponentType::Quote,
+                    ComponentData::QuoteData(quote),
+                ))
+                .await;
         }
-
-        // 每24小时更新一次格言
-        Timer::after(Duration::from_secs(24 * 60 * 60)).await;
     }
 }

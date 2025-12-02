@@ -6,8 +6,16 @@ linker = "x86_64-w64-mingw32-gcc"
 
 [target.riscv32imac-unknown-none-elf]
 runner = "probe-rs run --chip=esp32c6 --preverify --always-print-stacktrace --no-location --catch-hardfault"
-rustflags = ["-C", "force-frame-pointers"]
+rustflags = [
+    "-C",
+    "force-frame-pointers",
+    "-C",
+    "link-arg=-Tlinkall.x",
+    "--cfg",
+    'getrandom_backend="custom"',
+]
 
+# 如果删除下面一行，VSCode的代码分析器将无法正常运行
 [build]
 target = "riscv32imac-unknown-none-elf"
 

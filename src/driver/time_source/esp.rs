@@ -31,7 +31,7 @@ impl RtcTimeSource {
 
 #[cfg(feature = "embedded_esp")]
 impl TimeSource for RtcTimeSource {
-    async fn get_time(&self) -> Result<Timestamp> {
+    fn get_time(&self) -> Result<Timestamp> {
         let timestamp_us = self.rtc.current_time_us();
         let timestamp =
             Timestamp::from_microsecond(timestamp_us as i64).map_err(|_| AppError::TimeError)?;
@@ -39,7 +39,7 @@ impl TimeSource for RtcTimeSource {
         Ok(timestamp)
     }
 
-    async fn set_time(&mut self, new_time: Timestamp) -> Result<()> {
+    fn set_time(&mut self, new_time: Timestamp) -> Result<()> {
         let timestamp_us = new_time.as_microsecond();
         log::debug!("Setting RTC time to: {}", timestamp_us);
         self.rtc.set_current_time_us(timestamp_us as u64);

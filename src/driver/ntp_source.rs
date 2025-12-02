@@ -1,6 +1,6 @@
 // src/driver/ntp_source.rs
 use crate::common::error::AppError;
-use crate::common::types::GlobalMutex;
+use crate::common::GlobalMutex;
 use crate::driver::network::{DefaultNetworkDriver, NetworkDriver};
 use alloc::string::ToString;
 use core::net::{IpAddr, SocketAddr};

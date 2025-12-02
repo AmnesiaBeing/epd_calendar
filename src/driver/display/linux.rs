@@ -25,7 +25,7 @@ pub struct LinuxEpdDriver {
 }
 
 impl LinuxEpdDriver {
-    pub async fn new() -> Result<Self> {
+    pub fn new() -> Result<Self> {
         log::info!("Initializing Linux EPD driver");
 
         // 初始化 GPIO 引脚
