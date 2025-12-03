@@ -1,68 +1,46 @@
-//! 抽象化的文本渲染器，支持不同的全角、半角字体
+//! 抽象化的文本渲染器，支持不同的全角、半角字体和多行渲染
+#![allow(unused)]
 
+use alloc::string::ToString;
+use alloc::vec::Vec;
 use embedded_graphics::geometry::Size;
-use embedded_graphics::mono_font::mapping::GlyphMapping;
 use embedded_graphics::prelude::*;
 use epd_waveshare::color::QuadColor;
 
-use crate::drv::image_renderer::draw_binary_image;
+use crate::assets::generated_fonts::{CharWidth, FontSize, get_font_metrics, get_glyph};
 
-pub struct BinarySearchGlyphMapping {
-    pub chars: &'static [u16],
-    pub offsets: &'static [u32],
-}
+use crate::render::draw_binary_image;
 
-impl GlyphMapping for BinarySearchGlyphMapping {
-    fn index(&self, c: char) -> usize {
-        let target = c as u16;
-        let mut left = 0;
-        let mut right = self.chars.len();
-
-        while left < right {
-            let mid = left + (right - left) / 2;
-            if self.chars[mid] < target {
-                left = mid + 1;
-            } else if self.chars[mid] > target {
-                right = mid;
-            } else {
-                return self.offsets[mid] as usize;
-            }
-        }
-
-        0
-    }
-}
-
-// 字体配置结构体
-pub struct FontConfig {
-    pub full_width_data: &'static [u8],
-    pub full_width_glyph_mapping: &'static BinarySearchGlyphMapping,
-    pub full_width_size: Size,
-    pub half_width_data: &'static [u8],
-    pub half_width_glyph_mapping: &'static BinarySearchGlyphMapping,
-    pub half_width_size: Size,
+// 文本对齐方式
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum TextAlignment {
+    Left,
+    Right,
+    Center,
 }
 
 // 文本渲染器
 pub struct TextRenderer {
-    font_config: FontConfig,
+    font_size: FontSize,
     current_x: i32,
     current_y: i32,
-    line_height: i32,
+    half_font_metrics: (u8, u8, u8),
+    full_font_metrics: (u8, u8, u8),
 }
 
 impl TextRenderer {
-    pub fn new(font_config: FontConfig, position: Point) -> Self {
+    pub fn new(font_size: FontSize, position: Point) -> Self {
         Self {
-            line_height: (font_config.full_width_size.height as i32).clone(),
-            font_config,
+            font_size,
             current_x: position.x,
             current_y: position.y,
+            half_font_metrics: get_font_metrics(font_size, false),
+            full_font_metrics: get_font_metrics(font_size, true),
         }
     }
 
     // 判断字符是否为半角字符
-    fn is_half_width_char(c: char) -> bool {
+    pub fn is_half_width_char(c: char) -> bool {
         c.is_ascii() && !c.is_ascii_control()
     }
 
@@ -74,34 +52,136 @@ impl TextRenderer {
         let start_x = self.current_x;
 
         for c in text.chars() {
+            let position = Point::new(self.current_x, self.current_y);
             if Self::is_half_width_char(c) {
                 // 半角字符
-                if let Some(glyph_data) = self.get_half_width_glyph(c) {
-                    draw_binary_image(
-                        display,
-                        glyph_data,
-                        self.font_config.half_width_size,
-                        Point::new(self.current_x, self.current_y),
-                    )?;
-                    self.current_x += self.font_config.half_width_size.width as i32;
+                if let Some(glyph_data) = get_glyph(c, self.font_size, CharWidth::Half) {
+                    let size = Size::new(
+                        self.half_font_metrics.0 as u32,
+                        self.half_font_metrics.1 as u32,
+                    );
+                    draw_binary_image(display, glyph_data, size, position)?;
+                    self.current_x += self.half_font_metrics.0 as i32;
                 }
             } else {
                 // 全角字符
-                if let Some(glyph_data) = self.get_full_width_glyph(c) {
-                    draw_binary_image(
-                        display,
-                        glyph_data,
-                        self.font_config.full_width_size,
-                        Point::new(self.current_x, self.current_y),
-                    )?;
-                    self.current_x += self.font_config.full_width_size.width as i32;
+                if let Some(glyph_data) = get_glyph(c, self.font_size, CharWidth::Full) {
+                    let size = Size::new(
+                        self.full_font_metrics.0 as u32,
+                        self.full_font_metrics.1 as u32,
+                    );
+                    draw_binary_image(display, glyph_data, size, position)?;
+                    self.current_x += self.full_font_metrics.0 as i32;
                 }
             }
         }
 
         // 移动到下一行
         self.current_x = start_x;
-        self.current_y += self.line_height;
+        self.current_y += self.full_font_metrics.1 as i32;
+
+        Ok(())
+    }
+
+    // 渲染多行文本（自动换行）
+    pub fn draw_text_multiline<D>(
+        &mut self,
+        display: &mut D,
+        text: &str,
+        max_width: i32,
+        alignment: TextAlignment,
+    ) -> Result<(), D::Error>
+    where
+        D: DrawTarget<Color = QuadColor>,
+    {
+        let start_x = self.current_x;
+        let start_y = self.current_y;
+
+        // 将文本按单词分割（英文单词）
+        let words: Vec<&str> = text.split_whitespace().collect();
+
+        if words.is_empty() {
+            return Ok(());
+        }
+
+        // 处理第一个单词
+        let mut current_line = words[0].to_string();
+        let mut current_line_width = self.calculate_text_width(&current_line) as i32;
+
+        // 处理剩余单词
+        for word in &words[1..] {
+            let word_width = self.calculate_text_width(word) as i32;
+            let space_width = self.half_font_metrics.0 as i32; // 空格宽度
+
+            // 检查当前行能否容纳这个单词（加上空格）
+            if current_line_width + space_width + word_width <= max_width {
+                // 可以容纳，添加到当前行
+                current_line.push(' ');
+                current_line.push_str(word);
+                current_line_width += space_width + word_width;
+            } else {
+                // 不能容纳，绘制当前行并换行
+                self.draw_line_with_alignment(
+                    display,
+                    &current_line,
+                    start_x,
+                    max_width,
+                    alignment,
+                )?;
+                self.current_y += self.full_font_metrics.1 as i32;
+
+                // 开始新的一行
+                current_line = word.to_string();
+                current_line_width = word_width;
+            }
+        }
+
+        // 绘制最后一行
+        if !current_line.is_empty() {
+            self.draw_line_with_alignment(display, &current_line, start_x, max_width, alignment)?;
+        }
+
+        // 恢复起始位置并移动到下一行
+        self.current_x = start_x;
+        self.current_y = start_y;
+
+        Ok(())
+    }
+
+    // 按指定对齐方式绘制单行
+    fn draw_line_with_alignment<D>(
+        &mut self,
+        display: &mut D,
+        text: &str,
+        start_x: i32,
+        max_width: i32,
+        alignment: TextAlignment,
+    ) -> Result<(), D::Error>
+    where
+        D: DrawTarget<Color = QuadColor>,
+    {
+        let text_width = self.calculate_text_width(text) as i32;
+        let draw_x = match alignment {
+            TextAlignment::Left => start_x,
+            TextAlignment::Center => start_x + (max_width - text_width) / 2,
+            TextAlignment::Right => start_x + max_width - text_width,
+        };
+
+        // 保存当前位置
+        let saved_x = self.current_x;
+        let saved_y = self.current_y;
+
+        // 移动到计算的位置
+        self.current_x = draw_x;
+
+        // 绘制文本
+        self.draw_text(display, text)?;
+
+        // 恢复y坐标（draw_text会自动换行，我们需要撤销这个）
+        self.current_y = saved_y;
+
+        // 恢复x坐标
+        self.current_x = saved_x;
 
         Ok(())
     }
@@ -153,9 +233,9 @@ impl TextRenderer {
         let mut width = 0;
         for c in text.chars() {
             if Self::is_half_width_char(c) {
-                width += self.font_config.half_width_size.width;
+                width += self.half_font_metrics.0 as u32;
             } else {
-                width += self.font_config.full_width_size.width;
+                width += self.full_font_metrics.0 as u32;
             }
         }
         width
@@ -172,33 +252,33 @@ impl TextRenderer {
         Point::new(self.current_x, self.current_y)
     }
 
-    // 获取全角字符的glyph数据
-    fn get_full_width_glyph(&self, c: char) -> Option<&'static [u8]> {
-        let char_index = self.font_config.full_width_glyph_mapping.index(c);
-        let bytes_per_row = (self.font_config.full_width_size.width + 7) / 8;
-        let char_data_size = (bytes_per_row * self.font_config.full_width_size.height) as usize;
-        let start = (char_index as usize) * char_data_size;
-        let end = start + char_data_size;
-
-        if end <= self.font_config.full_width_data.len() {
-            Some(&self.font_config.full_width_data[start..end])
-        } else {
-            None
+    // 获取文本高度（行数 * 行高）
+    pub fn calculate_text_height(&self, text: &str, max_width: i32) -> u32 {
+        if max_width <= 0 {
+            return 0;
         }
-    }
 
-    // 获取半角字符的glyph数据
-    fn get_half_width_glyph(&self, c: char) -> Option<&'static [u8]> {
-        let char_index = self.font_config.half_width_glyph_mapping.index(c);
-        let bytes_per_row = (self.font_config.half_width_size.width + 7) / 8;
-        let char_data_size = (bytes_per_row * self.font_config.half_width_size.height) as usize;
-        let start = (char_index as usize) * char_data_size;
-        let end = start + char_data_size;
+        let words: Vec<&str> = text.split_whitespace().collect();
 
-        if end <= self.font_config.half_width_data.len() {
-            Some(&self.font_config.half_width_data[start..end])
-        } else {
-            None
+        if words.is_empty() {
+            return 0;
         }
+
+        let mut lines = 1;
+        let mut current_line_width = self.calculate_text_width(words[0]) as i32;
+        let space_width = self.half_font_metrics.0 as i32;
+
+        for word in &words[1..] {
+            let word_width = self.calculate_text_width(word) as i32;
+
+            if current_line_width + space_width + word_width <= max_width {
+                current_line_width += space_width + word_width;
+            } else {
+                lines += 1;
+                current_line_width = word_width;
+            }
+        }
+
+        (lines * self.full_font_metrics.1 as i32) as u32
     }
 }
