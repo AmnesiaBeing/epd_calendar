@@ -4,8 +4,9 @@ use crate::builder::config::BuildConfig;
 use crate::builder::utils::{self, progress::ProgressTracker};
 use anyhow::{Context, Result};
 use serde::Deserialize;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fs;
+use std::path::PathBuf;
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Hitokoto {
@@ -22,15 +23,35 @@ pub struct HitokotoCategory {
     pub key: String,
 }
 
+/// 加载字符集文件
+fn load_char_set() -> Result<HashSet<char>> {
+    let chars_path = PathBuf::from("assets/fonts/chars.txt");
+    let content = fs::read_to_string(&chars_path)
+        .with_context(|| format!("读取字符集文件失败: {}", chars_path.display()))?;
+
+    let char_set: HashSet<char> = content.chars().collect();
+    println!("cargo:warning=  加载字符集: {} 个字符", char_set.len());
+
+    Ok(char_set)
+}
+
+/// 检查格言是否包含有效字符
+fn is_hitokoto_valid(hitokoto: &str, char_set: &HashSet<char>) -> bool {
+    hitokoto.chars().all(|c| char_set.contains(&c))
+}
+
 /// 构建格言数据
 pub fn build(config: &BuildConfig, progress: &ProgressTracker) -> Result<()> {
-    progress.update_progress(0, 3, "解析分类");
+    progress.update_progress(0, 4, "加载字符集");
+    let char_set = load_char_set()?;
+
+    progress.update_progress(1, 4, "解析分类");
     let categories = parse_categories(config)?;
 
-    progress.update_progress(1, 3, "解析格言文件");
-    let hitokotos = parse_all_json_files(config, &categories)?;
+    progress.update_progress(2, 4, "解析格言文件");
+    let hitokotos = parse_all_json_files(config, &categories, &char_set)?;
 
-    progress.update_progress(2, 3, "生成数据文件");
+    progress.update_progress(3, 4, "生成数据文件");
     generate_hitokoto_data(config, &hitokotos)?;
 
     println!(
@@ -50,8 +71,12 @@ pub fn parse_categories(config: &BuildConfig) -> Result<Vec<HitokotoCategory>> {
 pub fn parse_all_json_files(
     config: &BuildConfig,
     categories: &[HitokotoCategory],
+    char_set: &HashSet<char>,
 ) -> Result<Vec<(u32, Vec<Hitokoto>)>> {
     let mut result = Vec::new();
+    let mut total_hitokotos = 0;
+    let mut valid_hitokotos = 0;
+    let mut ignored_hitokotos = 0;
 
     for (index, category) in categories.iter().enumerate() {
         let mut path = config.sentences_dir.join(&category.key);
@@ -63,15 +88,35 @@ pub fn parse_all_json_files(
         let hitokotos: Vec<Hitokoto> = serde_json::from_str(&content)
             .with_context(|| format!("解析JSON失败: {}", path.display()))?;
 
-        result.push((category.id, hitokotos));
+        // 过滤格言
+        let mut valid_hitokotos_in_category = Vec::new();
+        for hitokoto in hitokotos.clone() {
+            total_hitokotos += 1;
+            if is_hitokoto_valid(&hitokoto.hitokoto, char_set) {
+                valid_hitokotos += 1;
+                valid_hitokotos_in_category.push(hitokoto);
+            } else {
+                ignored_hitokotos += 1;
+            }
+        }
+
+        result.push((category.id, valid_hitokotos_in_category));
 
         // 更新进度
         println!(
-            "cargo:warning=  已处理分类: {}/{}",
+            "cargo:warning=  已处理分类: {}/{}, 当前分类: 有效{}条, 忽略{}条",
             index + 1,
-            categories.len()
+            categories.len(),
+            result.last().unwrap().1.len(),
+            hitokotos.len() - result.last().unwrap().1.len()
         );
     }
+
+    // 报告统计信息
+    println!(
+        "cargo:warning=  格言统计: 总共{}条, 有效{}条, 忽略{}条",
+        total_hitokotos, valid_hitokotos, ignored_hitokotos
+    );
 
     Ok(result)
 }
@@ -139,11 +184,11 @@ fn generate_hitokoto_data(config: &BuildConfig, hitokotos: &[(u32, Vec<Hitokoto>
     // 生成 Hitokoto 结构体和数据数组
     content.push_str("#[derive(Clone, Copy)]\n");
     content.push_str("#[allow(dead_code)]\n");
+    content.push_str("#[repr(C, packed)]\n");
     content.push_str("pub struct Hitokoto {\n");
     content.push_str("    pub hitokoto: &'static str,\n");
-    content.push_str("    pub from: usize,\n");
-    content.push_str("    pub from_who: usize,\n");
-    content.push_str("    pub category: u32,\n");
+    content.push_str("    pub from: u16,\n");
+    content.push_str("    pub from_who: u16,\n");
     content.push_str("}\n\n");
     content.push_str("pub const HITOKOTOS: &[Hitokoto] = &[\n");
 
@@ -162,7 +207,6 @@ fn generate_hitokoto_data(config: &BuildConfig, hitokotos: &[(u32, Vec<Hitokoto>
         ));
         content.push_str(&format!("        from: {},\n", from_index));
         content.push_str(&format!("        from_who: {},\n", from_who_index));
-        content.push_str(&format!("        category: {},\n", category_id));
         content.push_str("    },\n");
     }
     content.push_str("];\n");
