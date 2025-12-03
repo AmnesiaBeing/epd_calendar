@@ -1,273 +1,229 @@
-use embedded_graphics::Drawable;
-use embedded_graphics::draw_target::DrawTarget;
-use embedded_graphics::prelude::Point;
-use embedded_graphics::primitives::Rectangle;
-use epd_waveshare::color::QuadColor;
-use epd_waveshare::epd7in5_yrd0750ryf665f60::Display7in5;
+// src/render/render_engine.rs
 
-use crate::common::error::{AppError, Result};
-use crate::driver::display::{DefaultDisplayDriver, DisplayDriver};
+use embedded_graphics::{
+    Drawable, draw_target::DrawTarget, geometry::Dimensions, prelude::DrawTargetExt,
+};
+use epd_waveshare::{color::QuadColor, epd7in5_yrd0750ryf665f60::Display7in5};
 
-/// 渲染引擎 - 负责管理显示缓冲区、脏区域标记和协调渲染刷新
+// 项目内部依赖
+use crate::{
+    common::{
+        BatteryLevel, ChargingStatus, DateData, Hitokoto, NetworkStatus, SystemState, TimeData,
+        WeatherData,
+        error::{AppError, Result},
+    },
+    driver::display::{DefaultDisplayDriver, DisplayDriver},
+    tasks::ComponentData,
+};
+
+// 定义组件类型枚举
+pub enum ComponentType {
+    Time(TimeData),
+    Date(DateData),
+    Weather(WeatherData),
+    Quote(&'static Hitokoto),
+    ChargingStatus(ChargingStatus),
+    BatteryLevel(BatteryLevel),
+    NetworkStatus(NetworkStatus),
+    Separator,
+}
+
+/// 渲染引擎核心结构体
 pub struct RenderEngine {
-    /// 显示缓冲区
-    display_buffer: Display7in5,
-    /// 显示驱动
-    display_driver: DefaultDisplayDriver,
-    /// 脏区域标记（用于部分刷新）
-    dirty_region: Option<Rectangle>,
-    /// 屏幕尺寸
-    screen_size: (u32, u32),
+    /// epd-waveshare的Display结构体（自带缓冲区）
+    display: Display7in5,
+    /// 显示驱动（已封装硬件细节）
+    driver: DefaultDisplayDriver,
+    /// 是否处于睡眠状态标志
+    is_sleeping: bool,
 }
 
 impl RenderEngine {
-    /// 创建新的渲染引擎实例
-    pub fn new(display_driver: DefaultDisplayDriver) -> Self {
-        // 7.5英寸墨水屏的分辨率
-        const SCREEN_WIDTH: u32 = 800;
-        const SCREEN_HEIGHT: u32 = 480;
+    pub fn new(mut driver: DefaultDisplayDriver) -> Result<Self> {
+        log::info!("Initializing RenderEngine...");
 
-        Self {
-            display_buffer: Display7in5::default(),
-            display_driver,
-            dirty_region: None,
-            screen_size: (SCREEN_WIDTH, SCREEN_HEIGHT),
-        }
+        // 初始化Display（使用默认配置）
+        let display = Display7in5::default();
+
+        // 初始化驱动硬件
+        driver.init().map_err(|e| {
+            log::error!("Failed to initialize display driver: {}", e);
+            AppError::RenderingFailed
+        })?;
+
+        log::info!("RenderEngine initialized successfully");
+
+        Ok(Self {
+            display,
+            driver,
+            is_sleeping: false,
+        })
     }
 
-    /// 标记脏区域（用于部分刷新）
-    pub fn mark_dirty(&mut self, region: Rectangle) {
-        // 确保区域在屏幕范围内
-        let adjusted_region = self.adjust_region_to_screen(region);
-
-        // 合并已有的脏区域
-        match self.dirty_region.take() {
-            Some(existing) => {
-                // 计算合并后的区域
-                let merged = self.merge_regions(existing, adjusted_region);
-                self.dirty_region = Some(merged);
-            }
-            None => {
-                self.dirty_region = Some(adjusted_region);
-            }
+    /// 唤醒显示驱动
+    pub fn wake_up_driver(&mut self) -> Result<()> {
+        if self.is_sleeping {
+            log::info!("Waking up display driver");
+            self.driver.wake_up().map_err(|e| {
+                log::error!("Failed to wake up display driver: {}", e);
+                AppError::RenderingFailed
+            })?;
+            self.is_sleeping = false;
+            log::info!("Display driver is now awake");
         }
-
-        log::debug!("Marked dirty region: {:?}", self.dirty_region);
-    }
-
-    /// 清空脏区域标记
-    pub fn clear_dirty(&mut self) {
-        self.dirty_region = None;
-        log::debug!("Dirty region cleared");
-    }
-
-    /// 全屏刷新屏幕
-    pub async fn full_refresh(&mut self) -> Result<()> {
-        log::info!("Performing full display refresh");
-
-        // 清空脏区域
-        self.clear_dirty();
-
-        // 执行全屏刷新
-        match self
-            .display_driver
-            .update_frame(self.display_buffer.buffer())
-        {
-            Ok(_) => {}
-            Err(e) => {
-                log::error!("Failed to update frame: {:?}", e);
-                return Err(AppError::DisplayFullRefreshFailed);
-            }
-        }
-
-        match self.display_driver.display_frame() {
-            Ok(_) => {
-                log::debug!("Full refresh completed successfully");
-                Ok(())
-            }
-            Err(e) => {
-                log::error!("Failed to display frame: {:?}", e);
-                Err(AppError::DisplayFullRefreshFailed)
-            }
-        }
-    }
-
-    /// 部分刷新屏幕
-    pub async fn partial_refresh(&mut self) -> Result<()> {
-        if let Some(dirty_region) = self.dirty_region.take() {
-            log::debug!("Performing partial refresh for region: {:?}", dirty_region);
-
-            // 确保区域对齐到8像素边界（墨水屏部分刷新的常见要求）
-            let aligned_region = self.align_to_eight_pixels(dirty_region);
-
-            // 执行部分刷新
-            match self.display_driver.update_partial_frame(
-                self.display_buffer.buffer(),
-                aligned_region.top_left.x as u32,
-                aligned_region.top_left.y as u32,
-                aligned_region.size.width,
-                aligned_region.size.height,
-            ) {
-                Ok(_) => {}
-                Err(e) => {
-                    log::error!("Failed to update partial frame: {:?}", e);
-                    // 重新标记脏区域，以便下次尝试
-                    self.dirty_region = Some(dirty_region);
-                    return Err(AppError::DisplayPartialRefreshFailed);
-                }
-            }
-
-            match self.display_driver.display_frame() {
-                Ok(_) => {
-                    log::debug!("Partial refresh completed successfully");
-                    Ok(())
-                }
-                Err(e) => {
-                    log::error!("Failed to display frame: {:?}", e);
-                    // 重新标记脏区域，以便下次尝试
-                    self.dirty_region = Some(dirty_region);
-                    Err(AppError::DisplayPartialRefreshFailed)
-                }
-            }
-        } else {
-            log::debug!("No dirty region to refresh");
-            Ok(())
-        }
-    }
-
-    /// 渲染所有组件到全屏
-    pub fn render_full(&mut self, components: &[impl Drawable<Color = QuadColor>]) -> Result<()> {
-        log::info!("Rendering full screen");
-
-        // 清空显示缓冲区
-        self.clear_buffer();
-
-        // 遍历所有组件并绘制到缓冲区
-        for component in components {
-            match component.draw(&mut self.display_buffer) {
-                Ok(_) => {}
-                Err(e) => {
-                    log::error!("Failed to draw component: {:?}", e);
-                    return Err(AppError::RenderingFailed);
-                }
-            }
-        }
-
-        // 标记整个屏幕为脏区域
-        let full_screen = Rectangle::new(
-            Point::new(0, 0),
-            Size::new(self.screen_size.0, self.screen_size.1),
-        );
-        self.mark_dirty(full_screen);
-
-        log::debug!("Full screen rendering completed");
         Ok(())
     }
 
-    /// 渲染单个组件到指定区域
-    pub fn render_partial(
-        &mut self,
-        component: impl Drawable<Color = QuadColor>,
-        render_area: Rectangle,
-    ) -> Result<()> {
-        log::debug!("Rendering component to area: {:?}", render_area);
+    /// 使显示驱动进入睡眠状态
+    pub fn sleep_driver(&mut self) -> Result<()> {
+        if !self.is_sleeping {
+            log::info!("Putting display driver to sleep");
+            self.driver.sleep().map_err(|e| {
+                log::error!("Failed to sleep display driver: {}", e);
+                AppError::RenderingFailed
+            })?;
+            self.is_sleeping = true;
+            log::info!("Display driver is now sleeping");
+        }
+        Ok(())
+    }
 
-        // 标记脏区域
-        self.mark_dirty(render_area);
+    /// 渲染单个组件（局部刷新）
+    pub fn render_component(&mut self, component_data: &ComponentData) -> Result<()> {
+        // 确保驱动已唤醒
+        self.wake_up_driver()?;
 
-        // 绘制组件到缓冲区
-        match component.draw(&mut self.display_buffer) {
-            Ok(_) => {
-                log::debug!("Partial rendering completed");
-                Ok(())
+        let bounds;
+
+        // 根据组件类型选择并绘制对应组件
+        match component_data {
+            ComponentData::TimeData(component) => {
+                bounds = component.bounding_box();
+                let mut clipped_target = self.display.cropped(&bounds);
+                component.draw(&mut clipped_target).map_err(|e| {
+                    log::error!("Failed to draw Time component: {}", e);
+                    AppError::RenderingFailed
+                })?;
             }
-            Err(e) => {
-                log::error!("Failed to draw component: {:?}", e);
-                Err(AppError::RenderingFailed)
+            ComponentData::DateData(component) => {
+                bounds = component.bounding_box();
+                let mut clipped_target = self.display.cropped(&bounds);
+                component.draw(&mut clipped_target).map_err(|e| {
+                    log::error!("Failed to draw Date component: {}", e);
+                    AppError::RenderingFailed
+                })?;
+            }
+            ComponentData::WeatherData(component) => {
+                bounds = component.bounding_box();
+                let mut clipped_target = self.display.cropped(&bounds);
+                component.draw(&mut clipped_target).map_err(|e| {
+                    log::error!("Failed to draw Weather component: {}", e);
+                    AppError::RenderingFailed
+                })?;
+            }
+            ComponentData::QuoteData(component) => {
+                bounds = component.bounding_box();
+                let mut clipped_target = self.display.cropped(&bounds);
+                component.draw(&mut clipped_target).map_err(|e| {
+                    log::error!("Failed to draw Quote component: {}", e);
+                    AppError::RenderingFailed
+                })?;
+            }
+            ComponentData::ChargingStatus(component) => {
+                bounds = component.bounding_box();
+                let mut clipped_target = self.display.cropped(&bounds);
+                component.draw(&mut clipped_target).map_err(|e| {
+                    log::error!("Failed to draw ChargingStatus component: {}", e);
+                    AppError::RenderingFailed
+                })?;
+            }
+            ComponentData::BatteryData(component) => {
+                bounds = component.bounding_box();
+                let mut clipped_target = self.display.cropped(&bounds);
+                component.draw(&mut clipped_target).map_err(|e| {
+                    log::error!("Failed to draw BatteryLevel component: {}", e);
+                    AppError::RenderingFailed
+                })?;
+            }
+            ComponentData::NetworkStatus(component) => {
+                bounds = component.bounding_box();
+                let mut clipped_target = self.display.cropped(&bounds);
+                component.draw(&mut clipped_target).map_err(|e| {
+                    log::error!("Failed to draw NetworkStatus component: {}", e);
+                    AppError::RenderingFailed
+                })?;
+            }
+            _ => {
+                log::error!("Unhandled component type.");
+                return Err(AppError::RenderingFailed);
             }
         }
-    }
 
-    /// 清空显示缓冲区
-    pub fn clear_buffer(&mut self) {
-        self.display_buffer.clear(QuadColor::White);
-        log::debug!("Display buffer cleared");
-    }
-
-    /// 获取显示缓冲区引用
-    pub fn get_buffer(&mut self) -> &mut Display7in5 {
-        &mut self.display_buffer
-    }
-
-    /// 确保区域在屏幕范围内
-    fn adjust_region_to_screen(&self, region: Rectangle) -> Rectangle {
-        let (width, height) = self.screen_size;
-
-        let left = core::cmp::max(0, region.top_left.x) as i32;
-        let top = core::cmp::max(0, region.top_left.y) as i32;
-
-        let right = core::cmp::min(
-            (width - 1) as i32,
-            (region.top_left.x + region.size.width as i32 - 1) as i32,
-        );
-        let bottom = core::cmp::min(
-            (height - 1) as i32,
-            (region.top_left.y + region.size.height as i32 - 1) as i32,
-        );
-
-        if left > right || top > bottom {
-            // 区域完全在屏幕外
-            Rectangle::new(Point::new(0, 0), Size::new(0, 0))
-        } else {
-            Rectangle::new(
-                Point::new(left, top),
-                Size::new((right - left + 1) as u32, (bottom - top + 1) as u32),
+        // 更新局部区域到墨水屏
+        // TODO: 需计算实际的buffer指针，逐个像素绘制到墨水屏
+        let buffer = self.display.buffer();
+        self.driver
+            .update_partial_frame(
+                buffer,
+                bounds.top_left.x as u32,
+                bounds.top_left.y as u32,
+                bounds.size.width as u32,
+                bounds.size.height as u32,
             )
-        }
+            .map_err(|e| {
+                log::error!("Failed to update partial frame for component");
+                AppError::RenderingFailed
+            })?;
+
+        log::info!("Successfully partially rendered component");
+
+        Ok(())
     }
 
-    /// 合并两个区域
-    fn merge_regions(&self, region1: Rectangle, region2: Rectangle) -> Rectangle {
-        let left = core::cmp::min(region1.top_left.x, region2.top_left.x);
-        let top = core::cmp::min(region1.top_left.y, region2.top_left.y);
+    /// 全屏渲染（用于首次显示或清除残影）
+    pub fn render_full_screen(&mut self, state: &SystemState) -> Result<()> {
+        // 确保驱动已唤醒
+        self.wake_up_driver()?;
 
-        let right = core::cmp::max(
-            region1.top_left.x + region1.size.width as i32 - 1,
-            region2.top_left.x + region2.size.width as i32 - 1,
-        );
+        log::info!("Starting full screen rendering");
 
-        let bottom = core::cmp::max(
-            region1.top_left.y + region1.size.height as i32 - 1,
-            region2.top_left.y + region2.size.height as i32 - 1,
-        );
+        // 清空显示缓冲区（全白背景）
+        self.display.clear(QuadColor::White).map_err(|e| {
+            log::error!("Failed to clear display buffer: {}", e);
+            AppError::RenderingFailed
+        })?;
 
-        Rectangle::new(
-            Point::new(left, top),
-            Size::new((right - left + 1) as u32, (bottom - top + 1) as u32),
-        )
+        // TODO: 按顺序渲染所有组件到全屏缓冲区
+        // 注意：这里假设display_task会提供所有组件的边界信息
+        // 实际应用中，可能需要遍历一个组件列表
+
+        log::info!("Full screen rendering completed");
+
+        // 更新整个帧缓冲区到墨水屏
+        let buffer = self.display.buffer();
+        self.driver.update_frame(buffer).map_err(|e| {
+            log::error!("Failed to update full frame: {}", e);
+            AppError::RenderingFailed
+        })?;
+
+        // 触发显示刷新
+        self.driver.display_frame().map_err(|e| {
+            log::error!("Failed to display frame: {}", e);
+            AppError::RenderingFailed
+        })?;
+
+        log::info!("Full screen refresh completed successfully");
+        Ok(())
     }
 
-    /// 对齐区域到8像素边界（墨水屏部分刷新要求）
-    fn align_to_eight_pixels(&self, region: Rectangle) -> Rectangle {
-        // 左边界向下对齐到8的倍数
-        let aligned_left = (region.top_left.x as i32 / 8) * 8;
-        // 上边界向下对齐到8的倍数
-        let aligned_top = (region.top_left.y as i32 / 8) * 8;
-
-        // 右边界向上对齐到8的倍数
-        let aligned_right = ((region.top_left.x as i32 + region.size.width as i32 + 7) / 8) * 8;
-        // 下边界向上对齐到8的倍数
-        let aligned_bottom = ((region.top_left.y as i32 + region.size.height as i32 + 7) / 8) * 8;
-
-        Rectangle::new(
-            Point::new(aligned_left, aligned_top),
-            Size::new(
-                (aligned_right - aligned_left) as u32,
-                (aligned_bottom - aligned_top) as u32,
-            ),
-        )
+    /// 仅刷新显示（不重新渲染，用于局部刷新后的显示更新）
+    pub fn refresh_display(&mut self) -> Result<()> {
+        log::info!("Refreshing display");
+        self.driver.display_frame().map_err(|e| {
+            log::error!("Failed to refresh display: {}", e);
+            AppError::RenderingFailed
+        })?;
+        log::info!("Display refreshed successfully");
+        Ok(())
     }
 }
-
-// 导入Size类型以避免编译错误
-use embedded_graphics::prelude::Size;

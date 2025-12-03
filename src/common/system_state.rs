@@ -1,5 +1,3 @@
-use embassy_time::Instant;
-use static_cell::StaticCell;
 use sxtwl_rs::{
     culture::{Taboo, Zodiac},
     festival::{LunarFestival, SolarFestival},
@@ -9,34 +7,24 @@ use sxtwl_rs::{
     solar::SolarDay,
 };
 
-use crate::{
-    assets::generated_hitokoto_data::Hitokoto,
-    common::{GlobalMutex, weather::WeatherData},
-};
-
-// 全局状态
-pub static SYSTEM_STATE: StaticCell<GlobalMutex<SystemState>> = StaticCell::new();
+use crate::{assets::generated_hitokoto_data::Hitokoto, common::weather::WeatherData};
 
 #[derive(Default)]
 pub struct SystemState {
-    pub last_sleep: Option<Instant>,
-    pub last_wake: Option<Instant>,
-    pub sleep_count: u32,
-
     pub time: Option<TimeData>,
     pub date: Option<DateData>,
-    pub weather: Option<WeatherData>, // 天气数据过多，统一放置在weather.rs中
+    pub weather: Option<WeatherData>, // 天气相关代码过长，统一放置在weather.rs中
     pub quote: Option<&'static Hitokoto>,
     pub is_charging: ChargingStatus,
     pub battery_level: BatteryLevel,
-    pub is_online: bool,
+    pub is_online: NetworkStatus,
 }
 
-#[derive(Default)]
-pub struct ChargingStatus(bool);
+#[derive(Default, Debug, Clone)]
+pub struct ChargingStatus(pub bool);
 
-#[derive(Default)]
-pub struct OnlineStatus(bool);
+#[derive(Default, Debug, Clone)]
+pub struct NetworkStatus(pub bool);
 
 #[derive(Debug, Clone)]
 pub struct TimeData {
@@ -65,7 +53,7 @@ pub struct LunarData {
     pub festival: Option<LunarFestival>,         // 农历节日
 }
 
-#[derive(Clone, Copy, PartialEq, Default)]
+#[derive(Clone, Copy, PartialEq, Default, Debug)]
 pub enum BatteryLevel {
     #[default]
     Level0,

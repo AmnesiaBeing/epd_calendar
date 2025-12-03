@@ -45,6 +45,7 @@ impl TimeSource for RtcTimeSource {
         let timestamp_us = new_time.as_microsecond();
         log::debug!("Setting RTC time to: {}", timestamp_us);
         self.rtc.set_current_time_us(timestamp_us as u64);
+        self.synchronized = true;
         Ok(())
     }
 }

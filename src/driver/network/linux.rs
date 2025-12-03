@@ -4,9 +4,9 @@ use embassy_net::{Config, Ipv4Address, Ipv4Cidr, StackResources, StaticConfigV4}
 use embassy_net_tuntap::TunTapDevice;
 use static_cell::StaticCell;
 
+use crate::common::error::AppError;
 use crate::common::error::Result;
 use crate::driver::network::NetworkDriver;
-use crate::{common::error::AppError};
 
 #[embassy_executor::task]
 async fn net_task(mut runner: embassy_net::Runner<'static, TunTapDevice>) -> ! {
@@ -25,8 +25,10 @@ impl LinuxNetworkDriver {
 
 impl NetworkDriver for LinuxNetworkDriver {
     async fn initialize(&mut self, spawner: &Spawner) -> Result<()> {
-        let device = TunTapDevice::new("tap99")
-            .map_err(|e| AppError::NetworkStackInitFailed(format!("TAP device failed: {:?}", e)))?;
+        let device = TunTapDevice::new("tap99").map_err(|e| {
+            log::error!("Failed to create TAP device: {:?}", e);
+            AppError::NetworkStackInitFailed
+        })?;
 
         let config = Config::ipv4_static(StaticConfigV4 {
             address: Ipv4Cidr::new(Ipv4Address::new(192, 168, 69, 2), 24),
@@ -64,7 +66,7 @@ impl NetworkDriver for LinuxNetworkDriver {
         todo!()
     }
 
-    // fn get_stack(&self) -> Option<&Stack> {
-    //     todo!()
-    // }
+    fn get_stack(&self) -> Option<&embassy_net::Stack> {
+        self.stack.as_ref()
+    }
 }

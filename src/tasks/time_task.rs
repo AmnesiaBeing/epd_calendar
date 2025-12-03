@@ -3,7 +3,7 @@ use embassy_time::{Duration, Ticker};
 
 use crate::{
     service::TimeService,
-    tasks::{ComponentData, ComponentType, DISPLAY_EVENTS, DisplayEvent},
+    tasks::{ComponentData, DISPLAY_EVENTS, DisplayEvent},
 };
 
 #[embassy_executor::task]
@@ -18,10 +18,9 @@ pub async fn time_task(time_service: TimeService) {
 
         // 发送时间更新事件
         DISPLAY_EVENTS
-            .send(DisplayEvent::UpdateComponent(
-                ComponentType::Time,
-                ComponentData::TimeData(time_data.clone()),
-            ))
+            .send(DisplayEvent::UpdateComponent(ComponentData::TimeData(
+                time_data.clone(),
+            )))
             .await;
 
         // 异步计算农历（不阻塞时间更新）

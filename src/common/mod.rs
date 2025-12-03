@@ -5,6 +5,14 @@ pub mod weather;
 
 pub use system_state::SystemState;
 
+pub use crate::assets::generated_hitokoto_data::Hitokoto;
+pub use system_state::BatteryLevel;
+pub use system_state::ChargingStatus;
+pub use system_state::DateData;
+pub use system_state::NetworkStatus;
+pub use system_state::TimeData;
+pub use weather::WeatherData;
+
 use embassy_sync::{channel::Channel, mutex::Mutex};
 
 #[cfg(any(feature = "simulator", feature = "embedded_linux"))]

@@ -5,9 +5,9 @@ use embedded_graphics::{
 };
 use epd_waveshare::color::QuadColor;
 
-use crate::common::system_state::DateData;
+use crate::common::system_state::BatteryLevel;
 
-impl Drawable for &DateData {
+impl Drawable for &BatteryLevel {
     type Color = QuadColor;
 
     type Output = ();
@@ -20,7 +20,7 @@ impl Drawable for &DateData {
     }
 }
 
-impl Dimensions for &DateData {
+impl Dimensions for &BatteryLevel {
     fn bounding_box(&self) -> Rectangle {
         todo!()
     }

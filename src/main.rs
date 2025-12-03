@@ -21,7 +21,6 @@ mod service;
 mod tasks;
 
 use crate::common::GlobalMutex;
-use crate::common::system_state::{SYSTEM_STATE, SystemState};
 use crate::driver::display::DefaultDisplayDriver;
 use crate::driver::network::{DefaultNetworkDriver, NetworkDriver};
 use crate::driver::ntp_source::SntpSource;
@@ -48,17 +47,14 @@ static RENDER_ENGINE: StaticCell<GlobalMutex<RenderEngine>> = StaticCell::new();
 esp_bootloader_esp_idf::esp_app_desc!();
 
 #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
-#[embassy_executor::main]
-async fn main(spawner: Spawner) {
-    cold_start(&spawner).await;
-}
+use embassy_executor::main as platform_main;
 
 #[cfg(feature = "embedded_esp")]
-#[esp_rtos::main]
-async fn main(spawner: Spawner) -> ! {
-    cold_start(&spawner).await;
+use esp_rtos::main as platform_main;
 
-    loop {}
+#[platform_main]
+async fn main(spawner: Spawner) {
+    cold_start(&spawner).await;
 }
 
 /// 冷启动初始化
@@ -73,23 +69,12 @@ async fn cold_start(spawner: &Spawner) {
     let peripherals = esp_hal::init(esp_hal::Config::default());
 
     // 初始化存储驱动与配置服务
-    let storage_driver = DefaultConfigStorage::new(&peripherals)
-        .map_err(|e| {
-            log::error!("Failed to create config storage driver: {}", e);
-            e
-        })
-        .unwrap();
+    #[cfg(feature = "embedded_esp")]
+    let storage_driver = DefaultConfigStorage::new(&peripherals);
+    #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
+    let storage_driver = DefaultConfigStorage::new("flash.bin", 4096);
 
-    let mut config_service = ConfigService::new(storage_driver);
-
-    // 初始化硬件驱动
-    let display_driver = match DefaultDisplayDriver::new(&peripherals) {
-        Ok(driver) => driver,
-        Err(e) => {
-            log::error!("Failed to create display driver: {}", e);
-            return;
-        }
-    };
+    // let mut config_service = ConfigService::new(storage_driver);
 
     #[cfg(feature = "embedded_esp")]
     let mut network_driver = DefaultNetworkDriver::new(&peripherals).unwrap();
@@ -119,8 +104,14 @@ async fn cold_start(spawner: &Spawner) {
     // let sensor_driver = SENSOR_DRIVER.init(Mutex::new(DefaultSensorDriver::new()));
     let power_monitor = POWER_MONITOR.init(Mutex::new(DefaultPowerMonitor::new()));
 
+    // 初始化显示驱动
+    #[cfg(feature = "embedded_esp")]
+    let display_driver = DefaultDisplayDriver::new(&peripherals).await.unwrap();
+    #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
+    let display_driver = DefaultDisplayDriver::new().await.unwrap();
+
     // 初始化渲染引擎
-    let render_engine = RenderEngine::new(display_driver);
+    let render_engine = RenderEngine::new(display_driver).unwrap();
 
     // 启动显示任务
     spawner.spawn(display_task(render_engine)).unwrap();
@@ -180,4 +171,10 @@ async fn log_system_health() {
     // 例如：内存使用情况、任务状态等
 
     log::debug!("System health check completed");
+}
+
+#[cfg(feature = "embedded_esp")]
+#[panic_handler]
+fn panic(_: &core::panic::PanicInfo) -> ! {
+    loop {}
 }

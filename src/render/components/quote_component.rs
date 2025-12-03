@@ -1,4 +1,8 @@
-use embedded_graphics::{Drawable, prelude::DrawTarget};
+use embedded_graphics::{
+    Drawable,
+    prelude::{Dimensions, DrawTarget},
+    primitives::Rectangle,
+};
 use epd_waveshare::color::QuadColor;
 
 use crate::assets::generated_hitokoto_data::Hitokoto;
@@ -12,6 +16,12 @@ impl Drawable for &Hitokoto {
     where
         D: DrawTarget<Color = Self::Color>,
     {
+        todo!()
+    }
+}
+
+impl Dimensions for &Hitokoto {
+    fn bounding_box(&self) -> Rectangle {
         todo!()
     }
 }

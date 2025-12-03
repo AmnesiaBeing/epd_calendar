@@ -9,8 +9,6 @@ runner = "probe-rs run --chip=esp32c6 --preverify --always-print-stacktrace --no
 rustflags = [
     "-C",
     "force-frame-pointers",
-    "-C",
-    "link-arg=-Tlinkall.x",
     "--cfg",
     'getrandom_backend="custom"',
 ]
@@ -31,8 +29,8 @@ belr = "build --release --target aarch64-unknown-linux-gnu --no-default-features
 bs = "build --no-default-features --features simulator"
 bsr = "build --no-default-features --release --features simulator"
 
-bsg = "build --no-default-features --features simulator --features embedded_graphics_simulator"
-bsgr = "build --release --no-default-features --features simulator --features embedded_graphics_simulator"
+bsg = "build --target x86_64-unknown-linux-gnu --no-default-features --features simulator --features embedded_graphics_simulator"
+bsgr = "build --target x86_64-unknown-linux-gnu --release --no-default-features --features simulator --features embedded_graphics_simulator"
 
 bsw = "build --target x86_64-pc-windows-gnu --no-default-features --features simulator"
 bswr = "build --release --target x86_64-pc-windows-gnu --no-default-features --features simulator"

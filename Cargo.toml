@@ -11,7 +11,7 @@ doctest = false
 bench = false
 
 [features]
-default = ["embedded_esp"]
+default = ["embedded_linux"]
 simulator = [
     "critical-section/std",
     "embedded-hal-mock",

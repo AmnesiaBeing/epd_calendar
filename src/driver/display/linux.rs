@@ -25,18 +25,15 @@ pub struct LinuxEpdDriver {
 }
 
 impl LinuxEpdDriver {
-    pub fn new() -> Result<Self> {
+    pub async fn new() -> Result<Self> {
         log::info!("Initializing Linux EPD driver");
 
         // 初始化 GPIO 引脚
         let epd_busy = init_gpio(101, linux_embedded_hal::sysfs_gpio::Direction::In)
-            .await
             .map_err(|_| AppError::DisplayInit)?;
         let epd_dc = init_gpio(102, linux_embedded_hal::sysfs_gpio::Direction::Out)
-            .await
             .map_err(|_| AppError::DisplayInit)?;
         let epd_rst = init_gpio(97, linux_embedded_hal::sysfs_gpio::Direction::Out)
-            .await
             .map_err(|_| AppError::DisplayInit)?;
 
         // 根据特性选择 SPI 初始化方式
@@ -75,16 +72,6 @@ impl DisplayDriver for LinuxEpdDriver {
         Ok(())
     }
 
-    fn update_and_display_frame(&mut self, buffer: &[u8]) -> Result<()> {
-        // 直接使用 EPD 的方法更新和显示帧
-        self.epd
-            .update_and_display_frame(&mut self.spi, buffer, &mut Delay)
-            .map_err(|_| AppError::DisplayUpdateFailed)?;
-
-        log::debug!("EPD frame updated and displayed");
-        Ok(())
-    }
-
     fn sleep(&mut self) -> Result<()> {
         self.epd
             .sleep(&mut self.spi, &mut Delay)
@@ -93,7 +80,46 @@ impl DisplayDriver for LinuxEpdDriver {
         Ok(())
     }
 
-    fn wake(&mut self) -> Result<()> {
+    fn update_frame(&mut self, buffer: &[u8]) -> Result<()> {
+        self.epd
+            .update_frame(&mut self.spi, buffer, &mut Delay)
+            .map_err(|e| {
+                log::error!("Failed to update frame: {:?}", e);
+                AppError::DisplayUpdateFailed
+            })?;
+
+        log::debug!("EPD frame updated and displayed");
+        Ok(())
+    }
+
+    fn update_partial_frame(
+        &mut self,
+        buffer: &[u8],
+        x: u32,
+        y: u32,
+        width: u32,
+        height: u32,
+    ) -> Result<()> {
+        self.epd
+            .update_partial_frame(&mut self.spi, &mut Delay, buffer, x, y, width, height)
+            .map_err(|e| {
+                log::error!("Failed to update partial frame: {:?}", e);
+                AppError::DisplayUpdateFailed
+            })?;
+        Ok(())
+    }
+
+    fn display_frame(&mut self) -> Result<()> {
+        self.epd
+            .display_frame(&mut self.spi, &mut Delay)
+            .map_err(|e| {
+                log::error!("Failed to display frame: {:?}", e);
+                AppError::DisplayUpdateFailed
+            })?;
+        Ok(())
+    }
+
+    fn wake_up(&mut self) -> Result<()> {
         self.init()?;
         log::debug!("EPD woke from sleep");
         Ok(())
@@ -101,17 +127,14 @@ impl DisplayDriver for LinuxEpdDriver {
 }
 
 /// GPIO 初始化辅助函数
-async fn init_gpio(
-    pin: u64,
-    direction: linux_embedded_hal::sysfs_gpio::Direction,
-) -> Result<SysfsPin> {
+fn init_gpio(pin: u64, direction: linux_embedded_hal::sysfs_gpio::Direction) -> Result<SysfsPin> {
     let gpio = SysfsPin::new(pin);
     gpio.export().map_err(|_| AppError::DisplayInit)?;
 
     // 等待 GPIO 导出完成
     let mut attempts = 0;
     while !gpio.is_exported() {
-        embassy_time::Timer::after(embassy_time::Duration::from_millis(10)).await;
+        embassy_time::Timer::after(embassy_time::Duration::from_millis(10));
         attempts += 1;
         if attempts > 100 {
             return Err(AppError::DisplayInit);

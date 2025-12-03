@@ -1,10 +1,10 @@
 // src/tasks/status_task.rs
 use embassy_time::{Duration, Ticker};
 
-use crate::common::GlobalMutex;
+use crate::common::{ChargingStatus, GlobalMutex, NetworkStatus};
 use crate::driver::network::{DefaultNetworkDriver, NetworkDriver};
 use crate::driver::power::{DefaultPowerMonitor, PowerMonitor};
-use crate::tasks::{ComponentData, ComponentType, DISPLAY_EVENTS, DisplayEvent};
+use crate::tasks::{ComponentData, DISPLAY_EVENTS, DisplayEvent};
 
 #[embassy_executor::task]
 pub async fn status_task(
@@ -25,10 +25,9 @@ pub async fn status_task(
         if last_battery != Some(battery) {
             last_battery = Some(battery);
             DISPLAY_EVENTS
-                .send(DisplayEvent::UpdateComponent(
-                    ComponentType::Battery,
-                    ComponentData::BatteryData(battery),
-                ))
+                .send(DisplayEvent::UpdateComponent(ComponentData::BatteryData(
+                    battery,
+                )))
                 .await;
         }
 
@@ -38,8 +37,7 @@ pub async fn status_task(
             last_charging = Some(charging);
             DISPLAY_EVENTS
                 .send(DisplayEvent::UpdateComponent(
-                    ComponentType::Battery,
-                    ComponentData::ChargingStatus(charging),
+                    ComponentData::ChargingStatus(ChargingStatus(charging)),
                 ))
                 .await;
         }
@@ -49,10 +47,9 @@ pub async fn status_task(
         if last_network != Some(network) {
             last_network = Some(network);
             DISPLAY_EVENTS
-                .send(DisplayEvent::UpdateComponent(
-                    ComponentType::Network,
-                    ComponentData::NetworkStatus(network),
-                ))
+                .send(DisplayEvent::UpdateComponent(ComponentData::NetworkStatus(
+                    NetworkStatus(network),
+                )))
                 .await;
         }
     }

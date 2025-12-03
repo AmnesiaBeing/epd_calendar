@@ -13,10 +13,12 @@ pub use weather_task::weather_task;
 
 use embassy_sync::channel::Channel;
 
+use core::fmt::Debug;
+
 use crate::{
     assets::generated_hitokoto_data::Hitokoto,
     common::{
-        GlobalChannel,
+        ChargingStatus, GlobalChannel, NetworkStatus,
         system_state::{BatteryLevel, DateData, TimeData},
         weather::WeatherData,
     },
@@ -29,7 +31,7 @@ pub enum DisplayEvent {
     // 部分刷新
     PartialRefresh(PartialRefreshType),
     // 更新特定组件
-    UpdateComponent(ComponentType, ComponentData),
+    UpdateComponent(ComponentData),
     // 请求重新计算农历
     RequestLunarCalc,
 }
@@ -44,24 +46,21 @@ pub enum PartialRefreshType {
     TimeAndDate,
 }
 
-#[derive(Debug, Clone)]
-pub enum ComponentType {
-    Time,
-    Date,
-    Weather,
-    Quote,
-    Battery,
-    Network,
-}
-
+#[derive(Debug)]
 pub enum ComponentData {
     TimeData(TimeData),
     DateData(DateData),
     WeatherData(WeatherData),
     QuoteData(&'static Hitokoto),
     BatteryData(BatteryLevel),
-    ChargingStatus(bool),
-    NetworkStatus(bool),
+    ChargingStatus(ChargingStatus),
+    NetworkStatus(NetworkStatus),
+}
+
+impl Debug for Hitokoto {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "Hitokoto: {}", self.hitokoto)
+    }
 }
 
 // 全局事件通道

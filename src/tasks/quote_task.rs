@@ -2,7 +2,7 @@
 use embassy_time::{Duration, Ticker};
 
 use crate::service::QuoteService;
-use crate::tasks::{ComponentData, ComponentType, DISPLAY_EVENTS, DisplayEvent};
+use crate::tasks::{ComponentData, DISPLAY_EVENTS, DisplayEvent};
 
 #[embassy_executor::task]
 pub async fn quote_task(quote_service: QuoteService) {
@@ -13,10 +13,9 @@ pub async fn quote_task(quote_service: QuoteService) {
 
         if let Ok(quote) = quote_service.get_random_quote().await {
             DISPLAY_EVENTS
-                .send(DisplayEvent::UpdateComponent(
-                    ComponentType::Quote,
-                    ComponentData::QuoteData(quote),
-                ))
+                .send(DisplayEvent::UpdateComponent(ComponentData::QuoteData(
+                    quote,
+                )))
                 .await;
         }
     }

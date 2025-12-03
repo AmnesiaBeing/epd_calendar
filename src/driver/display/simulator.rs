@@ -46,16 +46,6 @@ impl DisplayDriver for SimulatorEpdDriver {
         Ok(())
     }
 
-    fn update_and_display_frame(&mut self, buffer: &[u8]) -> Result<()> {
-        // 直接使用 EPD 的方法更新和显示帧
-        self.epd
-            .update_and_display_frame(&mut self.spi, buffer, &mut Delay)
-            .map_err(|_| AppError::DisplayUpdateFailed)?;
-
-        debug!("EPD frame updated and displayed");
-        Ok(())
-    }
-
     fn sleep(&mut self) -> Result<()> {
         self.epd
             .sleep(&mut self.spi, &mut Delay)
@@ -64,9 +54,51 @@ impl DisplayDriver for SimulatorEpdDriver {
         Ok(())
     }
 
-    fn wake(&mut self) -> Result<()> {
+    fn update_frame(&mut self, buffer: &[u8]) -> Result<()> {
+        let mut delay = Delay::new();
+        self.epd
+            .update_frame(&mut self.spi, buffer, &mut delay)
+            .map_err(|e| {
+                log::error!("Failed to update frame: {:?}", e);
+                AppError::DisplayUpdateFailed
+            })?;
+
+        log::debug!("EPD frame updated and displayed");
+        Ok(())
+    }
+
+    fn update_partial_frame(
+        &mut self,
+        buffer: &[u8],
+        x: u32,
+        y: u32,
+        width: u32,
+        height: u32,
+    ) -> Result<()> {
+        let mut delay = Delay::new();
+        self.epd
+            .update_partial_frame(&mut self.spi, &mut delay, buffer, x, y, width, height)
+            .map_err(|e| {
+                log::error!("Failed to update partial frame: {:?}", e);
+                AppError::DisplayUpdateFailed
+            })?;
+        Ok(())
+    }
+
+    fn display_frame(&mut self) -> Result<()> {
+        let mut delay = Delay::new();
+        self.epd
+            .display_frame(&mut self.spi, &mut delay)
+            .map_err(|e| {
+                log::error!("Failed to display frame: {:?}", e);
+                AppError::DisplayUpdateFailed
+            })?;
+        Ok(())
+    }
+
+    fn wake_up(&mut self) -> Result<()> {
         self.init()?;
-        debug!("EPD woke from sleep");
+        log::debug!("EPD woke from sleep");
         Ok(())
     }
 }

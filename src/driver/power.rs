@@ -1,6 +1,6 @@
 // src/driver/power.rs
-use crate::common::system_state::BatteryLevel;
 use crate::common::error::Result;
+use crate::common::system_state::BatteryLevel;
 
 pub trait PowerMonitor {
     /// 检查是否正在充电

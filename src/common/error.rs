@@ -26,16 +26,16 @@ pub enum AppError {
 
     #[error("Display sleep failed")]
     DisplaySleepFailed,
-    
+
     #[error("Display full refresh failed")]
     DisplayFullRefreshFailed,
-    
+
     #[error("Display partial refresh failed")]
     DisplayPartialRefreshFailed,
-    
+
     #[error("Rendering failed")]
     RenderingFailed,
-    
+
     #[error("Invalid refresh area")]
     InvalidRefreshArea,
 
