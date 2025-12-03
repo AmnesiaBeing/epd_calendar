@@ -32,12 +32,12 @@ pub fn run() -> Result<()> {
     modules::network_icons::build(&config, &progress)?;
     progress.complete_stage();
 
-    progress.start_stage("处理日期字体");
-    modules::date_fonts::build(&config, &progress)?;
-    progress.complete_stage();
-
     progress.start_stage("处理数字图标");
     modules::digit_icons::build(&config, &progress)?;
+    progress.complete_stage();
+
+    progress.start_stage("生成字体集");
+    modules::font_generator::build(&config, &progress)?;
     progress.complete_stage();
 
     progress.finish_build();
