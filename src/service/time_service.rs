@@ -1,5 +1,6 @@
 // src/service/time_service.rs
 use jiff::civil::DateTime;
+use jiff::tz::{Offset, TimeZone};
 
 use crate::common::error::{AppError, Result};
 use crate::common::system_state::TimeData;
@@ -35,7 +36,7 @@ impl TimeService {
             .get_time()
             .map_err(|_| AppError::TimeError)?;
 
-        let zoned = datetime.in_tz("Asia/Shanghai").unwrap();
+        let zoned = datetime.to_zoned(TimeZone::fixed(Offset::constant(8)));
 
         let datetime: DateTime = zoned.into();
 
