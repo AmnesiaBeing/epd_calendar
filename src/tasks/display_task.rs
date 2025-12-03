@@ -280,10 +280,9 @@ fn update_system_state(system_state: &mut SystemState, component_data: &Componen
         }
         ComponentData::NetworkStatus(status) => {
             system_state.is_online = status.clone();
-        }
-        // _ => {
-        //     log::warn!("Mismatched component type and data");
-        // }
+        } // _ => {
+          //     log::warn!("Mismatched component type and data");
+          // }
     }
 }
 

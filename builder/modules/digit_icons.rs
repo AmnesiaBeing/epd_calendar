@@ -127,10 +127,6 @@ fn process_digit_icons(
         println!("cargo:warning=    已处理: {:?}", digit_icon);
     }
 
-    // 预览其中一个图标
-    let (icon_config, result) = preview_results.last().unwrap();
-    IconRenderer::preview_icon(result, icon_config);
-
     Ok((icon_data, icon_mapping))
 }
 

@@ -192,7 +192,7 @@ fn generate_hitokoto_data(config: &BuildConfig, hitokotos: &[(u32, Vec<Hitokoto>
     content.push_str("}\n\n");
     content.push_str("pub const HITOKOTOS: &[Hitokoto] = &[\n");
 
-    for (category_id, hitokoto) in &all_hitokotos {
+    for (_, hitokoto) in &all_hitokotos {
         let from_index = from_index_map[hitokoto.from.as_str()];
         let from_who_index = if let Some(from_who) = &hitokoto.from_who {
             from_who_index_map[from_who.as_str()]

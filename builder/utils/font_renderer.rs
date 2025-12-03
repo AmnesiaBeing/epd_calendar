@@ -17,9 +17,6 @@ pub struct FontConfig {
 /// 字体渲染结果
 pub struct FontRenderResult {
     pub glyph_data: Vec<u8>,
-    pub char_mapping: BTreeMap<char, u32>,
-    pub char_width: u32,
-    pub char_height: u32,
 }
 
 /// 通用字体渲染器
@@ -152,46 +149,6 @@ impl FontRenderer {
             }
         }
 
-        Ok(FontRenderResult {
-            glyph_data,
-            char_mapping,
-            char_width,
-            char_height,
-        })
-    }
-
-    /// 预览字符串
-    pub fn preview_string(result: &FontRenderResult, s: &str, font_type: &str) {
-        let bytes_per_row = (result.char_width + 7) / 8;
-        let char_data_size = (bytes_per_row * result.char_height) as usize;
-
-        println!("cargo:warning=  {}字体预览 '{}':", font_type, s);
-
-        for row in 0..result.char_height {
-            let mut line = String::new();
-            for c in s.chars() {
-                if let Some(&char_index) = result.char_mapping.get(&c) {
-                    let start = (char_index as usize) * char_data_size;
-                    let char_data = &result.glyph_data[start..start + char_data_size];
-
-                    for x in 0..result.char_width {
-                        let byte_index = (row * bytes_per_row + x / 8) as usize;
-                        let bit_offset = 7 - (x % 8);
-
-                        let pixel = if byte_index < char_data.len() {
-                            (char_data[byte_index] >> bit_offset) & 1
-                        } else {
-                            0
-                        };
-
-                        line.push(if pixel == 1 { '█' } else { ' ' });
-                    }
-                } else {
-                    line.push_str(&" ".repeat(result.char_width as usize));
-                }
-            }
-            // println!("cargo:warning=  {}", line);
-        }
-        // println!("cargo:warning=");
+        Ok(FontRenderResult { glyph_data })
     }
 }
