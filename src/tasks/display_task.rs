@@ -1,18 +1,14 @@
 // src/tasks/display_task.rs
 use embassy_time::{Duration, Instant, Timer};
-use epd_waveshare::color::QuadColor;
 
-use crate::common::error::{AppError, Result};
-use crate::common::system_state::ChargingStatus;
-use crate::common::{NetworkStatus, SystemState};
-use crate::driver::display::DisplayDriver;
+use crate::common::SystemState;
+use crate::common::error::Result;
 use crate::render::RenderEngine;
 use crate::tasks::{ComponentData, DISPLAY_EVENTS, DisplayEvent};
 
 // 配置常量
 const FULL_REFRESH_INTERVAL_SECONDS: u64 = 15 * 60; // 15分钟强制全屏刷新
 const MAX_PARTIAL_REFRESH_COUNT: u32 = 50; // 最大部分刷新次数
-const REFRESH_RETRY_COUNT: u8 = 1; // 刷新重试次数
 
 /// 显示任务主函数 - 负责协调屏幕渲染和刷新逻辑
 ///
@@ -226,14 +222,7 @@ async fn perform_refresh_with_retry<'a>(
         }
         RefreshType::Partial(component_data) => {
             retry_with_delay(
-                || {
-                    perform_partial_refresh(
-                        render_engine,
-                        system_state,
-                        component_data,
-                        partial_refresh_count,
-                    )
-                },
+                || perform_partial_refresh(render_engine, component_data, partial_refresh_count),
                 Duration::from_millis(500),
                 "Partial refresh failed",
             )
@@ -292,9 +281,9 @@ fn update_system_state(system_state: &mut SystemState, component_data: &Componen
         ComponentData::NetworkStatus(status) => {
             system_state.is_online = status.clone();
         }
-        _ => {
-            log::warn!("Mismatched component type and data");
-        }
+        // _ => {
+        //     log::warn!("Mismatched component type and data");
+        // }
     }
 }
 
@@ -320,7 +309,6 @@ fn perform_full_refresh(
 /// 执行部分刷新
 fn perform_partial_refresh(
     render_engine: &mut RenderEngine,
-    system_state: &SystemState,
     component_data: &ComponentData,
     partial_refresh_count: &mut u32,
 ) -> Result<()> {
@@ -330,7 +318,7 @@ fn perform_partial_refresh(
     );
 
     // 渲染需要更新的组件
-    render_engine.render_component(component_data);
+    let _ = render_engine.render_component(component_data);
 
     *partial_refresh_count += 1;
 

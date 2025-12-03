@@ -59,7 +59,8 @@ pub enum ComponentData {
 
 impl Debug for Hitokoto {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "Hitokoto: {}", self.hitokoto)
+        let hitokoto = self.hitokoto;
+        write!(f, "Hitokoto: {}", hitokoto)
     }
 }
 

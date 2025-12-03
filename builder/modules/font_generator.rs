@@ -4,7 +4,6 @@ use crate::builder::config::BuildConfig;
 use crate::builder::utils::font_renderer::{FontConfig, FontRenderResult, FontRenderer};
 use crate::builder::utils::{self, progress::ProgressTracker};
 use anyhow::{Context, Result};
-use std::collections::BTreeMap;
 use std::fs;
 
 /// 字体尺寸配置
@@ -12,7 +11,6 @@ use std::fs;
 pub struct FontSizeConfig {
     pub name: &'static str,
     pub size: u32,
-    pub is_half_width: bool,
 }
 
 /// 支持的字体尺寸
@@ -20,17 +18,14 @@ const FONT_SIZES: [FontSizeConfig; 3] = [
     FontSizeConfig {
         name: "small",
         size: 12,
-        is_half_width: false,
     },
     FontSizeConfig {
         name: "medium",
         size: 16,
-        is_half_width: false,
     },
     FontSizeConfig {
         name: "large",
         size: 24,
-        is_half_width: false,
     },
 ];
 
