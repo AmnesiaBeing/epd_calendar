@@ -177,7 +177,7 @@ impl RenderEngine {
     }
 
     /// 在屏幕上刷新显示，将内存中的内容显示出来
-    pub fn refresh_display(&mut self) -> Result<()> {
+    pub async fn refresh_display(&mut self) -> Result<()> {
         log::info!("Refreshing display");
 
         self.init_driver().map_err(|_| {

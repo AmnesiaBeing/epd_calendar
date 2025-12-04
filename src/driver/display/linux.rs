@@ -128,7 +128,7 @@ fn init_gpio(pin: u64, direction: linux_embedded_hal::sysfs_gpio::Direction) -> 
     // 等待 GPIO 导出完成
     let mut attempts = 0;
     while !gpio.is_exported() {
-        embassy_time::Timer::after(embassy_time::Duration::from_millis(10));
+        let _ = embassy_time::Timer::after(embassy_time::Duration::from_millis(10));
         attempts += 1;
         if attempts > 100 {
             return Err(AppError::DisplayInit);

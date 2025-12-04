@@ -1,5 +1,6 @@
 // src/service/quote_service.rs
-use crate::assets::generated_hitokoto_data::{HITOKOTOS, Hitokoto};
+use crate::assets::generated_hitokoto_data::HITOKOTOS;
+use crate::common::Hitokoto;
 use crate::common::error::{AppError, Result};
 
 pub struct QuoteService {

@@ -68,7 +68,7 @@ impl NetworkDriver for LinuxNetworkDriver {
         todo!()
     }
 
-    fn get_stack(&self) -> Option<&embassy_net::Stack> {
+    fn get_stack(&self) -> Option<&embassy_net::Stack<'_>> {
         self.stack.as_ref()
     }
 }

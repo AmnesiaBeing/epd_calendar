@@ -28,7 +28,7 @@ pub async fn display_task(mut render_engine: RenderEngine) {
         log::error!("Initial render failed: {:?}", e);
     } else {
         // 首次刷新显示
-        if let Err(e) = render_engine.refresh_display() {
+        if let Err(e) = render_engine.refresh_display().await {
             log::error!("Initial display refresh failed: {:?}", e);
         } else {
             last_refresh_time = Some(Instant::now());
@@ -152,7 +152,7 @@ async fn execute_screen_refresh(
     log::info!("Executing screen refresh");
 
     // 刷新显示（将内存缓冲区传输到屏幕并更新显示）
-    render_engine.refresh_display()?;
+    render_engine.refresh_display().await?;
 
     // 记录刷新时间
     *last_refresh_time = Some(Instant::now());

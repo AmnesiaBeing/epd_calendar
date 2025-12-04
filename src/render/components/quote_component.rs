@@ -9,8 +9,9 @@ use epd_waveshare::color::QuadColor;
 use crate::{
     assets::{
         generated_fonts::{FontSize, get_font_metrics},
-        generated_hitokoto_data::{FROM_STRINGS, FROM_WHO_STRINGS, Hitokoto},
+        generated_hitokoto_data::{FROM_STRINGS, FROM_WHO_STRINGS},
     },
+    common::Hitokoto,
     render::{TextRenderer, text_renderer::TextAlignment},
 };
 

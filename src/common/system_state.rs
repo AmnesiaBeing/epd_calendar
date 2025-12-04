@@ -8,8 +8,7 @@ use sxtwl_rs::{
 };
 
 use crate::{
-    assets::generated_hitokoto_data::{HITOKOTOS, Hitokoto},
-    common::weather::DailyWeather,
+    assets::generated_hitokoto_data::HITOKOTOS, common::Hitokoto, common::weather::DailyWeather,
 };
 
 pub struct SystemState {

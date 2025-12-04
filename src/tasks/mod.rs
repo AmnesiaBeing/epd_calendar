@@ -15,11 +15,9 @@ use embassy_sync::channel::Channel;
 
 use core::fmt::Debug;
 
-use crate::{
-    assets::generated_hitokoto_data::Hitokoto,
-    common::{
-        BatteryLevel, ChargingStatus, DateData, GlobalChannel, NetworkStatus, TimeData, WeatherData,
-    },
+use crate::common::{
+    BatteryLevel, ChargingStatus, DateData, GlobalChannel, Hitokoto, NetworkStatus, TimeData,
+    WeatherData,
 };
 
 /// 显示事件 - 简化版本，只保留实际使用的类型
