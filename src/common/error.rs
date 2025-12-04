@@ -3,23 +3,44 @@ use thiserror::Error;
 
 #[derive(Error, Debug, Clone)]
 pub enum AppError {
+    // ===== 初始化错误 =====
     #[error("Main initialization failed")]
     MainInit,
 
-    #[error("Display initialization failed")]
-    DisplayInit,
+    // ===== 网络相关错误 =====
+    #[error("Network stack initialization failed")]
+    NetworkStackInitFailed,
+
+    #[error("Network stack not initialized")]
+    NetworkStackNotInitialized,
 
     #[error("Network connection failed")]
     NetworkError,
 
-    #[error("Storage error")]
-    StorageError,
+    #[error("WiFi connection failed")]
+    WifiConnectionFailed,
 
-    #[error("Configuration error: {0}")]
-    ConfigError(&'static str),
+    #[error("DHCP failed")]
+    DhcpFailed,
 
-    #[error("Time service error")]
-    TimeError,
+    #[error("Socket operation failed")]
+    SocketError,
+
+    #[error("DNS resolution failed")]
+    DnsResolutionFailed,
+
+    #[error("DNS error")]
+    DnsError,
+
+    #[error("HTTPS request failed")]
+    HttpsRequestFailed,
+
+    #[error("TLS handshake failed")]
+    TlsHandshakeFailed,
+
+    // ===== 显示相关错误 =====
+    #[error("Display initialization failed")]
+    DisplayInit,
 
     #[error("Display update failed")]
     DisplayUpdateFailed,
@@ -36,38 +57,12 @@ pub enum AppError {
     #[error("Rendering failed")]
     RenderingFailed,
 
-    #[error("Invalid refresh area")]
-    InvalidRefreshArea,
-
-    #[error("DNS error")]
-    DnsError,
-
-    #[error("Weather API error")]
-    WeatherApiError,
-
-    #[error("Quote error")]
-    QuoteError,
-
-    #[error("WiFi connection failed")]
-    WifiConnectionFailed,
+    // ===== 时间相关错误 =====
+    #[error("Time service error")]
+    TimeError,
 
     #[error("SNTP time synchronization failed")]
     SntpSyncFailed,
-
-    #[error("HTTPS request failed")]
-    HttpsRequestFailed,
-
-    #[error("TLS handshake failed")]
-    TlsHandshakeFailed,
-
-    #[error("Network stack initialization failed")]
-    NetworkStackInitFailed,
-
-    #[error("DNS resolution failed")]
-    DnsResolutionFailed,
-
-    #[error("Socket operation failed")]
-    SocketError,
 
     #[error("NTP packet invalid")]
     NtpPacketInvalid,
@@ -75,11 +70,9 @@ pub enum AppError {
     #[error("RTC update failed")]
     RtcUpdateFailed,
 
-    #[error("DHCP failed")]
-    DhcpFailed,
-
-    #[error("Network stack not initialized")]
-    NetworkStackNotInitialized,
+    // ===== 配置相关错误 =====
+    #[error("Configuration error: {0}")]
+    ConfigError(&'static str),
 
     #[error("Configuration invalid")]
     ConfigInvalid,
@@ -92,6 +85,17 @@ pub enum AppError {
 
     #[error("Configuration too large")]
     ConfigTooLarge,
+
+    // ===== 存储相关错误 =====
+    #[error("Storage error")]
+    StorageError,
+
+    // ===== 其他错误 =====
+    #[error("Weather API error")]
+    WeatherApiError,
+
+    #[error("Quote error")]
+    QuoteError,
 }
 
 pub type Result<T> = core::result::Result<T, AppError>;

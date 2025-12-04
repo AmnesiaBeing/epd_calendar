@@ -107,11 +107,11 @@ impl NetworkDriver for EspNetworkDriver {
                 .with_password(WIFI_PASSWORD.into()),
         );
 
-        controller.set_config(&client_config);
+        let _ = controller.set_config(&client_config);
         controller
             .start()
             .map_err(|_| AppError::WifiConnectionFailed)?;
-        controller.connect();
+        let _ = controller.connect();
 
         // 等待网络连接
         embassy_time::with_timeout(Duration::from_secs(30), async {

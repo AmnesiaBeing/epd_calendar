@@ -111,11 +111,7 @@ impl Drawable for &Hitokoto {
             );
 
             // 居右显示作者和来源
-            author_renderer.draw_text_right(
-                target,
-                &author_source_line,
-                max_width,
-            )?;
+            author_renderer.draw_text_right(target, &author_source_line, max_width)?;
         }
 
         Ok(())

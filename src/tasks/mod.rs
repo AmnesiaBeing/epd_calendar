@@ -24,26 +24,13 @@ use crate::{
     },
 };
 
-// 显示事件枚举
+/// 显示事件 - 简化版本，只保留实际使用的类型
+#[derive(Debug)]
 pub enum DisplayEvent {
-    // 全局刷新
-    FullRefresh,
-    // 部分刷新
-    PartialRefresh(PartialRefreshType),
-    // 更新特定组件
+    /// 更新特定组件（包含组件数据）
     UpdateComponent(ComponentData),
-    // 请求重新计算农历
-    RequestLunarCalc,
-}
-
-#[derive(Debug, Clone)]
-pub enum PartialRefreshType {
-    TimeOnly,
-    DateOnly,
-    WeatherOnly,
-    QuoteOnly,
-    StatusOnly,
-    TimeAndDate,
+    /// 强制全屏刷新（用于系统重置或错误恢复）
+    ForceFullRefresh,
 }
 
 #[derive(Debug)]
