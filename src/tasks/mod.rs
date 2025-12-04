@@ -26,21 +26,21 @@ use crate::{
 #[derive(Debug)]
 pub enum DisplayEvent {
     /// 更新特定组件（包含组件数据）
-    UpdateComponent(ComponentData),
+    UpdateComponent(ComponentDataType),
     /// 强制全屏刷新（用于系统重置或错误恢复）
     #[allow(unused)]
     ForceFullRefresh,
 }
 
 #[derive(Debug)]
-pub enum ComponentData {
-    TimeData(TimeData),
-    DateData(DateData),
-    WeatherData(WeatherData),
-    QuoteData(&'static Hitokoto),
-    BatteryData(BatteryLevel),
-    ChargingStatus(ChargingStatus),
-    NetworkStatus(NetworkStatus),
+pub enum ComponentDataType {
+    TimeType(TimeData),
+    DateType(DateData),
+    WeatherType(WeatherData),
+    QuoteType(&'static Hitokoto),
+    BatteryType(BatteryLevel),
+    ChargingStatusType(ChargingStatus),
+    NetworkStatusType(NetworkStatus),
 }
 
 impl Debug for Hitokoto {

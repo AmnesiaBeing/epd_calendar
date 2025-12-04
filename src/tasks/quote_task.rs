@@ -2,7 +2,7 @@
 use embassy_time::{Duration, Ticker};
 
 use crate::service::QuoteService;
-use crate::tasks::{ComponentData, DISPLAY_EVENTS, DisplayEvent};
+use crate::tasks::{ComponentDataType, DISPLAY_EVENTS, DisplayEvent};
 
 #[embassy_executor::task]
 pub async fn quote_task(quote_service: QuoteService) {
@@ -18,7 +18,7 @@ pub async fn quote_task(quote_service: QuoteService) {
             Ok(quote) => {
                 log::info!("Quote retrieved successfully");
                 DISPLAY_EVENTS
-                    .send(DisplayEvent::UpdateComponent(ComponentData::QuoteData(
+                    .send(DisplayEvent::UpdateComponent(ComponentDataType::QuoteType(
                         quote,
                     )))
                     .await;

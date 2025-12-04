@@ -309,7 +309,7 @@ pub struct DailyWeather {
     pub temp_min: i8,
     /// 白天天气图标
     #[serde(rename = "iconDay")]
-    pub icon_day: WeatherIcon,
+    pub icon_day: heapless::String<20>,
     /// 白天天气描述
     #[serde(rename = "textDay")]
     pub text_day: heapless::String<20>,

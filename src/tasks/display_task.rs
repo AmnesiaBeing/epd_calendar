@@ -4,7 +4,7 @@ use embassy_time::{Duration, Instant, Timer};
 use crate::common::SystemState;
 use crate::common::error::Result;
 use crate::render::RenderEngine;
-use crate::tasks::{ComponentData, DISPLAY_EVENTS, DisplayEvent};
+use crate::tasks::{ComponentDataType, DISPLAY_EVENTS, DisplayEvent};
 
 // 配置常量
 const DEBOUNCE_INTERVAL_SECONDS: u64 = 60; // 1分钟防抖限制
@@ -77,7 +77,7 @@ async fn handle_update_component(
     render_engine: &mut RenderEngine,
     system_state: &mut SystemState,
     last_refresh_time: &mut Option<Instant>,
-    component_data: &ComponentData,
+    component_data: &ComponentDataType,
 ) {
     log::debug!("Processing component update: {:?}", component_data);
 
@@ -92,7 +92,7 @@ async fn handle_update_component(
 
     // 3. 检查是否需要刷新屏幕
     // 只有时间更新才考虑触发屏幕刷新
-    if let ComponentData::TimeData(_) = component_data {
+    if let ComponentDataType::TimeType(_) = component_data {
         if should_refresh_screen(*last_refresh_time) {
             log::info!("Time update triggers screen refresh");
             if let Err(e) = execute_screen_refresh(
@@ -167,34 +167,34 @@ async fn execute_screen_refresh(
 }
 
 /// 更新系统状态
-fn update_system_state(system_state: &mut SystemState, component_data: &ComponentData) {
+fn update_system_state(system_state: &mut SystemState, component_data: &ComponentDataType) {
     match component_data {
-        ComponentData::TimeData(data) => {
+        ComponentDataType::TimeType(data) => {
             system_state.time = data.clone();
             log::debug!("Updated time component");
         }
-        ComponentData::DateData(data) => {
+        ComponentDataType::DateType(data) => {
             system_state.date = data.clone();
             log::debug!("Updated date component");
         }
-        ComponentData::WeatherData(data) => {
+        ComponentDataType::WeatherType(data) => {
             system_state.weather = data.clone();
             log::debug!("Updated weather component");
         }
-        ComponentData::QuoteData(data) => {
+        ComponentDataType::QuoteType(data) => {
             // 这里本身就是指针，直接引用即可
             system_state.quote = *data;
             log::debug!("Updated quote component");
         }
-        ComponentData::ChargingStatus(status) => {
+        ComponentDataType::ChargingStatusType(status) => {
             system_state.charging_status = status.clone();
             log::debug!("Updated charging status");
         }
-        ComponentData::BatteryData(battery_level) => {
+        ComponentDataType::BatteryType(battery_level) => {
             system_state.battery_level = *battery_level;
             log::debug!("Updated battery level");
         }
-        ComponentData::NetworkStatus(status) => {
+        ComponentDataType::NetworkStatusType(status) => {
             system_state.network_status = status.clone();
             log::debug!("Updated network status");
         }

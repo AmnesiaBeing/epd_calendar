@@ -23,7 +23,7 @@ mod tasks;
 use crate::common::GlobalMutex;
 use crate::driver::display::DefaultDisplayDriver;
 use crate::driver::network::{DefaultNetworkDriver, NetworkDriver};
-use crate::driver::ntp_source::SntpSource;
+use crate::driver::ntp_source::SntpService;
 use crate::driver::power::DefaultPowerMonitor;
 use crate::driver::sensor::DefaultSensorDriver;
 use crate::driver::storage::DefaultConfigStorage;
@@ -35,6 +35,7 @@ use crate::tasks::{display_task, quote_task, status_task, time_task, weather_tas
 // 全局状态管理
 static NETWORK_DRIVER: StaticCell<GlobalMutex<DefaultNetworkDriver>> = StaticCell::new();
 static CONFIG_SERVICE: StaticCell<GlobalMutex<ConfigService>> = StaticCell::new();
+static TIME_SOURCE: StaticCell<GlobalMutex<DefaultTimeSource>> = StaticCell::new();
 
 #[cfg(feature = "embedded_esp")]
 esp_bootloader_esp_idf::esp_app_desc!();
@@ -104,13 +105,18 @@ async fn cold_start(spawner: &Spawner) {
     // 初始化网络驱动
     let network_driver_mutex = NETWORK_DRIVER.init(Mutex::new(network_driver));
 
-    // 初始化时间服务
-    let ntp_time_source = SntpSource::new(network_driver_mutex);
+    // 初始化时间源
     #[cfg(feature = "embedded_esp")]
     let time_source = DefaultTimeSource::new(&peripherals);
     #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
     let time_source = DefaultTimeSource::new();
-    let time_service = TimeService::new(time_source, ntp_time_source);
+    let time_source_mutex = TIME_SOURCE.init(Mutex::new(time_source));
+
+    // 初始化SNTP时间源
+    let _ = SntpService::initialize(&spawner, network_driver_mutex, time_source_mutex);
+
+    // 初始化时间服务
+    let time_service = TimeService::new(time_source_mutex);
 
     // 初始化其他驱动和服务
     #[cfg(feature = "embedded_esp")]

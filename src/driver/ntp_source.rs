@@ -1,15 +1,59 @@
 // src/driver/ntp_source.rs
-use crate::common::GlobalMutex;
-use crate::common::error::AppError;
-use crate::driver::network::{DefaultNetworkDriver, NetworkDriver};
 use alloc::string::ToString;
 use core::net::{IpAddr, SocketAddr};
+use embassy_executor::Spawner;
 use embassy_net::dns::DnsQueryType;
 use embassy_net::udp::PacketMetadata;
 use embassy_net::udp::UdpSocket;
-use embassy_time::{Duration, Instant, Timer};
+use embassy_time::{Duration, Instant, Ticker};
 use jiff::Timestamp;
+use jiff::fmt::friendly::Spacing;
 use sntpc::{NtpContext, NtpTimestampGenerator, get_time};
+
+use crate::common::GlobalMutex;
+use crate::common::error::AppError;
+use crate::common::error::Result;
+use crate::driver::network::{DefaultNetworkDriver, NetworkDriver};
+use crate::driver::time_source::DefaultTimeSource;
+use crate::driver::time_source::TimeSource;
+
+const SNTP_SYNC_INTERVAL_SECONDS: u64 = 60;
+
+#[embassy_executor::task]
+async fn start_sntp_task(
+    time_source: &'static GlobalMutex<DefaultTimeSource>,
+    mut sntp_service: SntpService,
+) {
+    log::info!("🕒 SNTP task started");
+
+    let mut ticker = Ticker::every(Duration::from_secs(SNTP_SYNC_INTERVAL_SECONDS));
+
+    // 任务启动时立即同步一次
+    match perform_sntp_sync(&mut sntp_service, time_source).await {
+        Ok(()) => log::info!("Initial SNTP sync successful"),
+        Err(e) => log::warn!("Initial SNTP sync failed: {:?}", e),
+    }
+
+    loop {
+        ticker.next().await;
+
+        log::info!("Performing scheduled SNTP time sync");
+        match perform_sntp_sync(&mut sntp_service, time_source).await {
+            Ok(()) => log::info!("Scheduled SNTP sync completed successfully"),
+            Err(e) => log::warn!("Scheduled SNTP sync failed: {:?}", e),
+        }
+    }
+}
+
+async fn perform_sntp_sync(
+    sntp_service: &mut SntpService,
+    time_source: &'static GlobalMutex<DefaultTimeSource>,
+) -> Result<()> {
+    let timestamp = sntp_service.request_time().await?;
+    log::info!("Received NTP timestamp: {}", timestamp);
+    time_source.lock().await.set_time(timestamp);
+    Ok(())
+}
 
 // 使用多个NTP服务器以提高可靠性
 const NTP_SERVERS: &[&str] = &[
@@ -26,12 +70,23 @@ const NTP_PORT: u16 = 123;
 const NTP_EPOCH: u64 = 2208988800; // 1970-01-01 00:00:00 UTC to 1900-01-01 00:00:00 UTC
 
 /// SNTP时间源实现
-pub struct SntpSource {
+pub struct SntpService {
     network_driver: &'static GlobalMutex<DefaultNetworkDriver>,
 }
 
-impl SntpSource {
-    pub fn new(network_driver: &'static GlobalMutex<DefaultNetworkDriver>) -> Self {
+impl SntpService {
+    pub fn initialize(
+        spawner: &Spawner,
+        network_driver: &'static GlobalMutex<DefaultNetworkDriver>,
+        time_source: &'static GlobalMutex<DefaultTimeSource>,
+    ) {
+        let sntp_service = Self::new(network_driver);
+        spawner
+            .spawn(start_sntp_task(time_source, sntp_service))
+            .unwrap();
+    }
+
+    fn new(network_driver: &'static GlobalMutex<DefaultNetworkDriver>) -> Self {
         Self { network_driver }
     }
 
@@ -43,7 +98,7 @@ impl SntpSource {
     }
 
     /// 发送SNTP请求并获取时间
-    async fn request_time(&mut self) -> Result<Timestamp, AppError> {
+    async fn request_time(&mut self) -> Result<Timestamp> {
         if let Some(stack) = self.network_driver.lock().await.get_stack() {
             log::info!("Starting NTP time request");
             let context = self.create_ntp_context();
@@ -129,20 +184,10 @@ impl SntpSource {
     }
 }
 
-impl SntpSource {
+impl SntpService {
     /// 异步获取并同步时间（供任务调用）
-    pub async fn sync_time(&mut self) -> Result<Timestamp, AppError> {
-        // 重试机制
-        for _ in 0..3 {
-            match self.request_time().await {
-                Ok(time) => return Ok(time),
-                Err(e) => {
-                    Timer::after(Duration::from_secs(1)).await;
-                    log::warn!("SNTP request failed: {:?}", e);
-                }
-            }
-        }
-        Err(AppError::SntpSyncFailed)
+    pub async fn sync_time(&mut self) -> Result<Timestamp> {
+        self.request_time().await
     }
 }
 

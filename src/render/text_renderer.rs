@@ -24,8 +24,8 @@ pub struct TextRenderer {
     font_size: FontSize,
     current_x: i32,
     current_y: i32,
-    half_font_metrics: (u8, u8, u8),
-    full_font_metrics: (u8, u8, u8),
+    pub half_font_metrics: (u8, u8, u8),
+    pub full_font_metrics: (u8, u8, u8),
 }
 
 impl TextRenderer {

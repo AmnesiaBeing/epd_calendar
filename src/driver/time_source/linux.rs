@@ -9,7 +9,6 @@ use embassy_time::Instant;
 use jiff::{Timestamp, Zoned, tz::TimeZone};
 
 use crate::common::error::{AppError, Result};
-use crate::driver::ntp_source::SntpSource;
 use crate::driver::time_source::TimeSource;
 
 /// 模拟器RTC时间源 - 模拟ESP32的RTC行为

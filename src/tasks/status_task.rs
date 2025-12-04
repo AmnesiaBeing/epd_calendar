@@ -4,7 +4,7 @@ use embassy_time::{Duration, Ticker};
 use crate::common::{ChargingStatus, GlobalMutex, NetworkStatus};
 use crate::driver::network::{DefaultNetworkDriver, NetworkDriver};
 use crate::driver::power::{DefaultPowerMonitor, PowerMonitor};
-use crate::tasks::{ComponentData, DISPLAY_EVENTS, DisplayEvent};
+use crate::tasks::{ComponentDataType, DISPLAY_EVENTS, DisplayEvent};
 
 #[embassy_executor::task]
 pub async fn status_task(
@@ -29,9 +29,9 @@ pub async fn status_task(
             log::info!("Battery level changed: {:?}%", battery);
             last_battery = Some(battery);
             DISPLAY_EVENTS
-                .send(DisplayEvent::UpdateComponent(ComponentData::BatteryData(
-                    battery,
-                )))
+                .send(DisplayEvent::UpdateComponent(
+                    ComponentDataType::BatteryType(battery),
+                ))
                 .await;
         }
 
@@ -42,7 +42,7 @@ pub async fn status_task(
             last_charging = Some(charging);
             DISPLAY_EVENTS
                 .send(DisplayEvent::UpdateComponent(
-                    ComponentData::ChargingStatus(ChargingStatus(charging)),
+                    ComponentDataType::ChargingStatusType(ChargingStatus(charging)),
                 ))
                 .await;
         }
@@ -53,9 +53,9 @@ pub async fn status_task(
             log::info!("Network status changed: {}", network);
             last_network = Some(network);
             DISPLAY_EVENTS
-                .send(DisplayEvent::UpdateComponent(ComponentData::NetworkStatus(
-                    NetworkStatus(network),
-                )))
+                .send(DisplayEvent::UpdateComponent(
+                    ComponentDataType::NetworkStatusType(NetworkStatus(network)),
+                ))
                 .await;
         }
     }

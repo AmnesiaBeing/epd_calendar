@@ -1,7 +1,7 @@
 use alloc::string::ToString;
 use embedded_graphics::{
     Drawable,
-    prelude::{Dimensions, DrawTarget, Point, Size},
+    prelude::{DrawTarget, Point, Size},
     primitives::Rectangle,
 };
 use epd_waveshare::color::QuadColor;

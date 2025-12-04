@@ -2,7 +2,7 @@
 use embassy_time::{Duration, Ticker};
 
 use crate::service::WeatherService;
-use crate::tasks::{ComponentData, DISPLAY_EVENTS, DisplayEvent};
+use crate::tasks::{ComponentDataType, DISPLAY_EVENTS, DisplayEvent};
 
 #[embassy_executor::task]
 pub async fn weather_task(mut weather_service: WeatherService) {
@@ -19,9 +19,9 @@ pub async fn weather_task(mut weather_service: WeatherService) {
             Ok(weather_data) => {
                 log::info!("Weather data retrieved successfully");
                 DISPLAY_EVENTS
-                    .send(DisplayEvent::UpdateComponent(ComponentData::WeatherData(
-                        weather_data,
-                    )))
+                    .send(DisplayEvent::UpdateComponent(
+                        ComponentDataType::WeatherType(weather_data),
+                    ))
                     .await;
             }
             Err(e) => {

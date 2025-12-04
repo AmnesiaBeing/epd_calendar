@@ -8,7 +8,7 @@ use crate::{
         error::{AppError, Result},
     },
     driver::display::{DefaultDisplayDriver, DisplayDriver},
-    tasks::ComponentData,
+    tasks::ComponentDataType,
 };
 
 /// 刷新策略说明
@@ -74,46 +74,46 @@ impl RenderEngine {
     }
 
     /// 渲染单个组件到内存缓冲区
-    pub fn render_component(&mut self, component_data: &ComponentData) -> Result<()> {
+    pub fn render_component(&mut self, component_data: &ComponentDataType) -> Result<()> {
         // 根据组件类型选择并绘制对应组件
         match component_data {
-            ComponentData::TimeData(component) => {
+            ComponentDataType::TimeType(component) => {
                 component.draw(&mut self.display).map_err(|e| {
                     log::error!("Failed to draw Time component: {}", e);
                     AppError::RenderingFailed
                 })?;
             }
-            ComponentData::DateData(component) => {
+            ComponentDataType::DateType(component) => {
                 component.draw(&mut self.display).map_err(|e| {
                     log::error!("Failed to draw Date component: {}", e);
                     AppError::RenderingFailed
                 })?;
             }
-            ComponentData::WeatherData(component) => {
+            ComponentDataType::WeatherType(component) => {
                 component.draw(&mut self.display).map_err(|e| {
                     log::error!("Failed to draw Weather component: {}", e);
                     AppError::RenderingFailed
                 })?;
             }
-            ComponentData::QuoteData(component) => {
+            ComponentDataType::QuoteType(component) => {
                 component.draw(&mut self.display).map_err(|e| {
                     log::error!("Failed to draw Quote component: {}", e);
                     AppError::RenderingFailed
                 })?;
             }
-            ComponentData::ChargingStatus(component) => {
+            ComponentDataType::ChargingStatusType(component) => {
                 component.draw(&mut self.display).map_err(|e| {
                     log::error!("Failed to draw ChargingStatus component: {}", e);
                     AppError::RenderingFailed
                 })?;
             }
-            ComponentData::BatteryData(component) => {
+            ComponentDataType::BatteryType(component) => {
                 component.draw(&mut self.display).map_err(|e| {
                     log::error!("Failed to draw BatteryLevel component: {}", e);
                     AppError::RenderingFailed
                 })?;
             }
-            ComponentData::NetworkStatus(component) => {
+            ComponentDataType::NetworkStatusType(component) => {
                 component.draw(&mut self.display).map_err(|e| {
                     log::error!("Failed to draw NetworkStatus component: {}", e);
                     AppError::RenderingFailed
