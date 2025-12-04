@@ -18,6 +18,9 @@ use crate::driver::time_source::DefaultTimeSource;
 use crate::driver::time_source::TimeSource;
 
 const SNTP_TIMEOUT_SECONDS: u64 = 5;
+#[cfg(any(feature = "embedded_esp", feature = "embedded_linux"))]
+const SNTP_SYNC_INTERVAL_SECONDS: u64 = 12 * 60 * 60;
+#[cfg(feature = "simulator")]
 const SNTP_SYNC_INTERVAL_SECONDS: u64 = 60;
 
 #[embassy_executor::task]
