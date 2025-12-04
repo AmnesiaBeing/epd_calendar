@@ -37,11 +37,6 @@ impl RenderEngine {
         // 初始化Display（使用默认配置）
         let display = Display7in5::default();
 
-        driver.init().map_err(|e| {
-            log::error!("Failed to initialize display driver: {}", e);
-            AppError::RenderingFailed
-        })?;
-
         log::info!("RenderEngine initialized successfully");
 
         Ok(Self {
@@ -184,6 +179,13 @@ impl RenderEngine {
             log::error!("Failed to initialize display driver");
             AppError::RenderingFailed
         })?;
+
+        self.driver
+            .update_frame(self.display.buffer())
+            .map_err(|e| {
+                log::error!("Failed to update frame: {}", e);
+                AppError::RenderingFailed
+            })?;
 
         self.driver.display_frame().map_err(|e| {
             log::error!("Failed to refresh display: {}", e);
