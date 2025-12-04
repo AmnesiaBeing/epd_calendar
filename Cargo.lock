@@ -2645,6 +2645,7 @@ checksum = "1b4225ed8af9afa45007222d268dac20437c9783be704fcbdc3399bffe7e81dc"
 dependencies = [
  "cfg-if",
  "embassy-net",
+ "log",
 ]
 
 [[package]]

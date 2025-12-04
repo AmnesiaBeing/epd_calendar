@@ -5,9 +5,9 @@ use embassy_executor::Spawner;
 use embassy_net::dns::DnsQueryType;
 use embassy_net::udp::PacketMetadata;
 use embassy_net::udp::UdpSocket;
+use embassy_time::with_timeout;
 use embassy_time::{Duration, Instant, Ticker};
 use jiff::Timestamp;
-use jiff::fmt::friendly::Spacing;
 use sntpc::{NtpContext, NtpTimestampGenerator, get_time};
 
 use crate::common::GlobalMutex;
@@ -17,6 +17,7 @@ use crate::driver::network::{DefaultNetworkDriver, NetworkDriver};
 use crate::driver::time_source::DefaultTimeSource;
 use crate::driver::time_source::TimeSource;
 
+const SNTP_TIMEOUT_SECONDS: u64 = 5;
 const SNTP_SYNC_INTERVAL_SECONDS: u64 = 60;
 
 #[embassy_executor::task]
@@ -51,7 +52,7 @@ async fn perform_sntp_sync(
 ) -> Result<()> {
     let timestamp = sntp_service.request_time().await?;
     log::info!("Received NTP timestamp: {}", timestamp);
-    time_source.lock().await.set_time(timestamp);
+    let _ = time_source.lock().await.set_time(timestamp);
     Ok(())
 }
 
@@ -67,7 +68,6 @@ const NTP_SERVERS: &[&str] = &[
 
 // SNTP协议常量
 const NTP_PORT: u16 = 123;
-const NTP_EPOCH: u64 = 2208988800; // 1970-01-01 00:00:00 UTC to 1900-01-01 00:00:00 UTC
 
 /// SNTP时间源实现
 pub struct SntpService {
@@ -110,13 +110,14 @@ impl SntpService {
             let mut tx_buffer = [0; 4096];
 
             // 创建UDP套接字
-            let socket = UdpSocket::new(
+            let mut socket = UdpSocket::new(
                 *stack,
                 &mut rx_meta,
                 &mut rx_buffer,
                 &mut tx_meta,
                 &mut tx_buffer,
             );
+            socket.bind(123).unwrap();
 
             let mut last_error = None;
 
@@ -142,17 +143,21 @@ impl SntpService {
                 log::info!("NTP server {server} resolved to: {addr}");
 
                 log::debug!("Sending NTP request to {addr}:123");
-                let result = get_time(SocketAddr::from((addr, NTP_PORT)), &socket, context).await;
+                let result = with_timeout(
+                    Duration::from_secs(SNTP_TIMEOUT_SECONDS),
+                    get_time(SocketAddr::from((addr, NTP_PORT)), &socket, context),
+                )
+                .await;
 
                 match result {
-                    Ok(ntp_result) => {
+                    Ok(Ok(ntp_result)) => {
                         log::info!("NTP request to {server} success");
 
                         // 将NTP时间转换为Timestamp
                         let ntp_seconds = ntp_result.sec();
                         let ntp_fraction = ntp_result.sec_fraction();
                         // 转换为微秒
-                        let microsecond = (ntp_seconds as u64 - NTP_EPOCH) * 1_000_000
+                        let microsecond = ntp_seconds as u64 * 1_000_000
                             + (u64::from(ntp_fraction) * 1_000_000 / u64::from(u32::MAX));
 
                         // 使用jiff创建Timestamp
@@ -168,8 +173,8 @@ impl SntpService {
                             }
                         }
                     }
-                    Err(e) => {
-                        log::warn!("NTP request to {server} failed: {:?}", e);
+                    _ => {
+                        log::warn!("NTP request to {server} failed: {:?}", result);
                         last_error = Some(AppError::TimeError);
                         continue;
                     }
@@ -181,13 +186,6 @@ impl SntpService {
         }
         log::error!("Network stack not available for NTP request");
         Err(AppError::NetworkError)
-    }
-}
-
-impl SntpService {
-    /// 异步获取并同步时间（供任务调用）
-    pub async fn sync_time(&mut self) -> Result<Timestamp> {
-        self.request_time().await
     }
 }
 

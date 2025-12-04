@@ -54,6 +54,8 @@ impl NetworkDriver for LinuxNetworkDriver {
             return Err(AppError::NetworkError);
         }
 
+        stack.wait_config_up().await;
+
         self.stack = Some(stack);
         Ok(())
     }
