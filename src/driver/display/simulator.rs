@@ -95,10 +95,4 @@ impl DisplayDriver for SimulatorEpdDriver {
             })?;
         Ok(())
     }
-
-    fn wake_up(&mut self) -> Result<()> {
-        self.init()?;
-        log::debug!("EPD woke from sleep");
-        Ok(())
-    }
 }

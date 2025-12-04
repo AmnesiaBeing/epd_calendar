@@ -1,12 +1,15 @@
 // src/service/weather_service.rs
 use crate::common::GlobalMutex;
 use crate::common::error::{AppError, Result};
-use crate::common::weather::{QWeatherResponse, QWeatherStatusCode, WeatherData};
+use crate::common::system_state::WeatherData;
+use crate::common::weather::{DailyWeather, QWeatherResponse, QWeatherStatusCode};
 use crate::driver::network::{DefaultNetworkDriver, NetworkDriver};
+use crate::driver::sensor::DefaultSensorDriver;
 use alloc::format;
 
 pub struct WeatherService {
-    network: &'static GlobalMutex<DefaultNetworkDriver>,
+    network_driver: &'static GlobalMutex<DefaultNetworkDriver>,
+    sensor_driver: DefaultSensorDriver,
     location_id: heapless::String<20>,
     last_weather_data: Option<WeatherData>,
 }
@@ -16,9 +19,13 @@ const API_PATH: &str = "/v7/weather/3d";
 const API_KAY: &str = "";
 
 impl WeatherService {
-    pub fn new(network: &'static GlobalMutex<DefaultNetworkDriver>) -> Self {
+    pub fn new(
+        network_driver: &'static GlobalMutex<DefaultNetworkDriver>,
+        sensor_driver: DefaultSensorDriver,
+    ) -> Self {
         Self {
-            network,
+            network_driver,
+            sensor_driver,
             location_id: heapless::String::new(),
             last_weather_data: None,
         }
@@ -26,7 +33,7 @@ impl WeatherService {
 
     pub async fn get_weather(&mut self) -> Result<WeatherData> {
         // 首先检查网络连接
-        if !self.network.lock().await.is_connected() {
+        if !self.network_driver.lock().await.is_connected() {
             log::warn!("Network not available, using cached or default weather data");
             return Err(AppError::WeatherApiError);
         }
@@ -100,24 +107,18 @@ impl WeatherService {
 
         // 3. 转换为对外的WeatherData结构
         let mut weather_data = WeatherData {
-            location_id: self.location_id.clone(),
-            update_time: qweather_resp.update_time,
-            daily_forecast: heapless::Vec::new(),
+            daily_forecast: None,
+            sensor_data: None,
         };
 
         // 4. 填充3天预报数据
-        for daily in qweather_resp.daily {
-            weather_data
-                .daily_forecast
-                .push(daily)
-                .map_err(|_| AppError::WeatherApiError)?;
-        }
+        // TODO: 创建一个专用于天气显示的结构体，重新按需求填充结构体
+        let mut daily_forecast: [DailyWeather; 3] = Default::default();
+        daily_forecast[0] = qweather_resp.daily[0].clone();
+        daily_forecast[1] = qweather_resp.daily[1].clone();
+        daily_forecast[2] = qweather_resp.daily[2].clone();
 
-        // 5. 校验至少有1天数据
-        if weather_data.daily_forecast.is_empty() {
-            log::warn!("No daily weather data found in API response");
-            return Err(AppError::WeatherApiError);
-        }
+        weather_data.daily_forecast = Some((self.location_id.clone(), daily_forecast));
 
         Ok(weather_data)
     }

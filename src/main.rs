@@ -34,14 +34,7 @@ use crate::tasks::{display_task, quote_task, status_task, time_task, weather_tas
 
 // 全局状态管理
 static NETWORK_DRIVER: StaticCell<GlobalMutex<DefaultNetworkDriver>> = StaticCell::new();
-static SENSOR_DRIVER: StaticCell<GlobalMutex<DefaultSensorDriver>> = StaticCell::new();
-static POWER_MONITOR: StaticCell<GlobalMutex<DefaultPowerMonitor>> = StaticCell::new();
-
-static WEATHER_SERVICE: StaticCell<GlobalMutex<WeatherService>> = StaticCell::new();
-static TIME_SERVICE: StaticCell<GlobalMutex<TimeService>> = StaticCell::new();
 static CONFIG_SERVICE: StaticCell<GlobalMutex<ConfigService>> = StaticCell::new();
-
-static RENDER_ENGINE: StaticCell<GlobalMutex<RenderEngine>> = StaticCell::new();
 
 #[cfg(feature = "embedded_esp")]
 esp_bootloader_esp_idf::esp_app_desc!();
@@ -54,7 +47,25 @@ use esp_rtos::main as platform_main;
 
 #[platform_main]
 async fn main(spawner: Spawner) {
+    // 冷启动初始化
     cold_start(&spawner).await;
+
+    // 主循环
+    let mut last_system_check = Instant::now();
+    const SYSTEM_CHECK_INTERVAL: Duration = Duration::from_secs(60);
+
+    log::info!("Entering main loop");
+
+    loop {
+        // 定期检查系统状态
+        if last_system_check.elapsed() > SYSTEM_CHECK_INTERVAL {
+            log_system_health().await;
+            last_system_check = Instant::now();
+        }
+
+        // 主循环休眠，让任务运行
+        Timer::after(Duration::from_secs(30)).await;
+    }
 }
 
 /// 冷启动初始化
@@ -70,11 +81,12 @@ async fn cold_start(spawner: &Spawner) {
 
     // 初始化存储驱动与配置服务
     #[cfg(feature = "embedded_esp")]
-    let storage_driver = DefaultConfigStorage::new(&peripherals);
+    let storage_driver = DefaultConfigStorage::new(&peripherals).unwrap();
     #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
-    let storage_driver = DefaultConfigStorage::new("flash.bin", 4096);
+    let storage_driver = DefaultConfigStorage::new("flash.bin", 4096).unwrap();
 
-    // let mut config_service = ConfigService::new(storage_driver);
+    // TODO: 配置服务暂时还没做
+    let mut _config_service = ConfigService::new(storage_driver);
 
     #[cfg(feature = "embedded_esp")]
     let mut network_driver = DefaultNetworkDriver::new(&peripherals).unwrap();
@@ -101,8 +113,10 @@ async fn cold_start(spawner: &Spawner) {
     let time_service = TimeService::new(time_source, ntp_time_source);
 
     // 初始化其他驱动和服务
-    // let sensor_driver = SENSOR_DRIVER.init(Mutex::new(DefaultSensorDriver::new()));
-    let power_monitor = POWER_MONITOR.init(Mutex::new(DefaultPowerMonitor::new()));
+    #[cfg(feature = "embedded_esp")]
+    let power_monitor = DefaultPowerMonitor::new();
+    #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
+    let power_monitor = DefaultPowerMonitor::new();
 
     // 初始化显示驱动
     #[cfg(feature = "embedded_esp")]
@@ -123,7 +137,10 @@ async fn cold_start(spawner: &Spawner) {
         .unwrap();
     spawner.spawn(time_task(time_service)).unwrap();
     spawner
-        .spawn(weather_task(WeatherService::new(network_driver_mutex)))
+        .spawn(weather_task(WeatherService::new(
+            network_driver_mutex,
+            DefaultSensorDriver::new(),
+        )))
         .unwrap();
 
     log::info!("EPD Calendar started successfully");
@@ -141,25 +158,6 @@ async fn init_logging() {
     {
         rtt_target::rtt_init_print!();
         log::info!("Initializing logger for ESP32");
-    }
-}
-
-/// 主循环 - 处理系统级事件
-async fn main_loop() {
-    let mut last_system_check = Instant::now();
-    const SYSTEM_CHECK_INTERVAL: Duration = Duration::from_secs(60);
-
-    log::info!("Entering main loop");
-
-    loop {
-        // 定期检查系统状态
-        if last_system_check.elapsed() > SYSTEM_CHECK_INTERVAL {
-            log_system_health().await;
-            last_system_check = Instant::now();
-        }
-
-        // 主循环休眠，让任务运行
-        Timer::after(Duration::from_secs(30)).await;
     }
 }
 

@@ -49,20 +49,9 @@ pub struct QWeatherResponse {
     pub daily: heapless::Vec<DailyWeather, 3>,
 }
 
-// 对外暴露的天气数据结构
-#[derive(Debug, Clone, Default)]
-pub struct WeatherData {
-    /// 地区ID
-    pub location_id: heapless::String<20>,
-    /// 数据更新时间
-    pub update_time: heapless::String<20>,
-    /// 3天预报数据
-    pub daily_forecast: heapless::Vec<DailyWeather, 3>,
-}
-
 // 风向枚举 - 适配和风天气API
 // https://dev.qweather.com/docs/resource/wind-info/#wind-direction
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub enum WindDirection {
     North,          // 北风 N 0 348.75-11.25
     NorthNortheast, // 东北偏北风 NNE 22.5 11.25-33.75
@@ -82,7 +71,8 @@ pub enum WindDirection {
     NorthNorthwest, // 西北偏北风 NNW 337.5 326.25-348.75
     Rotational,     // 旋转风 Rotational -999 -
     None,           // 无持续风向 None -1 -
-    Unknown,        // 未知风向
+    #[default]
+    Unknown, // 未知风向
 }
 
 // 为 WindDirection 实现自定义反序列化
@@ -306,7 +296,7 @@ impl Default for WeatherIcon {
 }
 
 // 单天天气预报
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct DailyWeather {
     /// 预报日期（yyyy-MM-dd）
     #[serde(rename = "fxDate")]

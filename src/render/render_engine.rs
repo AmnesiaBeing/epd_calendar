@@ -1,32 +1,24 @@
 // src/render/render_engine.rs
+use embedded_graphics::Drawable;
+use epd_waveshare::epd7in5_yrd0750ryf665f60::Display7in5;
 
-use embedded_graphics::{
-    Drawable, draw_target::DrawTarget, geometry::Dimensions, prelude::DrawTargetExt,
-};
-use epd_waveshare::{color::QuadColor, epd7in5_yrd0750ryf665f60::Display7in5};
-
-// 项目内部依赖
 use crate::{
     common::{
-        BatteryLevel, ChargingStatus, DateData, Hitokoto, NetworkStatus, SystemState, TimeData,
-        WeatherData,
+        SystemState,
         error::{AppError, Result},
     },
     driver::display::{DefaultDisplayDriver, DisplayDriver},
     tasks::ComponentData,
 };
 
-// 定义组件类型枚举
-pub enum ComponentType {
-    Time(TimeData),
-    Date(DateData),
-    Weather(WeatherData),
-    Quote(&'static Hitokoto),
-    ChargingStatus(ChargingStatus),
-    BatteryLevel(BatteryLevel),
-    NetworkStatus(NetworkStatus),
-    Separator,
-}
+/// 刷新策略说明
+/// 刷新任务(display_task) ← 组件更新(各task)
+///        ↓
+/// 嵌入式芯片内存缓冲区 (render_engine)
+///        ↓
+/// 屏幕内部缓冲区 (通过驱动接口传输 render_engine.render_component())
+///        ↓
+/// 实际显示区域 (调用render_engine.display()时更新)
 
 /// 渲染引擎核心结构体
 pub struct RenderEngine {
@@ -45,7 +37,6 @@ impl RenderEngine {
         // 初始化Display（使用默认配置）
         let display = Display7in5::default();
 
-        // 初始化驱动硬件
         driver.init().map_err(|e| {
             log::error!("Failed to initialize display driver: {}", e);
             AppError::RenderingFailed
@@ -60,17 +51,11 @@ impl RenderEngine {
         })
     }
 
-    /// 唤醒显示驱动
-    pub fn wake_up_driver(&mut self) -> Result<()> {
-        if self.is_sleeping {
-            log::info!("Waking up display driver");
-            self.driver.wake_up().map_err(|e| {
-                log::error!("Failed to wake up display driver: {}", e);
-                AppError::RenderingFailed
-            })?;
-            self.is_sleeping = false;
-            log::info!("Display driver is now awake");
-        }
+    fn init_driver(&mut self) -> Result<()> {
+        self.driver.init().map_err(|e| {
+            log::error!("Failed to initialize display driver: {}", e);
+            AppError::RenderingFailed
+        })?;
         Ok(())
     }
 
@@ -88,141 +73,123 @@ impl RenderEngine {
         Ok(())
     }
 
-    /// 渲染单个组件（局部刷新）
+    /// 渲染单个组件到内存缓冲区
     pub fn render_component(&mut self, component_data: &ComponentData) -> Result<()> {
-        // 确保驱动已唤醒
-        self.wake_up_driver()?;
-
-        let bounds;
-
         // 根据组件类型选择并绘制对应组件
         match component_data {
             ComponentData::TimeData(component) => {
-                bounds = component.bounding_box();
-                let mut clipped_target = self.display.cropped(&bounds);
-                component.draw(&mut clipped_target).map_err(|e| {
+                component.draw(&mut self.display).map_err(|e| {
                     log::error!("Failed to draw Time component: {}", e);
                     AppError::RenderingFailed
                 })?;
             }
             ComponentData::DateData(component) => {
-                bounds = component.bounding_box();
-                let mut clipped_target = self.display.cropped(&bounds);
-                component.draw(&mut clipped_target).map_err(|e| {
+                component.draw(&mut self.display).map_err(|e| {
                     log::error!("Failed to draw Date component: {}", e);
                     AppError::RenderingFailed
                 })?;
             }
             ComponentData::WeatherData(component) => {
-                bounds = component.bounding_box();
-                let mut clipped_target = self.display.cropped(&bounds);
-                component.draw(&mut clipped_target).map_err(|e| {
+                component.draw(&mut self.display).map_err(|e| {
                     log::error!("Failed to draw Weather component: {}", e);
                     AppError::RenderingFailed
                 })?;
             }
             ComponentData::QuoteData(component) => {
-                bounds = component.bounding_box();
-                let mut clipped_target = self.display.cropped(&bounds);
-                component.draw(&mut clipped_target).map_err(|e| {
+                component.draw(&mut self.display).map_err(|e| {
                     log::error!("Failed to draw Quote component: {}", e);
                     AppError::RenderingFailed
                 })?;
             }
             ComponentData::ChargingStatus(component) => {
-                bounds = component.bounding_box();
-                let mut clipped_target = self.display.cropped(&bounds);
-                component.draw(&mut clipped_target).map_err(|e| {
+                component.draw(&mut self.display).map_err(|e| {
                     log::error!("Failed to draw ChargingStatus component: {}", e);
                     AppError::RenderingFailed
                 })?;
             }
             ComponentData::BatteryData(component) => {
-                bounds = component.bounding_box();
-                let mut clipped_target = self.display.cropped(&bounds);
-                component.draw(&mut clipped_target).map_err(|e| {
+                component.draw(&mut self.display).map_err(|e| {
                     log::error!("Failed to draw BatteryLevel component: {}", e);
                     AppError::RenderingFailed
                 })?;
             }
             ComponentData::NetworkStatus(component) => {
-                bounds = component.bounding_box();
-                let mut clipped_target = self.display.cropped(&bounds);
-                component.draw(&mut clipped_target).map_err(|e| {
+                component.draw(&mut self.display).map_err(|e| {
                     log::error!("Failed to draw NetworkStatus component: {}", e);
                     AppError::RenderingFailed
                 })?;
             }
-            _ => {
-                log::error!("Unhandled component type.");
-                return Err(AppError::RenderingFailed);
-            }
         }
 
-        // 更新局部区域到墨水屏
-        // TODO: 需计算实际的buffer指针，逐个像素绘制到墨水屏
-        let buffer = self.display.buffer();
-        self.driver
-            .update_partial_frame(
-                buffer,
-                bounds.top_left.x as u32,
-                bounds.top_left.y as u32,
-                bounds.size.width as u32,
-                bounds.size.height as u32,
-            )
+        log::info!("Successfully partially rendered component buffer");
+
+        Ok(())
+    }
+
+    /// 全屏渲染到缓冲区，不实际在屏幕上显示
+    pub fn render_full_screen(&mut self, state: &SystemState) -> Result<()> {
+        log::info!("Starting full screen rendering");
+
+        (&state.time).draw(&mut self.display).map_err(|e| {
+            log::error!("Failed to draw Time component: {}", e);
+            AppError::RenderingFailed
+        })?;
+
+        (&state.date).draw(&mut self.display).map_err(|e| {
+            log::error!("Failed to draw Date component: {}", e);
+            AppError::RenderingFailed
+        })?;
+
+        (&state.weather).draw(&mut self.display).map_err(|e| {
+            log::error!("Failed to draw Weather component: {}", e);
+            AppError::RenderingFailed
+        })?;
+
+        (&state.quote).draw(&mut self.display).map_err(|e| {
+            log::error!("Failed to draw Quote component: {}", e);
+            AppError::RenderingFailed
+        })?;
+
+        (&state.charging_status)
+            .draw(&mut self.display)
             .map_err(|e| {
-                log::error!("Failed to update partial frame for component");
+                log::error!("Failed to draw ChargingStatus component: {}", e);
                 AppError::RenderingFailed
             })?;
 
-        log::info!("Successfully partially rendered component");
+        (&state.network_status)
+            .draw(&mut self.display)
+            .map_err(|e| {
+                log::error!("Failed to draw NetworkStatus component: {}", e);
+                AppError::RenderingFailed
+            })?;
+
+        (&state.battery_level)
+            .draw(&mut self.display)
+            .map_err(|e| {
+                log::error!("Failed to draw BatteryLevel component: {}", e);
+                AppError::RenderingFailed
+            })?;
+
+        log::info!("Full screen buffer rendering completed");
 
         Ok(())
     }
 
-    /// 全屏渲染（用于首次显示或清除残影）
-    pub fn render_full_screen(&mut self, state: &SystemState) -> Result<()> {
-        // 确保驱动已唤醒
-        self.wake_up_driver()?;
-
-        log::info!("Starting full screen rendering");
-
-        // 清空显示缓冲区（全白背景）
-        self.display.clear(QuadColor::White).map_err(|e| {
-            log::error!("Failed to clear display buffer: {}", e);
-            AppError::RenderingFailed
-        })?;
-
-        // TODO: 按顺序渲染所有组件到全屏缓冲区
-        // 注意：这里假设display_task会提供所有组件的边界信息
-        // 实际应用中，可能需要遍历一个组件列表
-
-        log::info!("Full screen rendering completed");
-
-        // 更新整个帧缓冲区到墨水屏
-        let buffer = self.display.buffer();
-        self.driver.update_frame(buffer).map_err(|e| {
-            log::error!("Failed to update full frame: {}", e);
-            AppError::RenderingFailed
-        })?;
-
-        // 触发显示刷新
-        self.driver.display_frame().map_err(|e| {
-            log::error!("Failed to display frame: {}", e);
-            AppError::RenderingFailed
-        })?;
-
-        log::info!("Full screen refresh completed successfully");
-        Ok(())
-    }
-
-    /// 仅刷新显示（不重新渲染，用于局部刷新后的显示更新）
+    /// 在屏幕上刷新显示，将内存中的内容显示出来
     pub fn refresh_display(&mut self) -> Result<()> {
         log::info!("Refreshing display");
+
+        self.init_driver().map_err(|_| {
+            log::error!("Failed to initialize display driver");
+            AppError::RenderingFailed
+        })?;
+
         self.driver.display_frame().map_err(|e| {
             log::error!("Failed to refresh display: {}", e);
             AppError::RenderingFailed
         })?;
+
         log::info!("Display refreshed successfully");
         Ok(())
     }

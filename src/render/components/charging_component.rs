@@ -39,9 +39,3 @@ impl Drawable for ChargingStatus {
         }
     }
 }
-
-impl Dimensions for ChargingStatus {
-    fn bounding_box(&self) -> Rectangle {
-        CHARGING_ICON_RECT.clone()
-    }
-}

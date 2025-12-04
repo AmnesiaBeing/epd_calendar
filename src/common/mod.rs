@@ -11,7 +11,7 @@ pub use system_state::ChargingStatus;
 pub use system_state::DateData;
 pub use system_state::NetworkStatus;
 pub use system_state::TimeData;
-pub use weather::WeatherData;
+pub use system_state::WeatherData;
 
 use embassy_sync::{channel::Channel, mutex::Mutex};
 

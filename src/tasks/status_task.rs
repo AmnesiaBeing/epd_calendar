@@ -8,7 +8,7 @@ use crate::tasks::{ComponentData, DISPLAY_EVENTS, DisplayEvent};
 
 #[embassy_executor::task]
 pub async fn status_task(
-    power_monitor: &'static GlobalMutex<DefaultPowerMonitor>,
+    power_monitor: DefaultPowerMonitor,
     network_driver: &'static GlobalMutex<DefaultNetworkDriver>,
 ) {
     log::info!("Status task started");
@@ -24,7 +24,7 @@ pub async fn status_task(
         log::debug!("Checking system status");
 
         // 检查电池状态变化
-        let battery = power_monitor.lock().await.battery_level().await;
+        let battery = power_monitor.battery_level().await;
         if last_battery != Some(battery) {
             log::info!("Battery level changed: {:?}%", battery);
             last_battery = Some(battery);
@@ -36,7 +36,7 @@ pub async fn status_task(
         }
 
         // 检查充电状态变化
-        let charging = power_monitor.lock().await.is_charging().await;
+        let charging = power_monitor.is_charging().await;
         if last_charging != Some(charging) {
             log::info!("Charging status changed: {}", charging);
             last_charging = Some(charging);

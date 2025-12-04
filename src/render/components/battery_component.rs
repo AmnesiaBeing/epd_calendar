@@ -43,9 +43,3 @@ impl Drawable for &BatteryLevel {
         )
     }
 }
-
-impl Dimensions for &BatteryLevel {
-    fn bounding_box(&self) -> Rectangle {
-        BATTERY_ICON_RECT.clone()
-    }
-}

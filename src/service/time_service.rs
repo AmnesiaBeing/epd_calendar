@@ -43,6 +43,7 @@ impl TimeService {
         Ok(TimeData {
             hour: datetime.hour() as u8,
             minute: datetime.minute() as u8,
+            am_pm: None,
         })
     }
 }

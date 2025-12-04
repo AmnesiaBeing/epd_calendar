@@ -13,28 +13,26 @@ use sntpc::{NtpContext, NtpTimestampGenerator, get_time};
 
 // 使用多个NTP服务器以提高可靠性
 const NTP_SERVERS: &[&str] = &[
+    "cn.ntp.org.cn",
     "pool.ntp.org",
-    "time.google.com",
-    "time.windows.com",
     "ntp.ntsc.ac.cn",
+    "ntp7.aliyun.com",
+    "time.windows.com",
+    "time1.google.com",
 ];
+
 // SNTP协议常量
 const NTP_PORT: u16 = 123;
-const NTP_PACKET_SIZE: usize = 48;
 const NTP_EPOCH: u64 = 2208988800; // 1970-01-01 00:00:00 UTC to 1900-01-01 00:00:00 UTC
 
 /// SNTP时间源实现
 pub struct SntpSource {
     network_driver: &'static GlobalMutex<DefaultNetworkDriver>,
-    buffer: [u8; NTP_PACKET_SIZE],
 }
 
 impl SntpSource {
     pub fn new(network_driver: &'static GlobalMutex<DefaultNetworkDriver>) -> Self {
-        Self {
-            network_driver,
-            buffer: [0u8; NTP_PACKET_SIZE],
-        }
+        Self { network_driver }
     }
 
     /// 创建SNTP上下文
@@ -50,7 +48,7 @@ impl SntpSource {
             log::info!("Starting NTP time request");
             let context = self.create_ntp_context();
 
-            log::debug!("Creating UDP socket for NTP on ESP32");
+            log::debug!("Creating UDP socket for NTP");
             let mut rx_meta = [PacketMetadata::EMPTY; 16];
             let mut rx_buffer = [0; 4096];
             let mut tx_meta = [PacketMetadata::EMPTY; 16];
@@ -123,9 +121,10 @@ impl SntpSource {
                 }
             }
 
-            log::error!("All NTP servers failed");
+            log::error!("All NTP servers failed. Last error: {:?}", last_error);
             return Err(last_error.unwrap_or(AppError::TimeError));
         }
+        log::error!("Network stack not available for NTP request");
         Err(AppError::NetworkError)
     }
 }

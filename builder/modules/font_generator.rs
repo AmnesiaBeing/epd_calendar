@@ -34,16 +34,16 @@ pub fn build(config: &BuildConfig, progress: &ProgressTracker) -> Result<()> {
     );
 
     progress.update_progress(2, 5, "渲染小号字体");
-    let small_full = render_font_bitmap(config, &shared_charset.full_width, 12, false)?;
-    let small_half = render_font_bitmap(config, &shared_charset.half_width, 12, true)?;
+    let small_full = render_font_bitmap(config, &shared_charset.full_width, 16, false)?;
+    let small_half = render_font_bitmap(config, &shared_charset.half_width, 16, true)?;
 
     progress.update_progress(3, 5, "渲染中号字体");
-    let medium_full = render_font_bitmap(config, &shared_charset.full_width, 16, false)?;
-    let medium_half = render_font_bitmap(config, &shared_charset.half_width, 16, true)?;
+    let medium_full = render_font_bitmap(config, &shared_charset.full_width, 24, false)?;
+    let medium_half = render_font_bitmap(config, &shared_charset.half_width, 24, true)?;
 
     progress.update_progress(4, 5, "渲染大号字体");
-    let large_full = render_font_bitmap(config, &shared_charset.full_width, 24, false)?;
-    let large_half = render_font_bitmap(config, &shared_charset.half_width, 24, true)?;
+    let large_full = render_font_bitmap(config, &shared_charset.full_width, 40, false)?;
+    let large_half = render_font_bitmap(config, &shared_charset.half_width, 40, true)?;
 
     progress.update_progress(5, 5, "生成字体文件");
     generate_shared_font_files(

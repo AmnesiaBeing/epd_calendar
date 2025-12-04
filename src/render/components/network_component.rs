@@ -29,19 +29,9 @@ impl Drawable for &NetworkStatus {
     {
         draw_binary_image(
             target,
-            get_network_icon_data(if self.0 {
-                NetworkIcon::Connected
-            } else {
-                NetworkIcon::Disconnected
-            }),
+            get_network_icon_data(NetworkIcon::from_status(self.0)),
             NETWORK_ICON_RECT.size,
             NETWORK_ICON_RECT.top_left,
         )
-    }
-}
-
-impl Dimensions for &NetworkStatus {
-    fn bounding_box(&self) -> Rectangle {
-        NETWORK_ICON_RECT.clone()
     }
 }

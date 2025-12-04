@@ -18,9 +18,7 @@ use core::fmt::Debug;
 use crate::{
     assets::generated_hitokoto_data::Hitokoto,
     common::{
-        ChargingStatus, GlobalChannel, NetworkStatus,
-        system_state::{BatteryLevel, DateData, TimeData},
-        weather::WeatherData,
+        BatteryLevel, ChargingStatus, DateData, GlobalChannel, NetworkStatus, TimeData, WeatherData,
     },
 };
 
@@ -30,6 +28,7 @@ pub enum DisplayEvent {
     /// 更新特定组件（包含组件数据）
     UpdateComponent(ComponentData),
     /// 强制全屏刷新（用于系统重置或错误恢复）
+    #[allow(unused)]
     ForceFullRefresh,
 }
 

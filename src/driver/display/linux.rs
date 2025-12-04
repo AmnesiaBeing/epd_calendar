@@ -118,12 +118,6 @@ impl DisplayDriver for LinuxEpdDriver {
             })?;
         Ok(())
     }
-
-    fn wake_up(&mut self) -> Result<()> {
-        self.init()?;
-        log::debug!("EPD woke from sleep");
-        Ok(())
-    }
 }
 
 /// GPIO 初始化辅助函数

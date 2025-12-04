@@ -133,12 +133,6 @@ impl DisplayDriver for EspEpdDriver {
         Ok(())
     }
 
-    fn wake_up(&mut self) -> Result<()> {
-        self.init()?;
-        log::debug!("EPD woke from sleep");
-        Ok(())
-    }
-
     fn update_frame(&mut self, buffer: &[u8]) -> Result<()> {
         let mut delay = Delay::new();
         self.epd

@@ -26,8 +26,8 @@ bel = "build --target aarch64-unknown-linux-gnu --no-default-features --features
 belr = "build --release --target aarch64-unknown-linux-gnu --no-default-features --features embedded_linux"
 
 # 模拟器相关命令
-bs = "build --no-default-features --features simulator"
-bsr = "build --no-default-features --release --features simulator"
+bs = "build --target x86_64-unknown-linux-gnu --no-default-features --features simulator"
+bsr = "build --target x86_64-unknown-linux-gnu --no-default-features --release --features simulator"
 
 bsg = "build --target x86_64-unknown-linux-gnu --no-default-features --features simulator --features embedded_graphics_simulator"
 bsgr = "build --target x86_64-unknown-linux-gnu --release --no-default-features --features simulator --features embedded_graphics_simulator"

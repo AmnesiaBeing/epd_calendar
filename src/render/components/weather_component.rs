@@ -5,7 +5,7 @@ use embedded_graphics::{
 };
 use epd_waveshare::color::QuadColor;
 
-use crate::common::weather::WeatherData;
+use crate::common::system_state::WeatherData;
 
 impl Drawable for &WeatherData {
     type Color = QuadColor;
@@ -16,12 +16,6 @@ impl Drawable for &WeatherData {
     where
         D: DrawTarget<Color = Self::Color>,
     {
-        todo!()
-    }
-}
-
-impl Dimensions for &WeatherData {
-    fn bounding_box(&self) -> Rectangle {
-        todo!()
+        Ok(())
     }
 }

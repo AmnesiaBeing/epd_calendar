@@ -117,9 +117,3 @@ impl Drawable for &Hitokoto {
         Ok(())
     }
 }
-
-impl Dimensions for &Hitokoto {
-    fn bounding_box(&self) -> Rectangle {
-        HITOKOTO_RECT.clone()
-    }
-}

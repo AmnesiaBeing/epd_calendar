@@ -40,9 +40,6 @@ pub trait DisplayDriver {
     /// 刷新显示缓冲区
     fn display_frame(&mut self) -> Result<()>;
 
-    /// 进入睡眠模式
+    /// 进入休眠模式
     fn sleep(&mut self) -> Result<()>;
-
-    /// 从睡眠模式唤醒
-    fn wake_up(&mut self) -> Result<()>;
 }
