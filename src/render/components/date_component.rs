@@ -10,7 +10,7 @@ use crate::{
     assets::generated_fonts::FontSize, common::system_state::DateData, render::TextRenderer,
 };
 
-const DATE_RECT: Rectangle = Rectangle::new(Point::new(300, 135), Size::new(200, 40));
+const DATE_RECT: Rectangle = Rectangle::new(Point::new(10, 200), Size::new(780, 40));
 const WEEK_RECT: Rectangle = Rectangle::new(Point::new(520, 135), Size::new(120, 40));
 const HOLIDAY_RECT: Rectangle = Rectangle::new(Point::new(650, 135), Size::new(150, 24));
 
@@ -23,14 +23,14 @@ impl Drawable for DateData {
     where
         D: DrawTarget<Color = Self::Color>,
     {
-        let date_str = self.day.to_string();
-        let week_str = self.week.to_string();
+        let date_str = "0123456789-=+中文—…！？，。".to_string();
+        // let week_str = self.week.to_string();
 
         let mut large_text_renderer = TextRenderer::new(FontSize::Large, DATE_RECT.top_left);
         large_text_renderer.draw_text(target, &date_str)?;
 
-        large_text_renderer.move_to(WEEK_RECT.top_left);
-        large_text_renderer.draw_text(target, &week_str)?;
+        // large_text_renderer.move_to(WEEK_RECT.top_left);
+        // large_text_renderer.draw_text(target, &week_str)?;
 
         if let Some(holiday) = &self.holiday {
             let holiday_str = holiday.to_string();

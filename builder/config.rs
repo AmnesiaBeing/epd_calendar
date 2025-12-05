@@ -21,7 +21,7 @@ impl BuildConfig {
             output_dir: PathBuf::from("src/assets"),
             sentences_dir: PathBuf::from("../sentences-bundle/sentences"),
             categories_path: PathBuf::from("../sentences-bundle/categories.json"),
-            font_path: PathBuf::from("assets/fonts/NotoSansMonoCJKsc-Regular.otf"),
+            font_path: PathBuf::from("assets/fonts/MapleMonoNormalNL-NF-CN-Regular.ttf"),
             weather_icons_dir: PathBuf::from("../Icons"),
         })
     }
