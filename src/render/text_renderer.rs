@@ -7,7 +7,7 @@ use embedded_graphics::geometry::Size;
 use embedded_graphics::prelude::*;
 use epd_waveshare::color::QuadColor;
 
-use crate::assets::generated_fonts::{CharWidth, FontSize, get_font_metrics, get_glyph};
+use crate::assets::generated_fonts::{CharWidth, FontSize};
 
 use crate::render::draw_binary_image;
 
@@ -34,8 +34,8 @@ impl TextRenderer {
             font_size,
             current_x: position.x,
             current_y: position.y,
-            half_font_metrics: get_font_metrics(font_size, false),
-            full_font_metrics: get_font_metrics(font_size, true),
+            half_font_metrics: font_size.get_font_metrics(true),
+            full_font_metrics: font_size.get_font_metrics(false),
         }
     }
 
@@ -55,7 +55,7 @@ impl TextRenderer {
             let position = Point::new(self.current_x, self.current_y);
             if Self::is_half_width_char(c) {
                 // 半角字符
-                if let Some(glyph_data) = get_glyph(c, self.font_size, CharWidth::Half) {
+                if let Some(glyph_data) = self.font_size.get_glyph(c, CharWidth::Half) {
                     let size = Size::new(
                         self.half_font_metrics.0 as u32,
                         self.half_font_metrics.1 as u32,
@@ -65,7 +65,7 @@ impl TextRenderer {
                 }
             } else {
                 // 全角字符
-                if let Some(glyph_data) = get_glyph(c, self.font_size, CharWidth::Full) {
+                if let Some(glyph_data) = self.font_size.get_glyph(c, CharWidth::Full) {
                     let size = Size::new(
                         self.full_font_metrics.0 as u32,
                         self.full_font_metrics.1 as u32,

@@ -31,7 +31,7 @@ pub struct RenderEngine {
 }
 
 impl RenderEngine {
-    pub fn new(mut driver: DefaultDisplayDriver) -> Result<Self> {
+    pub fn new(driver: DefaultDisplayDriver) -> Result<Self> {
         log::info!("Initializing RenderEngine...");
 
         // 初始化Display（使用默认配置）

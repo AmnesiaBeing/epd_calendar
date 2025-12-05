@@ -7,7 +7,7 @@ use embedded_graphics::{
 use epd_waveshare::color::QuadColor;
 
 use crate::{
-    assets::generated_fonts::{FontSize, get_font_metrics},
+    assets::generated_fonts::FontSize,
     common::system_state::LunarData,
     render::{TextRenderer, text_renderer::TextAlignment},
 };
@@ -71,10 +71,9 @@ impl Drawable for LunarData {
         let day_rect_center_x = LUNAR_DAY_RECT.top_left.x + (LUNAR_DAY_RECT.size.width as i32) / 2;
         let day_start_x = day_rect_center_x - (day_width as i32) / 2;
 
-        // 垂直居中计算（假设Large字体的高度）
-        let large_font_metrics = get_font_metrics(FontSize::Large, true);
+        // 垂直居中计算
         let day_rect_center_y = LUNAR_DAY_RECT.top_left.y + (LUNAR_DAY_RECT.size.height as i32) / 2;
-        let day_start_y = day_rect_center_y - (large_font_metrics.1 as i32) / 2;
+        let day_start_y = day_rect_center_y - (FontSize::Large.pixel_size() as i32) / 2;
 
         // 调整到居中位置并绘制
         day_renderer.move_to(Point::new(day_start_x, day_start_y));
@@ -97,7 +96,7 @@ impl Drawable for LunarData {
             .map(|taboo| taboo.to_string())
             .collect::<alloc::string::String>();
 
-        let small_font_metrics = get_font_metrics(FontSize::Small, true);
+        let small_font_pixel_size = FontSize::Small.pixel_size();
 
         if !recommends_text.is_empty() {
             // 先绘制"宜："
@@ -115,7 +114,7 @@ impl Drawable for LunarData {
             // 调整位置到"："后面，准备绘制内容
             recommend_renderer.move_to(Point::new(
                 LUNAR_TABOO_RECOMMEND_RECT.top_left.x + colon_width,
-                current_y - small_font_metrics.1 as i32, // 回到上一行
+                current_y - small_font_pixel_size as i32, // 回到上一行
             ));
 
             // 绘制多行内容（自动换行）
@@ -160,7 +159,7 @@ impl Drawable for LunarData {
             // 调整位置到"："后面，准备绘制内容
             avoid_renderer.move_to(Point::new(
                 LUNAR_TABOO_AVOID_RECT.top_left.x + colon_width,
-                current_y - small_font_metrics.1 as i32, // 回到上一行
+                current_y - small_font_pixel_size as i32, // 回到上一行
             ));
 
             // 绘制多行内容（自动换行）
