@@ -190,7 +190,7 @@ impl TextRenderer {
     }
 
     // ========== 工具方法 ==========
-    /// 计算文本的总宽度（替代原calculate_text_advance）
+    /// 计算文本的总宽度
     pub fn calculate_text_width(&self, text: &str) -> i32 {
         text.chars()
             .map(|c| {
@@ -318,8 +318,18 @@ impl TextRenderer {
         self.char_spacing = spacing;
     }
 
+    /// 获取当前行高
+    pub fn get_line_height(&self) -> u32 {
+        self.line_height
+    }
+
     /// 设置行高（可选配置）
     pub fn set_line_height(&mut self, height: u32) {
         self.line_height = height;
+    }
+
+    /// 获取当前字体尺寸
+    pub fn get_font_size(&self) -> FontSize {
+        self.font_size
     }
 }

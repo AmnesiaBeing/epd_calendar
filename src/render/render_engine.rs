@@ -8,6 +8,7 @@ use crate::{
         error::{AppError, Result},
     },
     driver::display::{DefaultDisplayDriver, DisplayDriver},
+    render::components::separator_component::SeparatorComponent,
     tasks::ComponentDataType,
 };
 
@@ -125,6 +126,11 @@ impl RenderEngine {
     pub fn render_full_screen(&mut self, state: &SystemState) -> Result<()> {
         log::info!("Starting full screen rendering");
 
+        SeparatorComponent.draw(&mut self.display).map_err(|e| {
+            log::error!("Failed to draw Separator component: {}", e);
+            AppError::RenderingFailed
+        })?;
+
         (&state.time).draw(&mut self.display).map_err(|e| {
             log::error!("Failed to draw Time component: {}", e);
             AppError::RenderingFailed
@@ -142,6 +148,11 @@ impl RenderEngine {
 
         (&state.quote).draw(&mut self.display).map_err(|e| {
             log::error!("Failed to draw Quote component: {}", e);
+            AppError::RenderingFailed
+        })?;
+
+        (&state.lunar).draw(&mut self.display).map_err(|e| {
+            log::error!("Failed to draw Lunar component: {}", e);
             AppError::RenderingFailed
         })?;
 

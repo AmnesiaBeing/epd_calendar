@@ -367,7 +367,7 @@ fn generate_fonts_rs(
     content.push_str("impl FontSize {\n");
     // 获取字体像素尺寸
     content.push_str("    /// 获取字体的像素高度\n");
-    content.push_str("    pub fn pixel_size(self) -> u32 {\n");
+    content.push_str("    pub const fn pixel_size(self) -> u32 {\n");
     content.push_str("        match self {\n");
     for font_config in font_configs {
         content.push_str(&format!(

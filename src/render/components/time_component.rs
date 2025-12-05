@@ -16,7 +16,7 @@ use crate::{
     render::{TextRenderer, draw_binary_image},
 };
 
-const TIME_RECT: Rectangle = Rectangle::new(Point::new(220, 5), Size::new(360, 128));
+pub const TIME_RECT: Rectangle = Rectangle::new(Point::new(220, 5), Size::new(360, 128));
 
 impl Drawable for TimeData {
     type Color = QuadColor;
