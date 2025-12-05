@@ -77,7 +77,7 @@ where
     let start_x = rect.top_left.x + (rect.size.width as i32 - total_width as i32 - spacing) / 2;
 
     // 计算垂直居中位置
-    let text_height = renderer.full_font_metrics.1 as i32;
+    let text_height = FontSize::Large.height() as i32;
     let start_y = rect.top_left.y + (rect.size.height as i32 - text_height) / 2;
 
     // 绘制温度
@@ -171,7 +171,7 @@ where
 
     // 计算每天天气信息的起始位置
     let line_spacing = 10; // 行间距
-    let day_height = location_renderer.full_font_metrics.1 as i32 + line_spacing;
+    let day_height = FontSize::Medium.height() as i32 + line_spacing;
     let start_y = rect.top_left.y + day_height;
 
     // 计算每天可用的宽度（平均分配）
@@ -227,7 +227,7 @@ impl Drawable for &WeatherData {
             // 计算居中位置
             let text = "无天气数据";
             let text_width = renderer.calculate_text_width(text) as i32;
-            let text_height = renderer.full_font_metrics.1 as i32;
+            let text_height = FontSize::Medium.height() as i32;
             let text_x =
                 WEATHER_RECT.top_left.x + (WEATHER_RECT.size.width as i32 - text_width) / 2;
             let text_y =

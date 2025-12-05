@@ -73,7 +73,7 @@ impl Drawable for LunarData {
 
         // 垂直居中计算
         let day_rect_center_y = LUNAR_DAY_RECT.top_left.y + (LUNAR_DAY_RECT.size.height as i32) / 2;
-        let day_start_y = day_rect_center_y - (FontSize::Large.pixel_size() as i32) / 2;
+        let day_start_y = day_rect_center_y - (FontSize::Large.height() as i32) / 2;
 
         // 调整到居中位置并绘制
         day_renderer.move_to(Point::new(day_start_x, day_start_y));
@@ -96,7 +96,7 @@ impl Drawable for LunarData {
             .map(|taboo| taboo.to_string())
             .collect::<alloc::string::String>();
 
-        let small_font_pixel_size = FontSize::Small.pixel_size();
+        let small_font_height = FontSize::Small.height();
 
         if !recommends_text.is_empty() {
             // 先绘制"宜："
@@ -114,7 +114,7 @@ impl Drawable for LunarData {
             // 调整位置到"："后面，准备绘制内容
             recommend_renderer.move_to(Point::new(
                 LUNAR_TABOO_RECOMMEND_RECT.top_left.x + colon_width,
-                current_y - small_font_pixel_size as i32, // 回到上一行
+                current_y - small_font_height as i32, // 回到上一行
             ));
 
             // 绘制多行内容（自动换行）
@@ -159,7 +159,7 @@ impl Drawable for LunarData {
             // 调整位置到"："后面，准备绘制内容
             avoid_renderer.move_to(Point::new(
                 LUNAR_TABOO_AVOID_RECT.top_left.x + colon_width,
-                current_y - small_font_pixel_size as i32, // 回到上一行
+                current_y - small_font_height as i32, // 回到上一行
             ));
 
             // 绘制多行内容（自动换行）

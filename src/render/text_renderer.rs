@@ -24,8 +24,8 @@ pub struct TextRenderer {
     font_size: FontSize,
     current_x: i32,
     current_y: i32,
-    pub half_font_metrics: (u8, u8, u8),
-    pub full_font_metrics: (u8, u8, u8),
+    half_size: Size,
+    full_size: Size,
 }
 
 impl TextRenderer {
@@ -34,8 +34,8 @@ impl TextRenderer {
             font_size,
             current_x: position.x,
             current_y: position.y,
-            half_font_metrics: font_size.get_font_metrics(true),
-            full_font_metrics: font_size.get_font_metrics(false),
+            half_size: font_size.size(CharWidth::Half),
+            full_size: font_size.size(CharWidth::Full),
         }
     }
 
@@ -53,32 +53,22 @@ impl TextRenderer {
 
         for c in text.chars() {
             let position = Point::new(self.current_x, self.current_y);
-            if Self::is_half_width_char(c) {
-                // 半角字符
-                if let Some(glyph_data) = self.font_size.get_glyph(c, CharWidth::Half) {
-                    let size = Size::new(
-                        self.half_font_metrics.0 as u32,
-                        self.half_font_metrics.1 as u32,
-                    );
-                    draw_binary_image(display, glyph_data, size, position)?;
-                    self.current_x += self.half_font_metrics.0 as i32;
-                }
-            } else {
-                // 全角字符
-                if let Some(glyph_data) = self.font_size.get_glyph(c, CharWidth::Full) {
-                    let size = Size::new(
-                        self.full_font_metrics.0 as u32,
-                        self.full_font_metrics.1 as u32,
-                    );
-                    draw_binary_image(display, glyph_data, size, position)?;
-                    self.current_x += self.full_font_metrics.0 as i32;
-                }
+            if let (size, Some(glyph_data)) = self.font_size.get_glyph_auto(c) {
+                self.current_x += size.width as i32;
+                draw_binary_image(display, glyph_data, size, position)?;
+                #[cfg(feature = "simulator")]
+                crate::assets::generated_fonts::preview_glyph(
+                    glyph_data,
+                    size.width as u8,
+                    size.height as u8,
+                    c,
+                );
             }
         }
 
         // 移动到下一行
         self.current_x = start_x;
-        self.current_y += self.full_font_metrics.1 as i32;
+        self.current_y += self.full_size.height as i32;
 
         Ok(())
     }
@@ -111,7 +101,7 @@ impl TextRenderer {
         // 处理剩余单词
         for word in &words[1..] {
             let word_width = self.calculate_text_width(word) as i32;
-            let space_width = self.half_font_metrics.0 as i32; // 空格宽度
+            let space_width = self.half_size.width as i32; // 空格宽度
 
             // 检查当前行能否容纳这个单词（加上空格）
             if current_line_width + space_width + word_width <= max_width {
@@ -128,7 +118,7 @@ impl TextRenderer {
                     max_width,
                     alignment,
                 )?;
-                self.current_y += self.full_font_metrics.1 as i32;
+                self.current_y += self.full_size.height as i32;
 
                 // 开始新的一行
                 current_line = word.to_string();
@@ -233,9 +223,9 @@ impl TextRenderer {
         let mut width = 0;
         for c in text.chars() {
             if Self::is_half_width_char(c) {
-                width += self.half_font_metrics.0 as u32;
+                width += self.half_size.width as u32;
             } else {
-                width += self.full_font_metrics.0 as u32;
+                width += self.full_size.width as u32;
             }
         }
         width
@@ -266,7 +256,7 @@ impl TextRenderer {
 
         let mut lines = 1;
         let mut current_line_width = self.calculate_text_width(words[0]) as i32;
-        let space_width = self.half_font_metrics.0 as i32;
+        let space_width = self.half_size.width as i32;
 
         for word in &words[1..] {
             let word_width = self.calculate_text_width(word) as i32;
@@ -279,6 +269,6 @@ impl TextRenderer {
             }
         }
 
-        (lines * self.full_font_metrics.1 as i32) as u32
+        (lines * self.full_size.height as i32) as u32
     }
 }

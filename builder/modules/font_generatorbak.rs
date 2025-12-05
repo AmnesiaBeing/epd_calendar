@@ -1,8 +1,8 @@
 //! 字体生成模块 - 支持可配置的字体尺寸
-//! 使用字体渲染器的返回结果，确保正确的字符映射
+//! 优化：半角字符使用直接索引计算，全角字符使用二分查找
 
 use crate::builder::config::BuildConfig;
-use crate::builder::utils::font_renderer::{FontConfig, FontRenderResult, FontRenderer};
+use crate::builder::utils::font_renderer::{FontConfig, FontRenderer};
 use crate::builder::utils::{self, progress::ProgressTracker};
 use anyhow::{Context, Result};
 use std::collections::BTreeSet;
@@ -27,17 +27,26 @@ impl FontSizeConfig {
             half_width_pixels: size / 2, // 半角字符宽度为高度的一半
         }
     }
+
+    /// 计算每个字符的字节大小
+    pub fn glyph_size(&self, is_full_width: bool) -> usize {
+        let height = self.size as usize;
+        let width = if is_full_width {
+            self.full_width_pixels as usize
+        } else {
+            self.half_width_pixels as usize
+        };
+        width * height / 8
+    }
 }
 
-/// 共享字符表 - 使用实际渲染成功的字符
+/// 共享字符表
 #[derive(Debug)]
 pub struct SharedCharset {
-    pub full_width: Vec<char>,         // 成功渲染的全角字符
-    pub half_width: Vec<char>,         // 成功渲染的半角字符
-    pub full_width_missing: Vec<char>, // 缺失的全角字符
-    pub half_width_missing: Vec<char>, // 缺失的半角字符
-    pub half_width_start: u16,         // 半角字符起始编码
-    pub half_width_end: u16,           // 半角字符结束编码
+    pub full_width: Vec<char>,
+    pub half_width: Vec<char>,
+    pub half_width_start: u16, // 半角字符起始编码
+    pub half_width_end: u16,   // 半角字符结束编码
 }
 
 /// 字体位图数据
@@ -46,37 +55,31 @@ pub struct FontBitmap {
     pub glyph_data: Vec<u8>,
     pub config: FontSizeConfig,
     pub is_full_width: bool,
-    pub char_width: u32,          // 实际渲染的字符宽度
-    pub char_height: u32,         // 实际渲染的字符高度
-    pub char_count: usize,        // 成功渲染的字符数量
-    pub missing_chars: Vec<char>, // 缺失的字符列表
-    pub char_list: Vec<char>,     // 实际渲染的字符列表（已排序）
+    pub actual_glyph_size: usize, // 实际计算的每个字符字节数
+    pub char_count: usize,        // 字符数量
 }
 
 /// 构建字体数据（共享字符表）
 pub fn build(config: &BuildConfig, progress: &ProgressTracker) -> Result<()> {
     progress.update_progress(0, 5, "读取字符集&分离和排序字符");
-
-    // 先读取原始字符文件
-    let raw_charset = read_raw_charset(config)?;
+    let shared_charset = load_charset(config)?;
 
     println!(
-        "cargo:warning=  原始字符集统计 - 全角: {}, 半角: {}",
-        raw_charset.full_width.len(),
-        raw_charset.half_width.len()
+        "cargo:warning=  字符表统计 - 全角: {}, 半角: {}",
+        shared_charset.full_width.len(),
+        shared_charset.half_width.len()
     );
 
-    // 定义字体尺寸配置
+    // 定义字体尺寸配置 - 必须与渲染时使用的字号一致！
     let font_configs = vec![
         FontSizeConfig::new("Small", 16),  // 小号字体 16px
         FontSizeConfig::new("Medium", 24), // 中号字体 24px
         FontSizeConfig::new("Large", 40),  // 大号字体 40px
     ];
 
-    // 为每个字体配置渲染全角和半角字符
     let mut font_bitmaps = Vec::new();
-    let mut all_shared_charset = None;
 
+    // 为每个字体配置渲染全角和半角字符
     for (i, font_config) in font_configs.iter().enumerate() {
         progress.update_progress(
             i + 2,
@@ -84,37 +87,24 @@ pub fn build(config: &BuildConfig, progress: &ProgressTracker) -> Result<()> {
             &format!("渲染{}字体", font_config.name),
         );
 
-        // 使用原始字符集渲染
-        let full_bitmap =
-            render_font_bitmap(config, &raw_charset.full_width, font_config.clone(), false)?;
+        // 渲染全角字符
+        let full_bitmap = render_font_bitmap(
+            config,
+            &shared_charset.full_width,
+            font_config.clone(),
+            false,
+        )?;
 
-        let half_bitmap =
-            render_font_bitmap(config, &raw_charset.half_width, font_config.clone(), true)?;
-
-        // 如果是第一次渲染，构建共享字符表
-        if all_shared_charset.is_none() {
-            all_shared_charset = Some(SharedCharset {
-                full_width: full_bitmap.char_list.clone(),
-                half_width: half_bitmap.char_list.clone(),
-                full_width_missing: full_bitmap.missing_chars.clone(),
-                half_width_missing: half_bitmap.missing_chars.clone(),
-                half_width_start: half_bitmap.char_list.first().map_or(0, |c| *c as u16),
-                half_width_end: half_bitmap.char_list.last().map_or(0, |c| *c as u16),
-            });
-        }
+        // 渲染半角字符
+        let half_bitmap = render_font_bitmap(
+            config,
+            &shared_charset.half_width,
+            font_config.clone(),
+            true,
+        )?;
 
         font_bitmaps.push((full_bitmap, half_bitmap));
     }
-
-    let shared_charset = all_shared_charset.unwrap();
-
-    println!(
-        "cargo:warning=  实际渲染字符统计 - 全角: {} (缺失: {}), 半角: {} (缺失: {})",
-        shared_charset.full_width.len(),
-        shared_charset.full_width_missing.len(),
-        shared_charset.half_width.len(),
-        shared_charset.half_width_missing.len()
-    );
 
     progress.update_progress(
         font_configs.len() + 2,
@@ -124,13 +114,12 @@ pub fn build(config: &BuildConfig, progress: &ProgressTracker) -> Result<()> {
     generate_shared_font_files(config, &shared_charset, &font_configs, &font_bitmaps)?;
 
     println!("cargo:warning=  字体生成完成");
-    println!("cargo:warning=  注意: 实际渲染字号 = 16px, 24px, 40px");
 
     Ok(())
 }
 
-/// 读取原始字符文件
-fn read_raw_charset(config: &BuildConfig) -> Result<RawCharset> {
+/// 加载字符集并创建共享字符表
+pub fn load_charset(config: &BuildConfig) -> Result<SharedCharset> {
     let charset_path = config.font_path.parent().unwrap().join("chars.txt");
 
     let content = fs::read_to_string(&charset_path)
@@ -171,17 +160,12 @@ fn read_raw_charset(config: &BuildConfig) -> Result<RawCharset> {
     full_width.sort();
     half_width.sort();
 
-    Ok(RawCharset {
+    Ok(SharedCharset {
         full_width,
         half_width,
+        half_width_start: 0x20,
+        half_width_end: 0x7E,
     })
-}
-
-/// 原始字符集
-#[derive(Debug)]
-struct RawCharset {
-    pub full_width: Vec<char>,
-    pub half_width: Vec<char>,
 }
 
 /// 渲染字体位图数据
@@ -200,85 +184,35 @@ fn render_font_bitmap(
 
     let render_result = FontRenderer::render_font(&font_render_config)?;
 
-    // 从渲染结果中提取信息
-    let char_mapping = render_result.char_mapping;
-    let glyph_data = render_result.glyph_data;
-    let char_width = render_result.char_width;
-    let char_height = render_result.char_height;
-    let rendered_chars = render_result.rendered_chars;
-    let missing_chars = render_result.missing_chars;
+    // 计算实际每个字符的字节数
+    let char_count = chars.len();
+    let total_bytes = render_result.glyph_data.len();
+    let actual_glyph_size = if char_count > 0 {
+        total_bytes / char_count
+    } else {
+        0
+    };
 
-    // 从char_mapping中提取实际渲染的字符列表，并排序
-    let mut char_list: Vec<char> = char_mapping.keys().cloned().collect();
-    char_list.sort();
+    // 计算预期的字符大小
+    let expected_glyph_size = font_config.glyph_size(!is_half_width);
 
-    // 验证数据大小
-    let bytes_per_row = (char_width + 7) / 8;
-    let char_data_size = (bytes_per_row * char_height) as usize;
-    let expected_size = rendered_chars * char_data_size;
-
-    if glyph_data.len() != expected_size {
+    if actual_glyph_size != expected_glyph_size {
         println!(
-            "cargo:warning=  警告: {}字体{}-width字形数据大小不匹配! 实际: {}字节, 预期: {}字节",
+            "cargo:warning=  警告: {}字体 {}-width 字符大小不匹配: 实际={}, 预期={}",
             font_config.name,
             if is_half_width { "half" } else { "full" },
-            glyph_data.len(),
-            expected_size
+            actual_glyph_size,
+            expected_glyph_size
         );
-
-        // 如果大小不匹配，尝试调整
-        if glyph_data.len() % char_data_size != 0 {
-            println!("cargo:warning=  错误: 无法对齐字符数据大小，可能渲染过程有问题");
-        }
     }
-
-    // 重新组织字形数据，使其按照字符顺序排列
-    let reorganized_glyph_data =
-        reorganize_glyph_data(&glyph_data, &char_mapping, &char_list, char_data_size)?;
 
     Ok(FontBitmap {
-        glyph_data: reorganized_glyph_data,
+        glyph_data: render_result.glyph_data,
         config: font_config.clone(),
         is_full_width: !is_half_width,
-        char_width,
-        char_height,
-        char_count: rendered_chars,
-        missing_chars,
-        char_list,
+        actual_glyph_size: expected_glyph_size,
+        char_count,
     })
-}
-
-/// 重新组织字形数据，使其按照字符列表的顺序排列
-fn reorganize_glyph_data(
-    original_glyph_data: &[u8],
-    char_mapping: &std::collections::BTreeMap<char, u32>,
-    char_list: &[char],
-    char_data_size: usize,
-) -> Result<Vec<u8>> {
-    let mut reorganized = Vec::with_capacity(original_glyph_data.len());
-
-    for &c in char_list {
-        if let Some(&index) = char_mapping.get(&c) {
-            let start = (index as usize) * char_data_size;
-            let end = start + char_data_size;
-
-            if end <= original_glyph_data.len() {
-                reorganized.extend_from_slice(&original_glyph_data[start..end]);
-            } else {
-                return Err(anyhow::anyhow!(
-                    "字符 '{}' 的数据索引超出范围: start={}, end={}, total={}",
-                    c,
-                    start,
-                    end,
-                    original_glyph_data.len()
-                ));
-            }
-        } else {
-            return Err(anyhow::anyhow!("字符 '{}' 在映射表中未找到", c));
-        }
-    }
-
-    Ok(reorganized)
 }
 
 /// 生成共享字符表的字体文件
@@ -307,7 +241,7 @@ fn generate_shared_font_files(
         )?;
     }
 
-    // 2. 生成Rust源文件
+    // 2. 生成Rust源文件 - 使用实际的字符大小
     generate_fonts_rs(config, charset, font_configs, font_bitmaps)?;
 
     Ok(())
@@ -317,13 +251,14 @@ fn generate_shared_font_files(
 fn write_font_bitmap(bitmap: &FontBitmap, path: &std::path::Path) -> Result<()> {
     std::fs::write(path, &bitmap.glyph_data)?;
 
-    let bytes_per_row = (bitmap.char_width + 7) / 8;
-    let glyph_size = (bytes_per_row * bitmap.char_height) as usize;
     let width = if bitmap.is_full_width {
         bitmap.config.full_width_pixels
     } else {
         bitmap.config.half_width_pixels
     };
+
+    // 使用实际计算的字符大小
+    let glyph_size = bitmap.actual_glyph_size;
 
     println!(
         "cargo:warning=  生成字体文件: {}, 大小: {}KB (字符数: {}, 每个字符{}字节, {}x{}像素)",
@@ -349,17 +284,17 @@ fn generate_fonts_rs(
 
     let mut content = String::new();
 
-    // 头部注释
+    // 头部注释 - 明确说明实际渲染尺寸
     content.push_str("//! 自动生成的字体数据文件（共享字符表）\n");
     content.push_str("//! 不要手动修改此文件\n\n");
-    content.push_str("#![allow(dead_code)]\n\n");
-    content.push_str("use embedded_graphics::geometry::Size;\n\n");
+
+    content.push_str("use embedded_graphics::geometry::Size;\n");
 
     // ========== 1. 共享字符表 ==========
     content.push_str("// ==================== 共享字符表 ====================\n\n");
 
     // 全角字符表
-    content.push_str("/// 全角字符表（已排序，实际渲染成功）\n");
+    content.push_str("/// 全角字符表（已排序）\n");
     content.push_str("pub const FULL_WIDTH_CHARS: &[u16] = &[\n");
     for (i, &c) in charset.full_width.iter().enumerate() {
         if i % 10 == 0 && i > 0 {
@@ -372,22 +307,6 @@ fn generate_fonts_rs(
     content.push_str(&format!(
         "/// 全角字符数量\npub const FULL_WIDTH_CHAR_COUNT: usize = {};\n\n",
         charset.full_width.len()
-    ));
-
-    // 半角字符表
-    content.push_str("/// 半角字符表（已排序，实际渲染成功）\n");
-    content.push_str("pub const HALF_WIDTH_CHARS: &[u16] = &[\n");
-    for (i, &c) in charset.half_width.iter().enumerate() {
-        if i % 10 == 0 && i > 0 {
-            content.push_str("\n");
-        }
-        content.push_str(&format!("0x{:04X}, ", c as u16));
-    }
-    content.push_str("\n];\n\n");
-
-    content.push_str(&format!(
-        "/// 半角字符数量\npub const HALF_WIDTH_CHAR_COUNT: usize = {};\n\n",
-        charset.half_width.len()
     ));
 
     // 半角字符快速索引常量
@@ -403,9 +322,6 @@ fn generate_fonts_rs(
         charset.half_width_end
     ));
 
-    content.push_str("/// 半角字符表是否连续 (用于快速索引)\n");
-    content.push_str("pub const HALF_WIDTH_IS_CONTINUOUS: bool = true;\n\n");
-
     // ========== 2. 字体常量 - 使用实际渲染的尺寸 ==========
     content.push_str("// ==================== 字体常量 ====================\n");
     content.push_str("// 注意: 以下常量基于实际渲染的字体尺寸\n\n");
@@ -415,54 +331,40 @@ fn generate_fonts_rs(
         let (full_bitmap, half_bitmap) = &font_bitmaps[i];
         let name_upper = font_config.name.to_uppercase();
 
-        // 全角字体常量 - 使用实际渲染的尺寸
-        let full_width = full_bitmap.char_width;
-        let full_height = full_bitmap.char_height;
-        let full_bytes_per_row = (full_width + 7) / 8;
-        let full_glyph_size = (full_bytes_per_row * full_height) as usize;
+        // 全角字体常量 - 使用实际计算的字符大小
+        let full_glyph_size = full_bitmap.actual_glyph_size;
 
         content.push_str(&format!(
-            "// {}字体 - 全角 (实际渲染: {}x{}px)\n",
-            font_config.name, full_width, full_height
+            "// {}字体 ({}px) - 全角\n",
+            font_config.name, font_config.size
         ));
         content.push_str(&format!(
             "pub const FONT_{}_FULL_WIDTH: u8 = {};\n",
-            name_upper, full_width
+            name_upper, font_config.full_width_pixels
         ));
         content.push_str(&format!(
             "pub const FONT_{}_FULL_HEIGHT: u8 = {};\n",
-            name_upper, full_height
-        ));
-        content.push_str(&format!(
-            "pub const FONT_{}_FULL_BYTES_PER_ROW: u8 = {};\n",
-            name_upper, full_bytes_per_row
+            name_upper, font_config.size
         ));
         content.push_str(&format!(
             "pub const FONT_{}_FULL_GLYPH_SIZE: usize = {};\n\n",
             name_upper, full_glyph_size
         ));
 
-        // 半角字体常量 - 使用实际渲染的尺寸
-        let half_width = half_bitmap.char_width;
-        let half_height = half_bitmap.char_height;
-        let half_bytes_per_row = (half_width + 7) / 8;
-        let half_glyph_size = (half_bytes_per_row * half_height) as usize;
+        // 半角字体常量 - 使用实际计算的字符大小
+        let half_glyph_size = half_bitmap.actual_glyph_size;
 
         content.push_str(&format!(
-            "// {}字体 - 半角 (实际渲染: {}x{}px)\n",
-            font_config.name, half_width, half_height
+            "// {}字体 ({}px) - 半角\n",
+            font_config.name, font_config.size
         ));
         content.push_str(&format!(
             "pub const FONT_{}_HALF_WIDTH: u8 = {};\n",
-            name_upper, half_width
+            name_upper, font_config.half_width_pixels
         ));
         content.push_str(&format!(
             "pub const FONT_{}_HALF_HEIGHT: u8 = {};\n",
-            name_upper, half_height
-        ));
-        content.push_str(&format!(
-            "pub const FONT_{}_HALF_BYTES_PER_ROW: u8 = {};\n",
-            name_upper, half_bytes_per_row
+            name_upper, font_config.size
         ));
         content.push_str(&format!(
             "pub const FONT_{}_HALF_GLYPH_SIZE: usize = {};\n\n",
@@ -511,8 +413,6 @@ fn generate_fonts_rs(
     content.push_str("/// 快速获取半角字符索引（无需二分查找）\n");
     content.push_str("#[inline(always)]\n");
     content.push_str("fn get_half_width_index(c: u16) -> Option<usize> {\n");
-
-    // 如果是连续的，使用简单的计算公式
     content.push_str(&format!(
         "    if c >= 0x{:04X} && c <= 0x{:04X} {{\n",
         charset.half_width_start, charset.half_width_end
@@ -526,7 +426,14 @@ fn generate_fonts_rs(
     content.push_str("    } else {\n");
     content.push_str("        None\n");
     content.push_str("    }\n");
+    content.push_str("}\n\n");
 
+    // 字符宽度类型枚举
+    content.push_str("/// 字符宽度类型\n");
+    content.push_str("#[derive(Copy, Clone, Debug, PartialEq, Eq)]\n");
+    content.push_str("pub enum CharWidth {\n");
+    content.push_str("    Full,\n");
+    content.push_str("    Half,\n");
     content.push_str("}\n\n");
 
     // 字体尺寸枚举
@@ -538,17 +445,16 @@ fn generate_fonts_rs(
     }
     content.push_str("}\n\n");
 
-    // 字符宽度类型枚举
-    content.push_str("/// 字符宽度类型\n");
-    content.push_str("#[derive(Copy, Clone, Debug, PartialEq, Eq)]\n");
-    content.push_str("pub enum CharWidth {\n");
-    content.push_str("    Full,\n");
-    content.push_str("    Half,\n");
-    content.push_str("}\n\n");
-
     // 为FontSize实现方法
     content.push_str("impl FontSize {\n");
     content.push_str("    /// 根据字符宽度类型获取字形数据\n");
+    content.push_str("    /// \n");
+    content.push_str("    /// # 参数\n");
+    content.push_str("    /// - `c`: 要查找的字符\n");
+    content.push_str("    /// - `width_type`: 字符宽度类型\n");
+    content.push_str("    /// \n");
+    content.push_str("    /// # 返回值\n");
+    content.push_str("    /// 如果找到字符，返回字形数据的切片；否则返回None\n");
     content.push_str(
         "    pub fn get_glyph(self, c: char, width_type: CharWidth) -> Option<&'static [u8]> {\n",
     );
@@ -556,10 +462,11 @@ fn generate_fonts_rs(
     content.push_str("        \n");
     content.push_str("        match width_type {\n");
     content.push_str("            CharWidth::Full => {\n");
+    content.push_str("                // 全角字符使用二分查找\n");
     content.push_str("                let idx = find_char_index(FULL_WIDTH_CHARS, target)?;\n");
     content.push_str("                match self {\n");
 
-    for font_config in font_configs.iter() {
+    for font_config in font_configs {
         let name_upper = font_config.name.to_uppercase();
 
         content.push_str(&format!(
@@ -581,7 +488,9 @@ fn generate_fonts_rs(
             name_upper
         ));
         content.push_str("                        if end <= bitmap.len() {\n");
-        content.push_str("                            Some(&bitmap[start..end])\n");
+        content.push_str(&format!(
+            "                            Some(&bitmap[start..end])\n"
+        ));
         content.push_str("                        } else {\n");
         content.push_str("                            None\n");
         content.push_str("                        }\n");
@@ -591,10 +500,11 @@ fn generate_fonts_rs(
     content.push_str("                }\n");
     content.push_str("            }\n");
     content.push_str("            CharWidth::Half => {\n");
+    content.push_str("                // 半角字符使用快速索引\n");
     content.push_str("                let idx = get_half_width_index(target)?;\n");
     content.push_str("                match self {\n");
 
-    for font_config in font_configs.iter() {
+    for font_config in font_configs {
         let name_upper = font_config.name.to_uppercase();
 
         content.push_str(&format!(
@@ -616,11 +526,13 @@ fn generate_fonts_rs(
             name_upper
         ));
         content.push_str("                        if end <= bitmap.len() {\n");
-        content.push_str("                            Some(&bitmap[start..end])\n");
+        content.push_str(&format!(
+            "                            Some(&bitmap[start..end])\n"
+        ));
         content.push_str("                        } else {\n");
         content.push_str("                            None\n");
-        content.push_str("                        }\n");
         content.push_str("                    }\n");
+        content.push_str("                }\n");
     }
 
     content.push_str("                }\n");
@@ -631,30 +543,15 @@ fn generate_fonts_rs(
     content.push_str("    /// 自动判断字符宽度并获取字形\n");
     content.push_str("    /// \n");
     content.push_str("    /// ASCII字符使用半角宽度，其他字符使用全角宽度\n");
-    content
-        .push_str("    pub fn get_glyph_auto(self, c: char) -> (Size, Option< &'static [u8]>) {\n");
+    content.push_str(
+        "    pub fn get_glyph_auto(self, c: char) -> (CharWidth, Option< &'static [u8]>) {\n",
+    );
     content.push_str("        let width_type = if c.is_ascii() && c.is_ascii_graphic() {\n");
     content.push_str("            CharWidth::Half\n");
     content.push_str("        } else {\n");
     content.push_str("            CharWidth::Full\n");
     content.push_str("        };\n");
-    content.push_str("        (self.size(width_type), self.get_glyph(c, width_type))\n");
-    content.push_str("    }\n\n");
-
-    content.push_str("    /// 获取字体尺寸信息\n");
-    content.push_str("    pub fn get_font_metrics(self, is_full_width: bool) -> (u8, u8, u8) {\n");
-    content.push_str("        match (self, is_full_width) {\n");
-
-    for font_config in font_configs {
-        let name_upper = font_config.name.to_uppercase();
-
-        content.push_str(&format!("            (FontSize::{}, true) => (FONT_{}_FULL_WIDTH, FONT_{}_FULL_HEIGHT, FONT_{}_FULL_BYTES_PER_ROW),\n", 
-            font_config.name, name_upper, name_upper, name_upper));
-        content.push_str(&format!("            (FontSize::{}, false) => (FONT_{}_HALF_WIDTH, FONT_{}_HALF_HEIGHT, FONT_{}_HALF_BYTES_PER_ROW),\n", 
-            font_config.name, name_upper, name_upper, name_upper));
-    }
-
-    content.push_str("        }\n");
+    content.push_str("        (width_type, self.get_glyph(c, width_type))\n");
     content.push_str("    }\n\n");
 
     content.push_str("    /// 获取字体大小\n");
@@ -702,6 +599,7 @@ fn generate_fonts_rs(
     content.push_str("    }\n");
     content.push_str("}\n\n");
 
+    // ========== 6. 字体验证函数 ==========
     content.push_str("// ==================== 调试和预览函数 ====================\n\n");
 
     content.push_str("/// 预览字形数据（将字形以ASCII形式打印到日志）\n");
@@ -711,7 +609,6 @@ fn generate_fonts_rs(
     content.push_str("/// - `width`: 字形宽度（像素）\n");
     content.push_str("/// - `height`: 字形高度（像素）\n");
     content.push_str("/// - `char_info`: 字符信息字符串（用于日志）\n");
-    content.push_str("#[cfg(feature = \"simulator\")]\n");
     content.push_str(
         "pub fn preview_glyph(glyph_data: &[u8], width: u8, height: u8, char_info: char) {\n",
     );

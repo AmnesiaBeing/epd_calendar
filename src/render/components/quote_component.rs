@@ -47,7 +47,7 @@ impl Drawable for &Hitokoto {
         // 1. 计算格言行数
         let max_width = HITOKOTO_RECT.size.width as i32;
         let content_height = content_renderer.calculate_text_height(&content, max_width) as i32;
-        let line_height = FontSize::Medium.pixel_size() as i32; // 使用半角字符的行高
+        let line_height = FontSize::Medium.height() as i32; // 使用半角字符的行高
         let content_lines = (content_height + line_height - 1) / line_height; // 向上取整
 
         // 2. 检查是否超过3行
@@ -74,7 +74,7 @@ impl Drawable for &Hitokoto {
         let author_source_height = if author_source_line.is_empty() {
             0
         } else {
-            FontSize::Small.pixel_size() as i32 // 小字体行高
+            FontSize::Small.height() as i32 // 小字体行高
         };
 
         let line_spacing = 4; // 行间距
