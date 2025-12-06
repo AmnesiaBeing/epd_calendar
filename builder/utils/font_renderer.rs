@@ -19,6 +19,8 @@ pub struct GlyphMetrics {
     pub bearing_x: i32,
     /// 垂直偏移（BearingY）：字符位图相对基线的Y偏移（像素）
     pub bearing_y: i32,
+    /// 水平Advance（AdvanceX）：字符渲染后的X轴移动距离（像素）
+    pub advance_x: i32,
 }
 
 impl Default for GlyphMetrics {
@@ -29,6 +31,7 @@ impl Default for GlyphMetrics {
             height: 0,
             bearing_x: 0,
             bearing_y: 0,
+            advance_x: 0,
         }
     }
 }
@@ -107,6 +110,7 @@ impl FontRenderer {
             let bearing_y_px = (glyph_metrics.horiBearingY >> 6) as i32;
             let bitmap_width_px = bitmap.width() as u32;
             let bitmap_height_px = bitmap.rows() as u32;
+            let advance_x_px = (glyph_metrics.horiAdvance >> 6) as i32;
 
             // 跳过空位图
             if bitmap_width_px == 0 || bitmap_height_px == 0 {
@@ -157,6 +161,7 @@ impl FontRenderer {
                     height: bitmap_height_px,
                     bearing_x: bearing_x_px,
                     bearing_y: bearing_y_px,
+                    advance_x: advance_x_px,
                 },
             );
 
@@ -336,6 +341,7 @@ impl FontRenderer {
         let bearing_y = (metrics.horiBearingY >> 6) as i32;
         let width = bitmap.width() as u32;
         let height = bitmap.rows() as u32;
+        let advance_x = (metrics.horiAdvance >> 6) as i32;
 
         // 生成二值位图
         let bytes_per_row = (width + 7) / 8;
@@ -362,6 +368,7 @@ impl FontRenderer {
                 height,
                 bearing_x,
                 bearing_y,
+                advance_x,
             },
         ))
     }

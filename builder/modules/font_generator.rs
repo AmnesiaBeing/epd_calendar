@@ -255,6 +255,8 @@ fn generate_fonts_rs(
     content.push_str("    pub bearing_x: i32,\n");
     content.push_str("    /// 垂直偏移（BearingY）：字符位图相对基线的Y偏移（像素）\n");
     content.push_str("    pub bearing_y: i32,\n");
+    content.push_str("    /// 水平Advance（AdvanceX）：字符渲染后的X轴移动距离（像素）\n");
+    content.push_str("    pub advance_x: i32,\n");
     content.push_str("}\n\n");
 
     // 共享字符表
@@ -327,8 +329,14 @@ fn generate_fonts_rs(
         height: {},
         bearing_x: {},
         bearing_y: {},
+        advance_x: {},
     }},\n",
-                metrics.offset, metrics.width, metrics.height, metrics.bearing_x, metrics.bearing_y
+                metrics.offset,
+                metrics.width,
+                metrics.height,
+                metrics.bearing_x,
+                metrics.bearing_y,
+                metrics.advance_x
             ));
         }
         content.push_str("];\n\n");
