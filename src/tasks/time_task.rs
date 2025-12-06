@@ -1,4 +1,9 @@
 // src/tasks/time_task.rs
+
+//! 时间任务模块 - 定时获取和更新系统时间
+//! 
+//! 该模块定时从时间服务获取当前时间，并发送更新事件到显示任务。
+
 use embassy_time::{Duration, Ticker};
 
 use crate::{
@@ -10,6 +15,7 @@ use crate::{
 // 配置常量
 const TIME_UPDATE_INTERVAL_SECONDS: u64 = 60; // 每分钟更新一次显示时间
 
+/// 时间任务主函数
 #[embassy_executor::task]
 pub async fn time_task(mut time_service: TimeService) {
     log::info!("🕒 Time task started");
@@ -33,6 +39,12 @@ pub async fn time_task(mut time_service: TimeService) {
 }
 
 /// 更新显示时间
+/// 
+/// # 参数
+/// - `time_service`: 时间服务实例
+/// 
+/// # 返回值
+/// - `Result<()>`: 更新成功返回Ok(()), 失败返回错误
 async fn update_time_display(time_service: &mut TimeService) -> Result<()> {
     log::debug!("Updating time display");
 

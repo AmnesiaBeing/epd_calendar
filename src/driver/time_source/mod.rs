@@ -1,33 +1,48 @@
-// src/driver/time_source.rs
+// src/driver/time_source/mod.rs
+
+//! 时间源驱动模块
+//! 
+//! 提供系统时间获取和设置的抽象层，支持不同平台的时间源实现
+//! 
+//! ## 功能
+//! - 定义统一的时间源接口 `TimeSource`
+//! - 支持ESP32（硬件RTC）和Linux（模拟RTC）平台
+//! - 提供时间获取、设置和时区处理功能
+//! 
+//! ## 时间逻辑说明
+//! - ESP32内部使用两个u32的RTC寄存器存储时间
+//! - 模拟器使用单个u64存储时间戳
+//! - 存储的时间类型均为`Timestamp`（u64），时区信息单独处理
+//! 
+//! ## SNTP和时间源关系
+//! - ESP32通过SNTP更新时间后调用`set_current_time_us`写入寄存器
+//! - 模拟器通过SNTP更新时间后调用`update_timestamp`方法更新时间戳
 
 use jiff::Timestamp;
 
 use crate::common::error::Result;
 
-// 时间逻辑声明
-// ESP32内部实际上使用两个u32的RTC寄存器存储时间，通过调用pub fn set_current_time_us(&self, current_time_us: u64)函数来写入寄存器
-// ESP32可通过pub fn current_time_us(&self) -> u64来读取当前时间
-// 模拟器内使用1个u64来存储时间
-// 存储的时间类型均为Timestamp（u64），时区相关信息不在本代码做处理
-
-// 关于SNTP和时间源的关系
-// ESP32内，通过SNTP更新时间后（SNTP是外部调用的），会调用pub fn set_current_time_us(&self, current_time_us: u64)函数来写入寄存器
-// 模拟器内，通过SNTP更新时间后，会调用SimulatedRtc::update_timestamp方法来更新时间戳
-
-// 时间中断逻辑声明
-// ESP32可以通过pub fn set_interrupt_handler(&mut self, handler: InterruptHandler)来设定中断时间
-// 模拟器内，使用一个task来模拟中断时间
-
+/// 时间源驱动接口定义
+/// 
+/// 提供系统时间的获取和设置功能
 pub trait TimeSource {
     /// 获取当前时间（UTC时间戳）
+    /// 
+    /// # 返回值
+    /// - `Result<Timestamp>`: 当前时间戳或错误
     fn get_time(&self) -> Result<Timestamp>;
 
     /// 设置新时间
+    /// 
+    /// # 参数
+    /// - `new_time`: 新的时间戳
+    /// 
+    /// # 返回值
+    /// - `Result<()>`: 设置结果
     fn set_time(&mut self, new_time: Timestamp) -> Result<()>;
 }
 
 // 默认时间源选择
-
 #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
 mod linux;
 

@@ -1,4 +1,10 @@
 // src/driver/ntp_source.rs
+
+/// NTP时间源模块
+/// 
+/// 本模块实现了基于SNTP协议的网络时间同步功能
+/// 支持多个NTP服务器轮询，提高时间同步的可靠性
+
 use alloc::string::ToString;
 use core::net::{IpAddr, SocketAddr};
 use embassy_executor::Spawner;
@@ -17,12 +23,20 @@ use crate::driver::network::{DefaultNetworkDriver, NetworkDriver};
 use crate::driver::time_source::DefaultTimeSource;
 use crate::driver::time_source::TimeSource;
 
+/// SNTP请求超时时间（秒）
 const SNTP_TIMEOUT_SECONDS: u64 = 5;
+
+/// SNTP同步间隔时间（秒）
+/// - 嵌入式平台：12小时
+/// - 模拟器：60秒（便于测试）
 #[cfg(any(feature = "embedded_esp", feature = "embedded_linux"))]
 const SNTP_SYNC_INTERVAL_SECONDS: u64 = 12 * 60 * 60;
 #[cfg(feature = "simulator")]
 const SNTP_SYNC_INTERVAL_SECONDS: u64 = 60;
 
+/// SNTP后台任务
+/// 
+/// 定期执行NTP时间同步，确保系统时间准确
 #[embassy_executor::task]
 async fn start_sntp_task(
     time_source: &'static GlobalMutex<DefaultTimeSource>,
@@ -49,6 +63,14 @@ async fn start_sntp_task(
     }
 }
 
+/// 执行SNTP时间同步
+/// 
+/// # 参数
+/// - `sntp_service`: SNTP服务实例
+/// - `time_source`: 时间源实例
+/// 
+/// # 返回值
+/// - `Result<()>`: 同步结果
 async fn perform_sntp_sync(
     sntp_service: &mut SntpService,
     time_source: &'static GlobalMutex<DefaultTimeSource>,
@@ -59,7 +81,9 @@ async fn perform_sntp_sync(
     Ok(())
 }
 
-// 使用多个NTP服务器以提高可靠性
+/// NTP服务器列表
+/// 
+/// 使用多个NTP服务器以提高时间同步的可靠性
 const NTP_SERVERS: &[&str] = &[
     "cn.ntp.org.cn",
     "pool.ntp.org",
@@ -69,15 +93,24 @@ const NTP_SERVERS: &[&str] = &[
     "time1.google.com",
 ];
 
-// SNTP协议常量
+/// NTP协议端口号
 const NTP_PORT: u16 = 123;
 
-/// SNTP时间源实现
+/// SNTP时间源服务
+/// 
+/// 负责与NTP服务器通信，获取网络时间
 pub struct SntpService {
+    /// 网络驱动实例
     network_driver: &'static GlobalMutex<DefaultNetworkDriver>,
 }
 
 impl SntpService {
+    /// 初始化SNTP服务
+    /// 
+    /// # 参数
+    /// - `spawner`: 任务生成器
+    /// - `network_driver`: 网络驱动实例
+    /// - `time_source`: 时间源实例
     pub fn initialize(
         spawner: &Spawner,
         network_driver: &'static GlobalMutex<DefaultNetworkDriver>,
@@ -89,11 +122,21 @@ impl SntpService {
             .unwrap();
     }
 
+    /// 创建新的SNTP服务实例
+    /// 
+    /// # 参数
+    /// - `network_driver`: 网络驱动实例
+    /// 
+    /// # 返回值
+    /// - `SntpService`: 新的SNTP服务实例
     fn new(network_driver: &'static GlobalMutex<DefaultNetworkDriver>) -> Self {
         Self { network_driver }
     }
 
     /// 创建SNTP上下文
+    /// 
+    /// # 返回值
+    /// - `NtpContext<EmbassyTimestampGenerator>`: SNTP上下文
     fn create_ntp_context(&self) -> NtpContext<EmbassyTimestampGenerator> {
         log::debug!("Creating NTP context");
         let timestamp_gen = EmbassyTimestampGenerator::new();
@@ -101,6 +144,11 @@ impl SntpService {
     }
 
     /// 发送SNTP请求并获取时间
+    /// 
+    /// 轮询多个NTP服务器，直到获取到有效时间
+    /// 
+    /// # 返回值
+    /// - `Result<Timestamp>`: 获取到的时间戳
     async fn request_time(&mut self) -> Result<Timestamp> {
         if let Some(stack) = self.network_driver.lock().await.get_stack() {
             log::info!("Starting NTP time request");
@@ -192,13 +240,20 @@ impl SntpService {
     }
 }
 
-// 共享的时间戳生成器
+/// 基于Embassy的时间戳生成器
+/// 
+/// 为SNTP协议提供本地时间戳生成功能
 #[derive(Clone, Copy)]
 pub struct EmbassyTimestampGenerator {
+    /// 开始时间点
     start_time: Option<Instant>,
 }
 
 impl EmbassyTimestampGenerator {
+    /// 创建新的时间戳生成器
+    /// 
+    /// # 返回值
+    /// - `EmbassyTimestampGenerator`: 新的时间戳生成器实例
     pub fn new() -> Self {
         log::debug!("Creating new EmbassyTimestampGenerator");
         Self {
@@ -208,11 +263,16 @@ impl EmbassyTimestampGenerator {
 }
 
 impl NtpTimestampGenerator for EmbassyTimestampGenerator {
+    /// 初始化时间戳生成器
     fn init(&mut self) {
         log::debug!("Initializing timestamp generator");
         self.start_time = Some(Instant::now());
     }
 
+    /// 获取时间戳的秒部分
+    /// 
+    /// # 返回值
+    /// - `u64`: 秒数
     fn timestamp_sec(&self) -> u64 {
         let sec = self
             .start_time
@@ -222,6 +282,10 @@ impl NtpTimestampGenerator for EmbassyTimestampGenerator {
         sec
     }
 
+    /// 获取时间戳的微秒部分
+    /// 
+    /// # 返回值
+    /// - `u32`: 微秒数
     fn timestamp_subsec_micros(&self) -> u32 {
         let micros = self
             .start_time

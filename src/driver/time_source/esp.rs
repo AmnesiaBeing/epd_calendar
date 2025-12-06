@@ -1,5 +1,9 @@
 // src/driver/time_source/esp.rs
 
+//! ESP32平台时间源驱动实现
+//! 
+//! 提供ESP32平台的硬件RTC时间功能，基于esp-hal库实现
+
 #[cfg(feature = "embedded_esp")]
 use esp_hal::peripherals::Peripherals;
 use esp_hal::rtc_cntl::Rtc;
@@ -8,17 +12,26 @@ use jiff::Timestamp;
 use crate::common::error::{AppError, Result};
 use crate::driver::time_source::TimeSource;
 
-/// ESP32 RTC时间源 - 使用硬件RTC
+/// ESP32 RTC时间源结构体
+/// 
+/// 使用ESP32硬件RTC提供系统时间功能
 #[cfg(feature = "embedded_esp")]
 pub struct RtcTimeSource {
-    // ESP32 RTC实例
+    /// ESP32 RTC实例
     rtc: Rtc<'static>,
-    // 是否已同步（默认false，通过外部接口更新时间后后设为true）
+    /// 是否已同步（通过外部接口更新时间后设为true）
     synchronized: bool,
 }
 
 #[cfg(feature = "embedded_esp")]
 impl RtcTimeSource {
+    /// 创建新的ESP32 RTC时间源实例
+    /// 
+    /// # 参数
+    /// - `peripherals`: ESP32硬件外设
+    /// 
+    /// # 返回值
+    /// - `Self`: 时间源实例
     pub fn new(peripherals: &Peripherals) -> Self {
         log::info!("Initializing RtcTimeSource with hardware RTC");
 
@@ -33,6 +46,10 @@ impl RtcTimeSource {
 
 #[cfg(feature = "embedded_esp")]
 impl TimeSource for RtcTimeSource {
+    /// 获取当前时间
+    /// 
+    /// # 返回值
+    /// - `Result<Timestamp>`: 当前时间戳或错误
     fn get_time(&self) -> Result<Timestamp> {
         let timestamp_us = self.rtc.current_time_us();
         let timestamp =
@@ -41,6 +58,13 @@ impl TimeSource for RtcTimeSource {
         Ok(timestamp)
     }
 
+    /// 设置新时间
+    /// 
+    /// # 参数
+    /// - `new_time`: 新的时间戳
+    /// 
+    /// # 返回值
+    /// - `Result<()>`: 设置结果
     fn set_time(&mut self, new_time: Timestamp) -> Result<()> {
         let timestamp_us = new_time.as_microsecond();
         log::debug!("Setting RTC time to: {}", timestamp_us);

@@ -1,4 +1,9 @@
 // src/tasks/display_task.rs
+
+//! 显示任务模块 - 处理屏幕显示和刷新逻辑
+//! 
+//! 该模块负责管理屏幕显示，包括组件渲染、屏幕刷新和防抖控制。
+
 use embassy_time::{Duration, Instant, Timer};
 
 use crate::common::SystemState;
@@ -73,6 +78,12 @@ pub async fn display_task(mut render_engine: RenderEngine) {
 }
 
 /// 处理组件更新
+/// 
+/// # 参数
+/// - `render_engine`: 渲染引擎实例
+/// - `system_state`: 系统状态实例
+/// - `last_refresh_time`: 上次刷新时间
+/// - `component_data`: 组件数据
 async fn handle_update_component(
     render_engine: &mut RenderEngine,
     system_state: &mut SystemState,
@@ -114,6 +125,12 @@ async fn handle_update_component(
 }
 
 /// 检查是否应该刷新屏幕（防抖检查）
+/// 
+/// # 参数
+/// - `last_refresh_time`: 上次刷新时间
+/// 
+/// # 返回值
+/// - `bool`: true表示应该刷新屏幕
 fn should_refresh_screen(last_refresh_time: Option<Instant>) -> bool {
     match last_refresh_time {
         Some(last) => {
@@ -138,6 +155,14 @@ fn should_refresh_screen(last_refresh_time: Option<Instant>) -> bool {
 }
 
 /// 执行屏幕刷新（将内存缓冲区传输到屏幕并显示）
+/// 
+/// # 参数
+/// - `render_engine`: 渲染引擎实例
+/// - `last_refresh_time`: 上次刷新时间
+/// - `force_refresh`: 是否强制刷新
+/// 
+/// # 返回值
+/// - `Result<()>`: 刷新成功返回Ok(()), 失败返回错误
 async fn execute_screen_refresh(
     render_engine: &mut RenderEngine,
     last_refresh_time: &mut Option<Instant>,
@@ -167,6 +192,10 @@ async fn execute_screen_refresh(
 }
 
 /// 更新系统状态
+/// 
+/// # 参数
+/// - `system_state`: 系统状态实例
+/// - `component_data`: 组件数据
 fn update_system_state(system_state: &mut SystemState, component_data: &ComponentDataType) {
     match component_data {
         ComponentDataType::TimeType(data) => {

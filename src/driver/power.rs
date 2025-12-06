@@ -1,134 +1,226 @@
 // src/driver/power.rs
+
+/// 电源管理模块
+/// 
+/// 本模块定义了电源监控功能，支持不同平台的电源状态检测
+/// 包括电池电量监控、电源状态变化检测等
+
 use crate::common::error::Result;
-use crate::common::system_state::BatteryLevel;
 
-pub trait PowerMonitor {
+/// 电源管理trait
+/// 
+/// 定义电源监控的通用接口，支持不同平台的实现
+pub trait PowerDriver {
+    /// 获取当前电池电量（百分比）
+    /// 
+    /// # 返回值
+    /// - `Result<u8>`: 电池电量百分比（0-100）
+    async fn battery_level(&self) -> Result<u8>;
+
     /// 检查是否正在充电
-    async fn is_charging(&self) -> bool;
+    /// 
+    /// # 返回值
+    /// - `Result<bool>`: 是否正在充电
+    async fn is_charging(&self) -> Result<bool>;
 
-    /// 获取电池电量等级
-    async fn battery_level(&self) -> BatteryLevel;
-
-    /// 获取电池电压（如果支持）
-    async fn battery_voltage(&self) -> Result<f32>;
-
-    /// 进入低功耗模式
-    async fn enter_low_power(&self) -> Result<()>;
-
-    /// 唤醒系统
-    async fn wake(&self) -> Result<()>;
+    /// 检查是否连接外部电源
+    /// 
+    /// # 返回值
+    /// - `Result<bool>`: 是否连接外部电源
+    async fn is_external_power(&self) -> Result<bool>;
 }
 
-/// 模拟电源监控
-#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
-pub struct MockPowerMonitor {
+/// Mock电源驱动实现
+/// 
+/// 用于测试和模拟环境的电源驱动实现
+pub struct MockPowerDriver {
+    /// 模拟电池电量
+    battery_level: u8,
+    /// 模拟充电状态
     charging: bool,
-    level: BatteryLevel,
+    /// 模拟外部电源状态
+    external_power: bool,
 }
 
-#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
-impl MockPowerMonitor {
-    pub fn new() -> Self {
+impl MockPowerDriver {
+    /// 创建新的Mock电源驱动实例
+    /// 
+    /// # 参数
+    /// - `battery_level`: 初始电池电量
+    /// - `charging`: 初始充电状态
+    /// - `external_power`: 初始外部电源状态
+    /// 
+    /// # 返回值
+    /// - `MockPowerDriver`: 新的Mock电源驱动实例
+    pub fn new(battery_level: u8, charging: bool, external_power: bool) -> Self {
         Self {
-            charging: false,
-            level: BatteryLevel::Level0,
+            battery_level,
+            charging,
+            external_power,
         }
     }
 
+    /// 设置电池电量
+    /// 
+    /// # 参数
+    /// - `level`: 新的电池电量
+    pub fn set_battery_level(&mut self, level: u8) {
+        self.battery_level = level;
+    }
+
+    /// 设置充电状态
+    /// 
+    /// # 参数
+    /// - `charging`: 新的充电状态
     pub fn set_charging(&mut self, charging: bool) {
         self.charging = charging;
     }
 
-    pub fn set_battery_level(&mut self, level: BatteryLevel) {
-        self.level = level;
+    /// 设置外部电源状态
+    /// 
+    /// # 参数
+    /// - `external_power`: 新的外部电源状态
+    pub fn set_external_power(&mut self, external_power: bool) {
+        self.external_power = external_power;
     }
 }
 
-#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
-impl PowerMonitor for MockPowerMonitor {
-    async fn is_charging(&self) -> bool {
-        self.charging
+impl PowerDriver for MockPowerDriver {
+    /// 获取模拟电池电量
+    /// 
+    /// # 返回值
+    /// - `Result<u8>`: 模拟电池电量百分比
+    async fn battery_level(&self) -> Result<u8> {
+        Ok(self.battery_level)
     }
 
-    async fn battery_level(&self) -> BatteryLevel {
-        self.level.clone()
+    /// 检查模拟充电状态
+    /// 
+    /// # 返回值
+    /// - `Result<bool>`: 模拟充电状态
+    async fn is_charging(&self) -> Result<bool> {
+        Ok(self.charging)
     }
 
-    async fn battery_voltage(&self) -> Result<f32> {
-        match self.level {
-            BatteryLevel::Level0 => Ok(3.2),
-            BatteryLevel::Level1 => Ok(3.5),
-            BatteryLevel::Level2 => Ok(3.7),
-            BatteryLevel::Level3 => Ok(3.9),
-            BatteryLevel::Level4 => Ok(4.1),
-        }
-    }
-
-    async fn enter_low_power(&self) -> Result<()> {
-        log::info!("Mock power monitor entering low power mode");
-        Ok(())
-    }
-
-    async fn wake(&self) -> Result<()> {
-        log::info!("Mock power monitor waking up");
-        Ok(())
+    /// 检查模拟外部电源状态
+    /// 
+    /// # 返回值
+    /// - `Result<bool>`: 模拟外部电源状态
+    async fn is_external_power(&self) -> Result<bool> {
+        Ok(self.external_power)
     }
 }
 
-// TODO: 实现ESP32的PowerMonitor
-
-/// 模拟电源监控
+/// ESP32平台电源驱动实现
 #[cfg(feature = "embedded_esp")]
-pub struct MockPowerMonitor {
-    charging: bool,
-    level: BatteryLevel,
-}
+pub struct EspPowerDriver;
 
 #[cfg(feature = "embedded_esp")]
-impl MockPowerMonitor {
+impl EspPowerDriver {
+    /// 创建新的ESP32电源驱动实例
+    /// 
+    /// # 返回值
+    /// - `EspPowerDriver`: 新的ESP32电源驱动实例
     pub fn new() -> Self {
-        Self {
-            charging: false,
-            level: BatteryLevel::Level0,
-        }
+        Self
     }
 }
 
 #[cfg(feature = "embedded_esp")]
-impl PowerMonitor for MockPowerMonitor {
-    async fn is_charging(&self) -> bool {
-        self.charging
+impl PowerDriver for EspPowerDriver {
+    /// 获取ESP32电池电量
+    /// 
+    /// 注意：ESP32本身不支持电池电量检测
+    /// 此方法返回固定值100表示始终满电量
+    /// 
+    /// # 返回值
+    /// - `Result<u8>`: 固定电池电量100
+    async fn battery_level(&self) -> Result<u8> {
+        Ok(100)
     }
 
-    async fn battery_level(&self) -> BatteryLevel {
-        self.level.clone()
+    /// 检查ESP32充电状态
+    /// 
+    /// 注意：ESP32本身不支持充电状态检测
+    /// 此方法返回固定值false表示未充电
+    /// 
+    /// # 返回值
+    /// - `Result<bool>`: 固定充电状态false
+    async fn is_charging(&self) -> Result<bool> {
+        Ok(false)
     }
 
-    async fn battery_voltage(&self) -> Result<f32> {
-        match self.level {
-            BatteryLevel::Level0 => Ok(3.2),
-            BatteryLevel::Level1 => Ok(3.5),
-            BatteryLevel::Level2 => Ok(3.7),
-            BatteryLevel::Level3 => Ok(3.9),
-            BatteryLevel::Level4 => Ok(4.1),
-        }
-    }
-
-    async fn enter_low_power(&self) -> Result<()> {
-        log::info!("Mock power monitor entering low power mode");
-        Ok(())
-    }
-
-    async fn wake(&self) -> Result<()> {
-        log::info!("Mock power monitor waking up");
-        Ok(())
+    /// 检查ESP32外部电源状态
+    /// 
+    /// 注意：ESP32本身不支持外部电源检测
+    /// 此方法返回固定值true表示始终连接外部电源
+    /// 
+    /// # 返回值
+    /// - `Result<bool>`: 固定外部电源状态true
+    async fn is_external_power(&self) -> Result<bool> {
+        Ok(true)
     }
 }
 
-// Simulator和嵌入式Linux环境下的默认电源监控
-#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
-pub type DefaultPowerMonitor = MockPowerMonitor;
+/// Linux平台电源驱动实现
+#[cfg(feature = "embedded_linux")]
+pub struct LinuxPowerDriver;
 
-// ESP32环境下的默认电源监控
+#[cfg(feature = "embedded_linux")]
+impl LinuxPowerDriver {
+    /// 创建新的Linux电源驱动实例
+    /// 
+    /// # 返回值
+    /// - `LinuxPowerDriver`: 新的Linux电源驱动实例
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+#[cfg(feature = "embedded_linux")]
+impl PowerDriver for LinuxPowerDriver {
+    /// 获取Linux电池电量
+    /// 
+    /// 注意：Linux嵌入式平台通常不支持电池电量检测
+    /// 此方法返回固定值100表示始终满电量
+    /// 
+    /// # 返回值
+    /// - `Result<u8>`: 固定电池电量100
+    async fn battery_level(&self) -> Result<u8> {
+        Ok(100)
+    }
+
+    /// 检查Linux充电状态
+    /// 
+    /// 注意：Linux嵌入式平台通常不支持充电状态检测
+    /// 此方法返回固定值false表示未充电
+    /// 
+    /// # 返回值
+    /// - `Result<bool>`: 固定充电状态false
+    async fn is_charging(&self) -> Result<bool> {
+        Ok(false)
+    }
+
+    /// 检查Linux外部电源状态
+    /// 
+    /// 注意：Linux嵌入式平台通常不支持外部电源检测
+    /// 此方法返回固定值true表示始终连接外部电源
+    /// 
+    /// # 返回值
+    /// - `Result<bool>`: 固定外部电源状态true
+    async fn is_external_power(&self) -> Result<bool> {
+        Ok(true)
+    }
+}
+
+/// 默认电源驱动类型别名
+/// 
+/// 根据平台特性选择不同的电源驱动实现
 #[cfg(feature = "embedded_esp")]
-pub type DefaultPowerMonitor = MockPowerMonitor;
+pub type DefaultPowerDriver = EspPowerDriver;
+
+#[cfg(feature = "embedded_linux")]
+pub type DefaultPowerDriver = LinuxPowerDriver;
+
+#[cfg(feature = "simulator")]
+pub type DefaultPowerDriver = MockPowerDriver;

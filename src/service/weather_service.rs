@@ -1,4 +1,9 @@
 // src/service/weather_service.rs
+
+//! 天气服务模块 - 提供天气数据获取和解析功能
+//! 
+//! 该模块从和风天气API获取天气数据，并解析为系统可用的格式。
+
 use crate::common::GlobalMutex;
 use crate::common::error::{AppError, Result};
 use crate::common::system_state::WeatherData;
@@ -7,10 +12,15 @@ use crate::driver::network::{DefaultNetworkDriver, NetworkDriver};
 use crate::driver::sensor::DefaultSensorDriver;
 use alloc::format;
 
+/// 天气服务，提供天气数据获取和解析功能
 pub struct WeatherService {
+    /// 网络驱动实例（全局互斥锁保护）
     network_driver: &'static GlobalMutex<DefaultNetworkDriver>,
+    /// 传感器驱动实例
     sensor_driver: DefaultSensorDriver,
+    /// 地理位置ID
     location_id: heapless::String<20>,
+    /// 上次获取的天气数据缓存
     last_weather_data: Option<WeatherData>,
 }
 
@@ -19,6 +29,14 @@ const API_PATH: &str = "/v7/weather/3d";
 const API_KAY: &str = "";
 
 impl WeatherService {
+    /// 创建新的天气服务实例
+    /// 
+    /// # 参数
+    /// - `network_driver`: 网络驱动实例
+    /// - `sensor_driver`: 传感器驱动实例
+    /// 
+    /// # 返回值
+    /// 返回新的WeatherService实例
     pub fn new(
         network_driver: &'static GlobalMutex<DefaultNetworkDriver>,
         sensor_driver: DefaultSensorDriver,
@@ -31,6 +49,10 @@ impl WeatherService {
         }
     }
 
+    /// 获取天气数据
+    /// 
+    /// # 返回值
+    /// - `Result<WeatherData>`: 成功返回天气数据，失败返回错误
     pub async fn get_weather(&mut self) -> Result<WeatherData> {
         // 首先检查网络连接
         if !self.network_driver.lock().await.is_connected() {
@@ -52,6 +74,10 @@ impl WeatherService {
         }
     }
 
+    /// 从API获取天气数据
+    /// 
+    /// # 返回值
+    /// - `Result<WeatherData>`: 成功返回天气数据，失败返回错误
     async fn fetch_weather_from_api(&self) -> Result<WeatherData> {
         // 检查是否有必要的配置
         if self.location_id.is_empty() {
@@ -90,6 +116,12 @@ impl WeatherService {
     }
 
     /// 解析和风天气API的JSON响应
+    /// 
+    /// # 参数
+    /// - `response`: API响应数据
+    /// 
+    /// # 返回值
+    /// - `Result<WeatherData>`: 成功返回解析后的天气数据，失败返回错误
     fn parse_weather_response(&self, response: &[u8]) -> Result<WeatherData> {
         log::info!("Parsing weather response ({} bytes)", response.len());
 

@@ -1,5 +1,10 @@
 // src/driver/display/esp.rs
 
+/// ESP32平台电子墨水屏驱动模块
+/// 
+/// 本模块实现了ESP32平台下的电子墨水屏（EPD）驱动
+/// 使用Waveshare EPD库和ESP32硬件SPI接口控制7.5英寸电子墨水屏
+
 use embedded_hal_bus::spi::ExclusiveDevice;
 use epd_waveshare::{epd7in5_yrd0750ryf665f60::Epd7in5, prelude::WaveshareDisplay};
 use esp_hal::{
@@ -17,17 +22,25 @@ use esp_hal::{
 use super::DisplayDriver;
 use crate::common::error::{AppError, Result};
 
-// 定义 SPI 设备类型
+/// ESP32 SPI设备类型别名
+/// 
+/// 使用ExclusiveDevice包装SPI总线，提供独占访问
+/// 确保SPI通信的原子性和可靠性
 type EspSpiDevice = ExclusiveDevice<Spi<'static, Blocking>, Output<'static>, Delay>;
 
+/// ESP32电子墨水屏驱动结构体
+/// 
+/// 封装ESP32平台的EPD驱动功能
 pub struct EspEpdDriver {
+    /// SPI设备实例
     spi: EspSpiDevice,
+    /// EPD显示设备实例
     epd: Epd7in5<EspSpiDevice, Input<'static>, Output<'static>, Output<'static>, Delay>,
 }
 
 impl EspEpdDriver {
-    /// 创建新的 EPD 驱动实例
-    ///
+    /// 创建新的EPD驱动实例
+    /// 
     /// 使用固定引脚配置：
     /// - SCK: GPIO6
     /// - SDA/MOSI: GPIO7
@@ -35,6 +48,12 @@ impl EspEpdDriver {
     /// - BUSY: GPIO2
     /// - DC: GPIO3
     /// - RST: GPIO4
+    /// 
+    /// # 参数
+    /// - `peripherals`: ESP32外设实例
+    /// 
+    /// # 返回值
+    /// - `Result<EspEpdDriver>`: 新的EPD驱动实例
     pub async fn new(peripherals: &Peripherals) -> Result<Self> {
         log::info!("Initializing ESP EPD driver with fixed pin configuration");
 
@@ -113,6 +132,12 @@ impl EspEpdDriver {
 }
 
 impl DisplayDriver for EspEpdDriver {
+    /// 初始化显示设备
+    /// 
+    /// 唤醒EPD显示设备，准备接收数据
+    /// 
+    /// # 返回值
+    /// - `Result<()>`: 初始化结果
     fn init(&mut self) -> Result<()> {
         let mut delay = Delay::new();
         self.epd.wake_up(&mut self.spi, &mut delay).map_err(|e| {
@@ -123,6 +148,12 @@ impl DisplayDriver for EspEpdDriver {
         Ok(())
     }
 
+    /// 进入休眠模式
+    /// 
+    /// 将EPD设备置于低功耗休眠状态
+    /// 
+    /// # 返回值
+    /// - `Result<()>`: 休眠操作结果
     fn sleep(&mut self) -> Result<()> {
         let mut delay = Delay::new();
         self.epd.sleep(&mut self.spi, &mut delay).map_err(|e| {
@@ -133,6 +164,15 @@ impl DisplayDriver for EspEpdDriver {
         Ok(())
     }
 
+    /// 更新帧缓冲区
+    /// 
+    /// 将图像数据写入EPD显示缓冲区
+    /// 
+    /// # 参数
+    /// - `buffer`: 图像数据缓冲区
+    /// 
+    /// # 返回值
+    /// - `Result<()>`: 更新操作结果
     fn update_frame(&mut self, buffer: &[u8]) -> Result<()> {
         let mut delay = Delay::new();
         self.epd
@@ -146,6 +186,19 @@ impl DisplayDriver for EspEpdDriver {
         Ok(())
     }
 
+    /// 更新部分帧缓冲区
+    /// 
+    /// 更新指定区域的图像数据
+    /// 
+    /// # 参数
+    /// - `buffer`: 图像数据缓冲区
+    /// - `x`: 区域起始X坐标
+    /// - `y`: 区域起始Y坐标
+    /// - `width`: 区域宽度
+    /// - `height`: 区域高度
+    /// 
+    /// # 返回值
+    /// - `Result<()>`: 更新操作结果
     fn update_partial_frame(
         &mut self,
         buffer: &[u8],
@@ -164,6 +217,12 @@ impl DisplayDriver for EspEpdDriver {
         Ok(())
     }
 
+    /// 刷新显示缓冲区
+    /// 
+    /// 将缓冲区内容刷新到EPD显示设备
+    /// 
+    /// # 返回值
+    /// - `Result<()>`: 刷新操作结果
     fn display_frame(&mut self) -> Result<()> {
         let mut delay = Delay::new();
         self.epd

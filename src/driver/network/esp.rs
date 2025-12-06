@@ -1,3 +1,9 @@
+// src/driver/network/esp.rs
+
+//! ESP32平台网络驱动实现
+//! 
+//! 提供ESP32平台的WiFi网络连接功能，基于esp-radio库实现
+
 use embassy_executor::Spawner;
 use embassy_net::Stack;
 use embassy_net::{Config, StackResources};
@@ -11,21 +17,40 @@ use crate::common::error::AppError;
 use crate::common::error::Result;
 use crate::driver::network::NetworkDriver;
 
+/// ESP-RADIO控制器静态实例
 static ESP_RADIO_CTRL: StaticCell<Controller> = StaticCell::new();
 
+/// 网络任务异步函数
+/// 
+/// # 参数
+/// - `runner`: 网络栈运行器
 #[embassy_executor::task]
 async fn net_task(mut runner: embassy_net::Runner<'static, WifiDevice<'static>>) -> ! {
     runner.run().await
 }
 
+/// ESP32网络驱动结构体
+/// 
+/// 管理ESP32平台的WiFi连接和网络栈
 pub struct EspNetworkDriver {
+    /// WiFi控制器实例
     controller: Option<WifiController<'static>>,
+    /// WiFi设备接口
     device: Option<WifiDevice<'static>>,
+    /// 网络栈实例
     stack: Option<Stack<'static>>,
+    /// 初始化状态标志
     is_initialized: bool,
 }
 
 impl EspNetworkDriver {
+    /// 创建新的ESP32网络驱动实例
+    /// 
+    /// # 参数
+    /// - `peripherals`: ESP32硬件外设
+    /// 
+    /// # 返回值
+    /// - `Result<Self>`: 驱动实例或错误
     pub fn new(peripherals: &Peripherals) -> Result<Self> {
         // 初始化ESP-RADIO
         let esp_radio_ctrl =
@@ -50,10 +75,19 @@ impl EspNetworkDriver {
     }
 }
 
+/// WiFi网络SSID
 const WIFI_SSID: &str = "WIFI_SSID";
+/// WiFi网络密码
 const WIFI_PASSWORD: &str = "WIFI_PASSWORD";
 
 impl NetworkDriver for EspNetworkDriver {
+    /// 初始化网络栈
+    /// 
+    /// # 参数
+    /// - `spawner`: 异步任务生成器
+    /// 
+    /// # 返回值
+    /// - `Result<()>`: 初始化结果
     async fn initialize(&mut self, spawner: &Spawner) -> Result<()> {
         if self.is_initialized {
             return Ok(());
@@ -88,6 +122,10 @@ impl NetworkDriver for EspNetworkDriver {
         Ok(())
     }
 
+    /// 建立WiFi连接
+    /// 
+    /// # 返回值
+    /// - `Result<()>`: 连接结果
     async fn connect(&mut self) -> Result<()> {
         // 使用控制器配置WiFi连接
         let controller = self
@@ -140,10 +178,18 @@ impl NetworkDriver for EspNetworkDriver {
         Ok(())
     }
 
+    /// 检查网络连接状态
+    /// 
+    /// # 返回值
+    /// - `bool`: 是否已连接
     fn is_connected(&self) -> bool {
         self.stack.as_ref().map(|s| s.is_link_up()).unwrap_or(false)
     }
 
+    /// 获取网络栈实例
+    /// 
+    /// # 返回值
+    /// - `Option<&Stack>`: 网络栈引用
     fn get_stack(&self) -> Option<&Stack> {
         self.stack.as_ref()
     }

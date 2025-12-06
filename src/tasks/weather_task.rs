@@ -1,9 +1,15 @@
 // src/tasks/weather_task.rs
+
+//! 天气任务模块 - 定时获取和更新天气数据
+//! 
+//! 该模块定时从天气服务获取天气数据，并发送更新事件到显示任务。
+
 use embassy_time::{Duration, Ticker};
 
 use crate::service::WeatherService;
 use crate::tasks::{ComponentDataType, DISPLAY_EVENTS, DisplayEvent};
 
+/// 天气任务主函数
 #[embassy_executor::task]
 pub async fn weather_task(mut weather_service: WeatherService) {
     log::info!("Weather task started");

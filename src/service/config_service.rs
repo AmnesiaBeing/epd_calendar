@@ -1,4 +1,10 @@
 // src/service/config_manager.rs
+// src/service/config_service.rs
+
+//! 配置服务模块 - 处理系统配置的序列化、存储和验证
+//! 
+//! 该模块提供配置管理功能，包括配置的加载、保存、验证和版本迁移。
+
 use crate::common::config::{CONFIG_MAGIC, MAX_CONFIG_SIZE, SystemConfig, default_config_version};
 use crate::common::error::{AppError, Result};
 use crate::driver::storage::{ConfigStorage, DefaultConfigStorage};
@@ -7,12 +13,22 @@ use postcard::{from_bytes, to_allocvec};
 
 /// 配置管理器，处理配置的序列化、存储和验证
 pub struct ConfigService {
+    /// 存储驱动实例
     storage: DefaultConfigStorage,
+    /// 当前内存中的配置数据
     current_config: SystemConfig,
+    /// 配置是否已修改但未保存
     config_dirty: bool,
 }
 
 impl ConfigService {
+    /// 创建新的配置服务实例
+    /// 
+    /// # 参数
+    /// - `storage`: 存储驱动实例
+    /// 
+    /// # 返回值
+    /// 返回新的ConfigService实例
     pub fn new(storage: DefaultConfigStorage) -> Self {
         Self {
             storage,
@@ -22,6 +38,9 @@ impl ConfigService {
     }
 
     /// 从存储中加载配置
+    /// 
+    /// # 返回值
+    /// - `Result<()>`: 加载成功返回Ok(()), 失败返回错误
     pub fn load_config(&mut self) -> Result<()> {
         match self.storage.read_config_block()? {
             Some(data) => {
@@ -37,6 +56,12 @@ impl ConfigService {
     }
 
     /// 验证并加载配置数据
+    /// 
+    /// # 参数
+    /// - `data`: 配置数据字节切片
+    /// 
+    /// # 返回值
+    /// - `Result<()>`: 验证和加载成功返回Ok(()), 失败返回错误
     fn validate_and_load_config(&mut self, data: &[u8]) -> Result<()> {
         if data.len() < 8 {
             return Err(AppError::ConfigInvalid);
@@ -78,6 +103,9 @@ impl ConfigService {
     }
 
     /// 保存当前配置到存储
+    /// 
+    /// # 返回值
+    /// - `Result<()>`: 保存成功返回Ok(()), 失败返回错误
     pub fn save_config(&mut self) -> Result<()> {
         // 序列化配置
         let serialized =
@@ -103,17 +131,26 @@ impl ConfigService {
     }
 
     /// 获取当前配置的引用
+    /// 
+    /// # 返回值
+    /// - `&SystemConfig`: 当前配置的不可变引用
     pub fn get_config(&self) -> &SystemConfig {
         &self.current_config
     }
 
     /// 获取当前配置的可变引用，标记为脏
+    /// 
+    /// # 返回值
+    /// - `&mut SystemConfig`: 当前配置的可变引用
     pub fn get_config_mut(&mut self) -> &mut SystemConfig {
         self.config_dirty = true;
         &mut self.current_config
     }
 
     /// 检查配置是否已修改但未保存
+    /// 
+    /// # 返回值
+    /// - `bool`: true表示配置已修改但未保存
     pub fn is_dirty(&self) -> bool {
         self.config_dirty
     }
@@ -126,11 +163,17 @@ impl ConfigService {
     }
 
     /// 检查配置是否需要升级
+    /// 
+    /// # 返回值
+    /// - `bool`: true表示配置需要版本升级
     pub fn needs_migration(&self) -> bool {
         self.current_config.config_version < default_config_version()
     }
 
     /// 升级配置版本（如果需要）
+    /// 
+    /// # 返回值
+    /// - `Result<()>`: 升级成功返回Ok(()), 失败返回错误
     pub fn migrate_config(&mut self) -> Result<()> {
         if !self.needs_migration() {
             return Ok(());

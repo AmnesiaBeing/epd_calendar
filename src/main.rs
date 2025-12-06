@@ -1,4 +1,11 @@
 // src/main.rs
+//! EPD日历应用主入口模块
+//!
+//! 本模块负责：
+//! - 应用程序的初始化和启动
+//! - 全局状态管理
+//! - 任务调度和系统监控
+//! - 支持嵌入式ESP32和Linux模拟器环境
 #![cfg_attr(feature = "embedded_esp", no_std)]
 #![cfg_attr(feature = "embedded_esp", no_main)]
 
@@ -24,7 +31,7 @@ use crate::common::GlobalMutex;
 use crate::driver::display::DefaultDisplayDriver;
 use crate::driver::network::{DefaultNetworkDriver, NetworkDriver};
 use crate::driver::ntp_source::SntpService;
-use crate::driver::power::DefaultPowerMonitor;
+use crate::driver::power::DefaultPowerDriver;
 use crate::driver::sensor::DefaultSensorDriver;
 use crate::driver::storage::DefaultConfigStorage;
 use crate::driver::time_source::DefaultTimeSource;
@@ -32,7 +39,7 @@ use crate::render::RenderEngine;
 use crate::service::{ConfigService, QuoteService, TimeService, WeatherService};
 use crate::tasks::{display_task, quote_task, status_task, time_task, weather_task};
 
-// 全局状态管理
+/// 全局状态管理
 static NETWORK_DRIVER: StaticCell<GlobalMutex<DefaultNetworkDriver>> = StaticCell::new();
 static CONFIG_SERVICE: StaticCell<GlobalMutex<ConfigService>> = StaticCell::new();
 static TIME_SOURCE: StaticCell<GlobalMutex<DefaultTimeSource>> = StaticCell::new();
@@ -46,6 +53,15 @@ use embassy_executor::main as platform_main;
 #[cfg(feature = "embedded_esp")]
 use esp_rtos::main as platform_main;
 
+/// 应用程序主入口
+///
+/// # 参数
+/// - `spawner`: 任务生成器，用于启动异步任务
+///
+/// # 功能
+/// - 冷启动初始化系统组件
+/// - 启动所有后台任务
+/// - 进入主循环进行系统监控
 #[platform_main]
 async fn main(spawner: Spawner) {
     // 冷启动初始化
@@ -69,7 +85,18 @@ async fn main(spawner: Spawner) {
     }
 }
 
-/// 冷启动初始化
+/// 冷启动初始化系统组件
+///
+/// # 参数
+/// - `spawner`: 任务生成器
+///
+/// # 初始化步骤
+/// 1. 初始化日志系统
+/// 2. 初始化存储驱动和配置服务
+/// 3. 初始化网络驱动
+/// 4. 初始化时间源和SNTP服务
+/// 5. 初始化显示驱动和渲染引擎
+/// 6. 启动所有后台任务
 async fn cold_start(spawner: &Spawner) {
     // 初始化日志系统
     init_logging().await;
@@ -120,9 +147,9 @@ async fn cold_start(spawner: &Spawner) {
 
     // 初始化其他驱动和服务
     #[cfg(feature = "embedded_esp")]
-    let power_monitor = DefaultPowerMonitor::new();
+    let power_monitor = DefaultPowerDriver::new();
     #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
-    let power_monitor = DefaultPowerMonitor::new();
+    let power_monitor = DefaultPowerDriver::new();
 
     // 初始化显示驱动
     #[cfg(feature = "embedded_esp")]
@@ -153,6 +180,11 @@ async fn cold_start(spawner: &Spawner) {
 }
 
 /// 初始化日志系统
+///
+/// # 功能
+/// - 根据平台配置不同的日志系统
+/// - 嵌入式ESP32使用RTT日志
+/// - Linux模拟器使用env_logger
 async fn init_logging() {
     #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
     {
@@ -168,6 +200,10 @@ async fn init_logging() {
 }
 
 /// 记录系统健康状态
+///
+/// # 功能
+/// - 定期记录系统运行状态
+/// - 可用于监控系统健康状况
 async fn log_system_health() {
     log::debug!("System health check");
 
@@ -177,6 +213,7 @@ async fn log_system_health() {
     log::debug!("System health check completed");
 }
 
+/// ESP32平台 panic 处理程序
 #[cfg(feature = "embedded_esp")]
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
