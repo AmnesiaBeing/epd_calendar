@@ -1,5 +1,5 @@
 //! 抽象化的文本渲染器，支持基于FreeType字形参数的中英文混排、多行渲染
-//! 
+//!
 //! 本模块提供完整的文本渲染功能，包括：
 //! - 单行/多行文本渲染
 //! - 自动换行和文本对齐
@@ -19,7 +19,7 @@ use crate::assets::generated_fonts::{FontSize, GlyphMetrics};
 use crate::render::draw_binary_image;
 
 /// 文本水平对齐方式
-/// 
+///
 /// # 变体说明
 /// - `Left`: 左对齐
 /// - `Right`: 右对齐  
@@ -32,7 +32,7 @@ pub enum TextAlignment {
 }
 
 /// 文本垂直对齐方式
-/// 
+///
 /// # 变体说明
 /// - `Top`: 顶部对齐
 /// - `Center`: 垂直居中
@@ -45,7 +45,7 @@ pub enum VerticalAlignment {
 }
 
 /// 内边距配置：支持自定义上下左右边距
-/// 
+///
 /// # 字段说明
 /// - `top`: 上边距（像素）
 /// - `right`: 右边距（像素）
@@ -61,10 +61,10 @@ pub struct Padding {
 
 impl Padding {
     /// 创建统一边距配置（上下左右相同）
-    /// 
+    ///
     /// # 参数
     /// - `value`: 统一的边距值（像素）
-    /// 
+    ///
     /// # 返回值
     /// 返回配置好的Padding实例
     pub const fn all(value: i32) -> Self {
@@ -77,13 +77,13 @@ impl Padding {
     }
 
     /// 创建自定义边距配置
-    /// 
+    ///
     /// # 参数
     /// - `top`: 上边距
     /// - `right`: 右边距
     /// - `bottom`: 下边距
     /// - `left`: 左边距
-    /// 
+    ///
     /// # 返回值
     /// 返回配置好的Padding实例
     pub const fn new(top: i32, right: i32, bottom: i32, left: i32) -> Self {
@@ -97,7 +97,7 @@ impl Padding {
 }
 
 /// 文本渲染器（基于FreeType字形参数的基线排版）
-/// 
+///
 /// # 字段说明
 /// - `font_size`: 字体尺寸
 /// - `current_x`: 当前绘制X坐标（基线X）
@@ -114,11 +114,11 @@ pub struct TextRenderer {
 
 impl TextRenderer {
     /// 创建新的文本渲染器
-    /// 
+    ///
     /// # 参数
     /// - `font_size`: 字体尺寸
     /// - `baseline_position`: 基线的起始坐标（而非字符位图的起始坐标）
-    /// 
+    ///
     /// # 返回值
     /// 返回新的TextRenderer实例
     pub fn new(font_size: FontSize, baseline_position: Point) -> Self {
@@ -137,7 +137,7 @@ impl TextRenderer {
     }
 
     /// 在指定矩形内绘制文本，支持内边距、水平/垂直对齐
-    /// 
+    ///
     /// # 参数
     /// - `display`: 显示目标
     /// - `text`: 要绘制的文本
@@ -145,10 +145,10 @@ impl TextRenderer {
     /// - `padding`: 内边距配置
     /// - `horizontal_align`: 水平对齐方式
     /// - `vertical_align`: 垂直对齐方式
-    /// 
+    ///
     /// # 返回值
     /// 返回绘制结果，成功为Ok(())
-    /// 
+    ///
     /// # 错误
     /// 当绘制过程中出现错误时返回错误信息
     pub fn draw_in_rect<D>(
@@ -224,11 +224,11 @@ impl TextRenderer {
     }
 
     /// 绘制单行文本（仅绘制，不自动换行）
-    /// 
+    ///
     /// # 参数
     /// - `display`: 显示目标
     /// - `text`: 要绘制的文本
-    /// 
+    ///
     /// # 返回值
     /// 返回绘制结果
     pub fn draw_single_line<D>(&mut self, display: &mut D, text: &str) -> Result<(), D::Error>
@@ -266,13 +266,13 @@ impl TextRenderer {
     }
 
     /// 绘制多行文本（自动换行，支持对齐）
-    /// 
+    ///
     /// # 参数
     /// - `display`: 显示目标
     /// - `text`: 要绘制的文本
     /// - `max_width`: 最大宽度（用于自动换行）
     /// - `alignment`: 水平对齐方式
-    /// 
+    ///
     /// # 返回值
     /// 返回绘制结果
     pub fn draw_text_multiline<D>(
@@ -344,14 +344,14 @@ impl TextRenderer {
     }
 
     /// 按对齐方式绘制单行文本
-    /// 
+    ///
     /// # 参数
     /// - `display`: 显示目标
     /// - `text`: 要绘制的文本
     /// - `start_baseline_x`: 起始基线X坐标
     /// - `max_width`: 最大宽度
     /// - `alignment`: 对齐方式
-    /// 
+    ///
     /// # 返回值
     /// 返回绘制结果
     fn draw_line_with_alignment<D>(
@@ -391,10 +391,10 @@ impl TextRenderer {
     }
 
     /// 计算文本的总宽度
-    /// 
+    ///
     /// # 参数
     /// - `text`: 要计算宽度的文本
-    /// 
+    ///
     /// # 返回值
     /// 返回文本的总宽度（像素）
     pub fn calculate_text_width(&self, text: &str) -> i32 {
@@ -412,7 +412,7 @@ impl TextRenderer {
     }
 
     /// 获取默认字符宽度（用于缺失字符）
-    /// 
+    ///
     /// # 返回值
     /// 返回默认字符宽度（像素）
     fn get_default_char_width(&self) -> i32 {
@@ -431,12 +431,12 @@ impl TextRenderer {
     }
 
     /// 渲染右对齐文本（单行）
-    /// 
+    ///
     /// # 参数
     /// - `display`: 显示目标
     /// - `text`: 要绘制的文本
     /// - `right_baseline_x`: 右对齐的基线X坐标
-    /// 
+    ///
     /// # 返回值
     /// 返回绘制结果
     pub fn draw_text_right<D>(
@@ -460,12 +460,12 @@ impl TextRenderer {
     }
 
     /// 渲染居中对齐文本（单行）
-    /// 
+    ///
     /// # 参数
     /// - `display`: 显示目标
     /// - `text`: 要绘制的文本
     /// - `center_baseline_x`: 居中对齐的基线X坐标
-    /// 
+    ///
     /// # 返回值
     /// 返回绘制结果
     pub fn draw_text_centered<D>(
@@ -489,11 +489,11 @@ impl TextRenderer {
     }
 
     /// 计算文本总高度（多行）
-    /// 
+    ///
     /// # 参数
     /// - `text`: 要计算高度的文本
     /// - `max_width`: 最大宽度（用于计算换行）
-    /// 
+    ///
     /// # 返回值
     /// 返回文本的总高度（像素）
     pub fn calculate_text_height(&self, text: &str, max_width: i32) -> u32 {
@@ -524,11 +524,11 @@ impl TextRenderer {
     }
 
     /// 绘制文本并自动换行（单行）
-    /// 
+    ///
     /// # 参数
     /// - `display`: 显示目标
     /// - `text`: 要绘制的文本
-    /// 
+    ///
     /// # 返回值
     /// 返回绘制结果
     pub fn draw_text<D>(&mut self, display: &mut D, text: &str) -> Result<(), D::Error>
@@ -541,7 +541,7 @@ impl TextRenderer {
     }
 
     /// 移动到指定基线位置
-    /// 
+    ///
     /// # 参数
     /// - `baseline_position`: 目标基线位置
     pub fn move_to(&mut self, baseline_position: Point) {
@@ -550,7 +550,7 @@ impl TextRenderer {
     }
 
     /// 获取当前基线位置
-    /// 
+    ///
     /// # 返回值
     /// 返回当前基线位置
     pub fn current_baseline_position(&self) -> Point {
@@ -558,7 +558,7 @@ impl TextRenderer {
     }
 
     /// 设置字符间距（可选配置）
-    /// 
+    ///
     /// # 参数
     /// - `spacing`: 字符间距（像素）
     pub fn set_char_spacing(&mut self, spacing: i32) {
@@ -566,7 +566,7 @@ impl TextRenderer {
     }
 
     /// 获取当前行高
-    /// 
+    ///
     /// # 返回值
     /// 返回当前行高（像素）
     pub fn get_line_height(&self) -> u32 {
@@ -574,7 +574,7 @@ impl TextRenderer {
     }
 
     /// 设置行高（可选配置）
-    /// 
+    ///
     /// # 参数
     /// - `height`: 行高（像素）
     pub fn set_line_height(&mut self, height: u32) {
@@ -582,7 +582,7 @@ impl TextRenderer {
     }
 
     /// 获取当前字体尺寸
-    /// 
+    ///
     /// # 返回值
     /// 返回当前字体尺寸
     pub fn get_font_size(&self) -> FontSize {

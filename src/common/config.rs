@@ -1,6 +1,6 @@
 // src/common/config.rs
 //! 系统配置定义模块
-//! 
+//!
 //! 本模块提供：
 //! - 系统配置结构体定义
 //! - WiFi加密类型枚举
@@ -15,7 +15,7 @@ pub const CONFIG_MAGIC: u32 = 0x434F4E46; // "CONF" 的 ASCII
 pub const MAX_CONFIG_SIZE: usize = 512;
 
 /// WiFi 加密类型
-/// 
+///
 /// # 变体说明
 /// - `None`: 无加密
 /// - `WEP`: WEP加密
@@ -39,9 +39,9 @@ impl Default for WifiEncryption {
 }
 
 /// 系统配置结构体
-/// 
+///
 /// 使用固定长度的字符串以避免动态内存分配
-/// 
+///
 /// # 字段说明
 /// - `wifi_ssid`: WiFi SSID（最多32字符）
 /// - `wifi_password`: WiFi密码（最多64字符）
@@ -79,7 +79,7 @@ pub struct SystemConfig {
 
 impl Default for SystemConfig {
     /// 创建默认系统配置
-    /// 
+    ///
     /// # 返回值
     /// 返回默认配置实例
     fn default() -> Self {
@@ -99,7 +99,7 @@ impl Default for SystemConfig {
 }
 
 /// 获取默认配置版本号
-/// 
+///
 /// # 返回值
 /// 返回当前配置版本号
 pub fn default_config_version() -> u32 {

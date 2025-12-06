@@ -1,7 +1,7 @@
 // src/driver/time_source/linux.rs
 
 //! Linux平台时间源驱动实现
-//! 
+//!
 //! 提供Linux平台的模拟RTC时间功能，使用原子操作实现线程安全的时间管理
 
 use core::sync::atomic::AtomicU64;
@@ -16,7 +16,7 @@ use crate::common::error::{AppError, Result};
 use crate::driver::time_source::TimeSource;
 
 /// 模拟器RTC时间源结构体
-/// 
+///
 /// 模拟ESP32的RTC行为，使用原子操作实现线程安全的时间管理
 #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
 pub struct SimulatedRtc {
@@ -29,7 +29,7 @@ pub struct SimulatedRtc {
 #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
 impl SimulatedRtc {
     /// 创建新的模拟RTC时间源实例
-    /// 
+    ///
     /// # 返回值
     /// - `Self`: 时间源实例
     pub fn new() -> Self {
@@ -45,7 +45,7 @@ impl SimulatedRtc {
 #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
 impl TimeSource for SimulatedRtc {
     /// 获取当前时间
-    /// 
+    ///
     /// # 返回值
     /// - `Result<Timestamp>`: 当前时间戳或错误
     fn get_time(&self) -> Result<Timestamp> {
@@ -58,10 +58,10 @@ impl TimeSource for SimulatedRtc {
     }
 
     /// 设置新时间
-    /// 
+    ///
     /// # 参数
     /// - `new_time`: 新的时间戳
-    /// 
+    ///
     /// # 返回值
     /// - `Result<()>`: 设置结果
     fn set_time(&mut self, new_time: Timestamp) -> Result<()> {

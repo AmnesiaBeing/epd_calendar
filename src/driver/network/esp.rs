@@ -1,7 +1,7 @@
 // src/driver/network/esp.rs
 
 //! ESP32平台网络驱动实现
-//! 
+//!
 //! 提供ESP32平台的WiFi网络连接功能，基于esp-radio库实现
 
 use embassy_executor::Spawner;
@@ -21,7 +21,7 @@ use crate::driver::network::NetworkDriver;
 static ESP_RADIO_CTRL: StaticCell<Controller> = StaticCell::new();
 
 /// 网络任务异步函数
-/// 
+///
 /// # 参数
 /// - `runner`: 网络栈运行器
 #[embassy_executor::task]
@@ -30,7 +30,7 @@ async fn net_task(mut runner: embassy_net::Runner<'static, WifiDevice<'static>>)
 }
 
 /// ESP32网络驱动结构体
-/// 
+///
 /// 管理ESP32平台的WiFi连接和网络栈
 pub struct EspNetworkDriver {
     /// WiFi控制器实例
@@ -45,10 +45,10 @@ pub struct EspNetworkDriver {
 
 impl EspNetworkDriver {
     /// 创建新的ESP32网络驱动实例
-    /// 
+    ///
     /// # 参数
     /// - `peripherals`: ESP32硬件外设
-    /// 
+    ///
     /// # 返回值
     /// - `Result<Self>`: 驱动实例或错误
     pub fn new(peripherals: &Peripherals) -> Result<Self> {
@@ -82,10 +82,10 @@ const WIFI_PASSWORD: &str = "WIFI_PASSWORD";
 
 impl NetworkDriver for EspNetworkDriver {
     /// 初始化网络栈
-    /// 
+    ///
     /// # 参数
     /// - `spawner`: 异步任务生成器
-    /// 
+    ///
     /// # 返回值
     /// - `Result<()>`: 初始化结果
     async fn initialize(&mut self, spawner: &Spawner) -> Result<()> {
@@ -123,7 +123,7 @@ impl NetworkDriver for EspNetworkDriver {
     }
 
     /// 建立WiFi连接
-    /// 
+    ///
     /// # 返回值
     /// - `Result<()>`: 连接结果
     async fn connect(&mut self) -> Result<()> {
@@ -179,7 +179,7 @@ impl NetworkDriver for EspNetworkDriver {
     }
 
     /// 检查网络连接状态
-    /// 
+    ///
     /// # 返回值
     /// - `bool`: 是否已连接
     fn is_connected(&self) -> bool {
@@ -187,7 +187,7 @@ impl NetworkDriver for EspNetworkDriver {
     }
 
     /// 获取网络栈实例
-    /// 
+    ///
     /// # 返回值
     /// - `Option<&Stack>`: 网络栈引用
     fn get_stack(&self) -> Option<&Stack> {

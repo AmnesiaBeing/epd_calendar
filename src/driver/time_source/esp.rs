@@ -1,7 +1,7 @@
 // src/driver/time_source/esp.rs
 
 //! ESP32平台时间源驱动实现
-//! 
+//!
 //! 提供ESP32平台的硬件RTC时间功能，基于esp-hal库实现
 
 #[cfg(feature = "embedded_esp")]
@@ -13,7 +13,7 @@ use crate::common::error::{AppError, Result};
 use crate::driver::time_source::TimeSource;
 
 /// ESP32 RTC时间源结构体
-/// 
+///
 /// 使用ESP32硬件RTC提供系统时间功能
 #[cfg(feature = "embedded_esp")]
 pub struct RtcTimeSource {
@@ -26,10 +26,10 @@ pub struct RtcTimeSource {
 #[cfg(feature = "embedded_esp")]
 impl RtcTimeSource {
     /// 创建新的ESP32 RTC时间源实例
-    /// 
+    ///
     /// # 参数
     /// - `peripherals`: ESP32硬件外设
-    /// 
+    ///
     /// # 返回值
     /// - `Self`: 时间源实例
     pub fn new(peripherals: &Peripherals) -> Self {
@@ -47,7 +47,7 @@ impl RtcTimeSource {
 #[cfg(feature = "embedded_esp")]
 impl TimeSource for RtcTimeSource {
     /// 获取当前时间
-    /// 
+    ///
     /// # 返回值
     /// - `Result<Timestamp>`: 当前时间戳或错误
     fn get_time(&self) -> Result<Timestamp> {
@@ -59,10 +59,10 @@ impl TimeSource for RtcTimeSource {
     }
 
     /// 设置新时间
-    /// 
+    ///
     /// # 参数
     /// - `new_time`: 新的时间戳
-    /// 
+    ///
     /// # 返回值
     /// - `Result<()>`: 设置结果
     fn set_time(&mut self, new_time: Timestamp) -> Result<()> {

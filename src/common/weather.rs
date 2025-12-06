@@ -1,14 +1,13 @@
 // src/common/weather.rs
 
 /// 天气数据模块
-/// 
+///
 /// 本模块定义了与天气数据相关的结构体和枚举，支持与和风天气API的集成
 /// 包含天气状态码、风向、天气图标、天气预报等数据结构的定义和反序列化实现
-
 use serde::Deserialize;
 
 /// 和风天气API状态码枚举
-/// 
+///
 /// 表示和风天气API返回的状态码类型
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum QWeatherStatusCode {
@@ -23,12 +22,12 @@ pub enum QWeatherStatusCode {
 // 为 QWeatherStatusCode 实现自定义反序列化
 impl<'de> serde::Deserialize<'de> for QWeatherStatusCode {
     /// 从字符串反序列化QWeatherStatusCode
-    /// 
+    ///
     /// 根据和风天气API的状态码字符串转换为对应的枚举值
-    /// 
+    ///
     /// # 参数
     /// - `deserializer`: 反序列化器
-    /// 
+    ///
     /// # 返回值
     /// - `Result<Self, D::Error>`: 反序列化结果
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
@@ -55,7 +54,7 @@ impl<'de> serde::Deserialize<'de> for QWeatherStatusCode {
 }
 
 /// 和风天气API响应根结构
-/// 
+///
 /// 对应和风天气API的每日天气预报响应格式
 /// 参考：https://dev.qweather.com/docs/api/weather/weather-daily-forecast/
 #[derive(Debug, Deserialize)]
@@ -70,47 +69,47 @@ pub struct QWeatherResponse {
 }
 
 /// 风向枚举 - 适配和风天气API
-/// 
+///
 /// 表示和风天气API支持的所有风向类型
 /// 参考：https://dev.qweather.com/docs/resource/wind-info/#wind-direction
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub enum WindDirection {
     /// 北风 N 0 348.75-11.25
-    North,          // 北风 N 0 348.75-11.25
+    North, // 北风 N 0 348.75-11.25
     /// 东北偏北风 NNE 22.5 11.25-33.75
     NorthNortheast, // 东北偏北风 NNE 22.5 11.25-33.75
     /// 东北风 NE 45 33.75-56.25
-    Northeast,      // 东北风 NE 45 33.75-56.25
+    Northeast, // 东北风 NE 45 33.75-56.25
     /// 东北偏东风 ENE 67.5 56.25-78.75
-    EastNortheast,  // 东北偏东风 ENE 67.5 56.25-78.75
+    EastNortheast, // 东北偏东风 ENE 67.5 56.25-78.75
     /// 东风 E 90 78.75-101.25
-    East,           // 东风 E 90 78.75-101.25
+    East, // 东风 E 90 78.75-101.25
     /// 东南偏东风 ESE 112.5 101.25-123.75
-    EastSoutheast,  // 东南偏东风 ESE 112.5 101.25-123.75
+    EastSoutheast, // 东南偏东风 ESE 112.5 101.25-123.75
     /// 东南风 SE 135 123.75-146.25
-    Southeast,      // 东南风 SE 135 123.75-146.25
+    Southeast, // 东南风 SE 135 123.75-146.25
     /// 东南偏南风 SSE 157.5 146.25-168.75
     SouthSoutheast, // 东南偏南风 SSE 157.5 146.25-168.75
     /// 南风 S 180 168.75-191.25
-    South,          // 南风 S 180 168.75-191.25
+    South, // 南风 S 180 168.75-191.25
     /// 西南偏南风 SSW 202.5 191.25-213.75
     SouthSouthwest, // 西南偏南风 SSW 202.5 191.25-213.75
     /// 西南风 SW 225 213.75-236.25
-    Southwest,      // 西南风 SW 225 213.75-236.25
+    Southwest, // 西南风 SW 225 213.75-236.25
     /// 西南偏西风 WSW 247.5 236.25-258.75
-    WestSouthwest,  // 西南偏西风 WSW 247.5 236.25-258.75
+    WestSouthwest, // 西南偏西风 WSW 247.5 236.25-258.75
     /// 西风 W 270 258.75-281.25
-    West,           // 西风 W 270 258.75-281.25
+    West, // 西风 W 270 258.75-281.25
     /// 西北偏西风 WNW 292.5 281.25-303.75
-    WestNorthwest,  // 西北偏西风 WNW 292.5 281.25-303.75
+    WestNorthwest, // 西北偏西风 WNW 292.5 281.25-303.75
     /// 西北风 NW 315 303.75-326.25
-    Northwest,      // 西北风 NW 315 303.75-326.25
+    Northwest, // 西北风 NW 315 303.75-326.25
     /// 西北偏北风 NNW 337.5 326.25-348.75
     NorthNorthwest, // 西北偏北风 NNW 337.5 326.25-348.75
     /// 旋转风 Rotational -999 -
-    Rotational,     // 旋转风 Rotational -999 -
+    Rotational, // 旋转风 Rotational -999 -
     /// 无持续风向 None -1 -
-    None,           // 无持续风向 None -1 -
+    None, // 无持续风向 None -1 -
     /// 未知风向
     #[default]
     Unknown, // 未知风向
@@ -119,12 +118,12 @@ pub enum WindDirection {
 // 为 WindDirection 实现自定义反序列化
 impl<'de> serde::Deserialize<'de> for WindDirection {
     /// 从字符串反序列化WindDirection
-    /// 
+    ///
     /// 支持中文风向名称和英文风向代码的转换
-    /// 
+    ///
     /// # 参数
     /// - `deserializer`: 反序列化器
-    /// 
+    ///
     /// # 返回值
     /// - `Result<Self, D::Error>`: 反序列化结果
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
@@ -182,142 +181,142 @@ impl<'de> serde::Deserialize<'de> for WindDirection {
 }
 
 /// 天气图标枚举 - 适配和风天气API
-/// 
+///
 /// 表示和风天气API支持的所有天气图标类型
 /// 参考：https://dev.qweather.com/docs/resource/icons/
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum WeatherIcon {
     // 晴天
     /// 100 晴（白天）
-    ClearDay,   // 100 晴（白天）
+    ClearDay, // 100 晴（白天）
     /// 150 晴（夜间）
     ClearNight, // 150 晴（夜间）
 
     // 多云
     /// 101 多云（白天）
-    CloudyDay,         // 101 多云（白天）
+    CloudyDay, // 101 多云（白天）
     /// 151 多云（夜间）
-    CloudyNight,       // 151 多云（夜间）
+    CloudyNight, // 151 多云（夜间）
     /// 102 少云（白天）
-    FewCloudsDay,      // 102 少云（白天）
+    FewCloudsDay, // 102 少云（白天）
     /// 152 少云（夜间）
-    FewCloudsNight,    // 152 少云（夜间）
+    FewCloudsNight, // 152 少云（夜间）
     /// 103 晴间多云（白天）
-    PartlyCloudyDay,   // 103 晴间多云（白天）
+    PartlyCloudyDay, // 103 晴间多云（白天）
     /// 153 晴间多云（夜间）
     PartlyCloudyNight, // 153 晴间多云（夜间）
     /// 104 阴（白天/夜间）
-    Overcast,          // 104 阴（白天/夜间）
+    Overcast, // 104 阴（白天/夜间）
 
     // 雨
     /// 300 阵雨（白天）
-    ShowerDay,               // 300 阵雨（白天）
+    ShowerDay, // 300 阵雨（白天）
     /// 350 阵雨（夜间）
-    ShowerNight,             // 350 阵雨（夜间）
+    ShowerNight, // 350 阵雨（夜间）
     /// 301 强阵雨（白天）
-    HeavyShowerDay,          // 301 强阵雨（白天）
+    HeavyShowerDay, // 301 强阵雨（白天）
     /// 351 强阵雨（夜间）
-    HeavyShowerNight,        // 351 强阵雨（夜间）
+    HeavyShowerNight, // 351 强阵雨（夜间）
     /// 302 雷阵雨（白天/夜间）
-    Thunderstorm,            // 302 雷阵雨（白天/夜间）
+    Thunderstorm, // 302 雷阵雨（白天/夜间）
     /// 303 强雷阵雨（白天/夜间）
-    HeavyThunderstorm,       // 303 强雷阵雨（白天/夜间）
+    HeavyThunderstorm, // 303 强雷阵雨（白天/夜间）
     /// 304 雷阵雨伴有冰雹（白天/夜间）
-    ThunderstormWithHail,    // 304 雷阵雨伴有冰雹（白天/夜间）
+    ThunderstormWithHail, // 304 雷阵雨伴有冰雹（白天/夜间）
     /// 305 小雨（白天/夜间）
-    LightRain,               // 305 小雨（白天/夜间）
+    LightRain, // 305 小雨（白天/夜间）
     /// 306 中雨（白天/夜间）
-    ModerateRain,            // 306 中雨（白天/夜间）
+    ModerateRain, // 306 中雨（白天/夜间）
     /// 307 大雨（白天/夜间）
-    HeavyRain,               // 307 大雨（白天/夜间）
+    HeavyRain, // 307 大雨（白天/夜间）
     /// 308 极端降雨（白天/夜间）
-    ExtremeRain,             // 308 极端降雨（白天/夜间）
+    ExtremeRain, // 308 极端降雨（白天/夜间）
     /// 309 毛毛雨/细雨（白天/夜间）
-    Drizzle,                 // 309 毛毛雨/细雨（白天/夜间）
+    Drizzle, // 309 毛毛雨/细雨（白天/夜间）
     /// 310 暴雨（白天/夜间）
-    Storm,                   // 310 暴雨（白天/夜间）
+    Storm, // 310 暴雨（白天/夜间）
     /// 311 大暴雨（白天/夜间）
-    HeavyStorm,              // 311 大暴雨（白天/夜间）
+    HeavyStorm, // 311 大暴雨（白天/夜间）
     /// 312 特大暴雨（白天/夜间）
-    SevereStorm,             // 312 特大暴雨（白天/夜间）
+    SevereStorm, // 312 特大暴雨（白天/夜间）
     /// 313 冻雨（白天/夜间）
-    FreezingRain,            // 313 冻雨（白天/夜间）
+    FreezingRain, // 313 冻雨（白天/夜间）
     /// 314 小到中雨（白天/夜间）
-    LightToModerateRain,     // 314 小到中雨（白天/夜间）
+    LightToModerateRain, // 314 小到中雨（白天/夜间）
     /// 315 中到大雨（白天/夜间）
-    ModerateToHeavyRain,     // 315 中到大雨（白天/夜间）
+    ModerateToHeavyRain, // 315 中到大雨（白天/夜间）
     /// 316 大到暴雨（白天/夜间）
-    HeavyToStorm,            // 316 大到暴雨（白天/夜间）
+    HeavyToStorm, // 316 大到暴雨（白天/夜间）
     /// 317 暴雨到大暴雨（白天/夜间）
-    StormToHeavyStorm,       // 317 暴雨到大暴雨（白天/夜间）
+    StormToHeavyStorm, // 317 暴雨到大暴雨（白天/夜间）
     /// 318 大暴雨到特大暴雨（白天/夜间）
     HeavyStormToSevereStorm, // 318 大暴雨到特大暴雨（白天/夜间）
     /// 399 雨（白天/夜间）
-    Rain,                    // 399 雨（白天/夜间）
+    Rain, // 399 雨（白天/夜间）
 
     // 雪
     /// 400 小雪（白天/夜间）
-    LightSnow,           // 400 小雪（白天/夜间）
+    LightSnow, // 400 小雪（白天/夜间）
     /// 401 中雪（白天/夜间）
-    ModerateSnow,        // 401 中雪（白天/夜间）
+    ModerateSnow, // 401 中雪（白天/夜间）
     /// 402 大雪（白天/夜间）
-    HeavySnow,           // 402 大雪（白天/夜间）
+    HeavySnow, // 402 大雪（白天/夜间）
     /// 403 暴雪（白天/夜间）
-    SnowStorm,           // 403 暴雪（白天/夜间）
+    SnowStorm, // 403 暴雪（白天/夜间）
     /// 404 雨夹雪（白天/夜间）
-    Sleet,               // 404 雨夹雪（白天/夜间）
+    Sleet, // 404 雨夹雪（白天/夜间）
     /// 405 雨雪天气（白天/夜间）
-    RainAndSnow,         // 405 雨雪天气（白天/夜间）
+    RainAndSnow, // 405 雨雪天气（白天/夜间）
     /// 406 阵雨夹雪（白天）
-    ShowerWithSnowDay,   // 406 阵雨夹雪（白天）
+    ShowerWithSnowDay, // 406 阵雨夹雪（白天）
     /// 456 阵雨夹雪（夜间）
     ShowerWithSnowNight, // 456 阵雨夹雪（夜间）
     /// 407 阵雪（白天）
-    SnowShowerDay,       // 407 阵雪（白天）
+    SnowShowerDay, // 407 阵雪（白天）
     /// 457 阵雪（夜间）
-    SnowShowerNight,     // 457 阵雪（夜间）
+    SnowShowerNight, // 457 阵雪（夜间）
     /// 408 小到中雪（白天/夜间）
     LightToModerateSnow, // 408 小到中雪（白天/夜间）
     /// 409 中到大雪（白天/夜间）
     ModerateToHeavySnow, // 409 中到大雪（白天/夜间）
     /// 410 大到暴雪（白天/夜间）
-    HeavySnowToStorm,    // 410 大到暴雪（白天/夜间）
+    HeavySnowToStorm, // 410 大到暴雪（白天/夜间）
     /// 499 雪（白天/夜间）
-    Snow,                // 499 雪（白天/夜间）
+    Snow, // 499 雪（白天/夜间）
 
     // 雾/霾/沙尘
     /// 500 薄雾（白天/夜间）
-    Mist,              // 500 薄雾（白天/夜间）
+    Mist, // 500 薄雾（白天/夜间）
     /// 501 雾（白天/夜间）
-    Fog,               // 501 雾（白天/夜间）
+    Fog, // 501 雾（白天/夜间）
     /// 502 霾（白天/夜间）
-    Haze,              // 502 霾（白天/夜间）
+    Haze, // 502 霾（白天/夜间）
     /// 503 扬沙（白天/夜间）
-    DustBlowing,       // 503 扬沙（白天/夜间）
+    DustBlowing, // 503 扬沙（白天/夜间）
     /// 504 浮尘（白天/夜间）
-    Dust,              // 504 浮尘（白天/夜间）
+    Dust, // 504 浮尘（白天/夜间）
     /// 507 沙尘暴（白天/夜间）
-    Sandstorm,         // 507 沙尘暴（白天/夜间）
+    Sandstorm, // 507 沙尘暴（白天/夜间）
     /// 508 强沙尘暴（白天/夜间）
-    SevereSandstorm,   // 508 强沙尘暴（白天/夜间）
+    SevereSandstorm, // 508 强沙尘暴（白天/夜间）
     /// 509 浓雾（白天/夜间）
-    DenseFog,          // 509 浓雾（白天/夜间）
+    DenseFog, // 509 浓雾（白天/夜间）
     /// 510 强浓雾（白天/夜间）
-    VeryDenseFog,      // 510 强浓雾（白天/夜间）
+    VeryDenseFog, // 510 强浓雾（白天/夜间）
     /// 511 中度霾（白天/夜间）
-    ModerateHaze,      // 511 中度霾（白天/夜间）
+    ModerateHaze, // 511 中度霾（白天/夜间）
     /// 512 重度霾（白天/夜间）
-    HeavyHaze,         // 512 重度霾（白天/夜间）
+    HeavyHaze, // 512 重度霾（白天/夜间）
     /// 513 严重霾（白天/夜间）
-    SevereHaze,        // 513 严重霾（白天/夜间）
+    SevereHaze, // 513 严重霾（白天/夜间）
     /// 514 大雾（白天/夜间）
-    ThickFog,          // 514 大雾（白天/夜间）
+    ThickFog, // 514 大雾（白天/夜间）
     /// 515 特强浓雾（白天/夜间）
     ExtremelyDenseFog, // 515 特强浓雾（白天/夜间）
 
     // 其他
     /// 900 热（白天/夜间）
-    Hot,  // 900 热（白天/夜间）
+    Hot, // 900 热（白天/夜间）
     /// 901 冷（白天/夜间）
     Cold, // 901 冷（白天/夜间）
 
@@ -329,12 +328,12 @@ pub enum WeatherIcon {
 // 为 WeatherIcon 实现自定义反序列化
 impl<'de> serde::Deserialize<'de> for WeatherIcon {
     /// 从字符串反序列化WeatherIcon
-    /// 
+    ///
     /// 根据和风天气API的图标代码转换为对应的枚举值
-    /// 
+    ///
     /// # 参数
     /// - `deserializer`: 反序列化器
-    /// 
+    ///
     /// # 返回值
     /// - `Result<Self, D::Error>`: 反序列化结果
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
@@ -414,7 +413,7 @@ impl<'de> serde::Deserialize<'de> for WeatherIcon {
 // 为 WeatherIcon 实现 Default 特性
 impl Default for WeatherIcon {
     /// 提供WeatherIcon的默认实现
-    /// 
+    ///
     /// 返回Unknown作为默认值
     fn default() -> Self {
         WeatherIcon::Unknown
@@ -422,7 +421,7 @@ impl Default for WeatherIcon {
 }
 
 /// 单天天气预报结构体
-/// 
+///
 /// 表示一天的天气预报数据，包含温度、天气描述、风向等信息
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct DailyWeather {
@@ -463,12 +462,12 @@ pub struct DailyWeather {
 }
 
 /// 辅助函数：从字符串反序列化数字
-/// 
+///
 /// 用于处理API返回的字符串格式数字
-/// 
+///
 /// # 参数
 /// - `deserializer`: 反序列化器
-/// 
+///
 /// # 返回值
 /// - `Result<T, D::Error>`: 反序列化结果
 fn deserialize_number_from_string<'de, D, T>(deserializer: D) -> Result<T, D::Error>
@@ -482,12 +481,12 @@ where
 }
 
 /// 辅助函数：从字符串反序列化浮点数
-/// 
+///
 /// 用于处理API返回的字符串格式浮点数
-/// 
+///
 /// # 参数
 /// - `deserializer`: 反序列化器
-/// 
+///
 /// # 返回值
 /// - `Result<f32, D::Error>`: 反序列化结果
 fn deserialize_float_from_string<'de, D>(deserializer: D) -> Result<f32, D::Error>
@@ -500,12 +499,12 @@ where
 }
 
 /// 辅助函数：从字符串反序列化可选数字
-/// 
+///
 /// 用于处理API返回的可选字符串格式数字
-/// 
+///
 /// # 参数
 /// - `deserializer`: 反序列化器
-/// 
+///
 /// # 返回值
 /// - `Result<Option<T>, D::Error>`: 反序列化结果
 fn deserialize_optional_number_from_string<'de, D, T>(

@@ -1,7 +1,7 @@
 // src/service/time_service.rs
 
 //! 时间服务模块 - 提供系统时间获取和格式化功能
-//! 
+//!
 //! 该模块从时间源驱动获取当前时间，并转换为适合显示的格式。
 
 use jiff::civil::DateTime;
@@ -20,10 +20,10 @@ pub struct TimeService {
 
 impl TimeService {
     /// 创建新的时间服务实例
-    /// 
+    ///
     /// # 参数
     /// - `time_source`: 时间源驱动实例
-    /// 
+    ///
     /// # 返回值
     /// 返回新的TimeService实例
     pub fn new(time_source: &'static GlobalMutex<DefaultTimeSource>) -> Self {
@@ -31,7 +31,7 @@ impl TimeService {
     }
 
     /// 获取当前时间数据
-    /// 
+    ///
     /// # 返回值
     /// - `Result<TimeData>`: 成功返回时间数据，失败返回错误
     pub async fn get_current_time(&self) -> Result<TimeData> {

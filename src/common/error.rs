@@ -1,14 +1,13 @@
 // src/common/error.rs
 
 /// 应用程序错误定义模块
-/// 
+///
 /// 本模块定义了EPD日历系统中所有可能的错误类型，使用thiserror库进行错误处理
 /// 错误类型按功能模块分类，便于错误定位和处理
-
 use thiserror::Error;
 
 /// 应用程序错误枚举
-/// 
+///
 /// 定义了EPD日历系统中所有可能出现的错误类型，按功能模块分类
 #[derive(Error, Debug, Clone)]
 pub enum AppError {
@@ -108,6 +107,6 @@ pub enum AppError {
 }
 
 /// 应用程序结果类型别名
-/// 
+///
 /// 简化错误处理，使用AppError作为错误类型
 pub type Result<T> = core::result::Result<T, AppError>;

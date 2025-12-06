@@ -1,7 +1,7 @@
 // src/tasks/weather_task.rs
 
 //! 天气任务模块 - 定时获取和更新天气数据
-//! 
+//!
 //! 该模块定时从天气服务获取天气数据，并发送更新事件到显示任务。
 
 use embassy_time::{Duration, Ticker};

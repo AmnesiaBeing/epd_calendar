@@ -1,0 +1,20 @@
+# 时间组件内部布局（被 main.yaml 的 time_date_area 引用）
+type: container
+id: time_component
+padding: [0, 0, 10, 0]
+children:
+  # 时间文本（大号字体，居中）
+  - id: time_text
+    type: text
+    font: Large
+    align_h: Center
+    align_v: Center
+    value: "{{time}}" # 动态变量：14:35:20
+
+  # 日期文本（中号字体，时间下方居中）
+  - id: date_text
+    type: text
+    font: Medium
+    align_h: Center
+    align_v: Top
+    value: "{{date}} {{week}}" # 动态变量：2025-12-06 周六

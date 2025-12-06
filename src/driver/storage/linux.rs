@@ -1,7 +1,7 @@
 // src/driver/storage/linux.rs
 
 //! Linux平台存储驱动实现
-//! 
+//!
 //! 提供Linux平台的文件存储功能，使用文件系统进行配置数据持久化
 
 use crate::common::error::{AppError, Result};
@@ -10,7 +10,7 @@ use std::fs;
 use std::path::Path;
 
 /// Linux模拟器配置存储结构体
-/// 
+///
 /// 管理Linux平台的文件存储，使用文件系统进行配置数据持久化
 pub struct FileConfigStorage {
     /// 配置文件路径
@@ -21,11 +21,11 @@ pub struct FileConfigStorage {
 
 impl FileConfigStorage {
     /// 创建新的Linux配置存储实例
-    /// 
+    ///
     /// # 参数
     /// - `file_path`: 配置文件路径
     /// - `config_size`: 配置数据块大小
-    /// 
+    ///
     /// # 返回值
     /// - `Result<Self>`: 存储实例或错误
     pub fn new(file_path: &str, config_size: usize) -> Result<Self> {
@@ -38,7 +38,7 @@ impl FileConfigStorage {
 
 impl ConfigStorage for FileConfigStorage {
     /// 读取配置数据块
-    /// 
+    ///
     /// # 返回值
     /// - `Result<Option<Vec<u8>>>`: 配置数据或None（文件不存在）
     fn read_config_block(&mut self) -> Result<Option<Vec<u8>>> {
@@ -62,10 +62,10 @@ impl ConfigStorage for FileConfigStorage {
     }
 
     /// 写入配置数据块
-    /// 
+    ///
     /// # 参数
     /// - `data`: 要写入的配置数据
-    /// 
+    ///
     /// # 返回值
     /// - `Result<()>`: 写入结果
     fn write_config_block(&mut self, data: &[u8]) -> Result<()> {
@@ -80,7 +80,7 @@ impl ConfigStorage for FileConfigStorage {
     }
 
     /// 擦除配置存储区域
-    /// 
+    ///
     /// # 返回值
     /// - `Result<()>`: 擦除结果
     fn erase_config(&mut self) -> Result<()> {

@@ -1,10 +1,9 @@
 // src/driver/ntp_source.rs
 
 /// NTP时间源模块
-/// 
+///
 /// 本模块实现了基于SNTP协议的网络时间同步功能
 /// 支持多个NTP服务器轮询，提高时间同步的可靠性
-
 use alloc::string::ToString;
 use core::net::{IpAddr, SocketAddr};
 use embassy_executor::Spawner;
@@ -35,7 +34,7 @@ const SNTP_SYNC_INTERVAL_SECONDS: u64 = 12 * 60 * 60;
 const SNTP_SYNC_INTERVAL_SECONDS: u64 = 60;
 
 /// SNTP后台任务
-/// 
+///
 /// 定期执行NTP时间同步，确保系统时间准确
 #[embassy_executor::task]
 async fn start_sntp_task(
@@ -64,11 +63,11 @@ async fn start_sntp_task(
 }
 
 /// 执行SNTP时间同步
-/// 
+///
 /// # 参数
 /// - `sntp_service`: SNTP服务实例
 /// - `time_source`: 时间源实例
-/// 
+///
 /// # 返回值
 /// - `Result<()>`: 同步结果
 async fn perform_sntp_sync(
@@ -82,7 +81,7 @@ async fn perform_sntp_sync(
 }
 
 /// NTP服务器列表
-/// 
+///
 /// 使用多个NTP服务器以提高时间同步的可靠性
 const NTP_SERVERS: &[&str] = &[
     "cn.ntp.org.cn",
@@ -97,7 +96,7 @@ const NTP_SERVERS: &[&str] = &[
 const NTP_PORT: u16 = 123;
 
 /// SNTP时间源服务
-/// 
+///
 /// 负责与NTP服务器通信，获取网络时间
 pub struct SntpService {
     /// 网络驱动实例
@@ -106,7 +105,7 @@ pub struct SntpService {
 
 impl SntpService {
     /// 初始化SNTP服务
-    /// 
+    ///
     /// # 参数
     /// - `spawner`: 任务生成器
     /// - `network_driver`: 网络驱动实例
@@ -123,10 +122,10 @@ impl SntpService {
     }
 
     /// 创建新的SNTP服务实例
-    /// 
+    ///
     /// # 参数
     /// - `network_driver`: 网络驱动实例
-    /// 
+    ///
     /// # 返回值
     /// - `SntpService`: 新的SNTP服务实例
     fn new(network_driver: &'static GlobalMutex<DefaultNetworkDriver>) -> Self {
@@ -134,7 +133,7 @@ impl SntpService {
     }
 
     /// 创建SNTP上下文
-    /// 
+    ///
     /// # 返回值
     /// - `NtpContext<EmbassyTimestampGenerator>`: SNTP上下文
     fn create_ntp_context(&self) -> NtpContext<EmbassyTimestampGenerator> {
@@ -144,9 +143,9 @@ impl SntpService {
     }
 
     /// 发送SNTP请求并获取时间
-    /// 
+    ///
     /// 轮询多个NTP服务器，直到获取到有效时间
-    /// 
+    ///
     /// # 返回值
     /// - `Result<Timestamp>`: 获取到的时间戳
     async fn request_time(&mut self) -> Result<Timestamp> {
@@ -241,7 +240,7 @@ impl SntpService {
 }
 
 /// 基于Embassy的时间戳生成器
-/// 
+///
 /// 为SNTP协议提供本地时间戳生成功能
 #[derive(Clone, Copy)]
 pub struct EmbassyTimestampGenerator {
@@ -251,7 +250,7 @@ pub struct EmbassyTimestampGenerator {
 
 impl EmbassyTimestampGenerator {
     /// 创建新的时间戳生成器
-    /// 
+    ///
     /// # 返回值
     /// - `EmbassyTimestampGenerator`: 新的时间戳生成器实例
     pub fn new() -> Self {
@@ -270,7 +269,7 @@ impl NtpTimestampGenerator for EmbassyTimestampGenerator {
     }
 
     /// 获取时间戳的秒部分
-    /// 
+    ///
     /// # 返回值
     /// - `u64`: 秒数
     fn timestamp_sec(&self) -> u64 {
@@ -283,7 +282,7 @@ impl NtpTimestampGenerator for EmbassyTimestampGenerator {
     }
 
     /// 获取时间戳的微秒部分
-    /// 
+    ///
     /// # 返回值
     /// - `u32`: 微秒数
     fn timestamp_subsec_micros(&self) -> u32 {

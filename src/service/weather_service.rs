@@ -1,7 +1,7 @@
 // src/service/weather_service.rs
 
 //! 天气服务模块 - 提供天气数据获取和解析功能
-//! 
+//!
 //! 该模块从和风天气API获取天气数据，并解析为系统可用的格式。
 
 use crate::common::GlobalMutex;
@@ -30,11 +30,11 @@ const API_KAY: &str = "";
 
 impl WeatherService {
     /// 创建新的天气服务实例
-    /// 
+    ///
     /// # 参数
     /// - `network_driver`: 网络驱动实例
     /// - `sensor_driver`: 传感器驱动实例
-    /// 
+    ///
     /// # 返回值
     /// 返回新的WeatherService实例
     pub fn new(
@@ -50,7 +50,7 @@ impl WeatherService {
     }
 
     /// 获取天气数据
-    /// 
+    ///
     /// # 返回值
     /// - `Result<WeatherData>`: 成功返回天气数据，失败返回错误
     pub async fn get_weather(&mut self) -> Result<WeatherData> {
@@ -75,7 +75,7 @@ impl WeatherService {
     }
 
     /// 从API获取天气数据
-    /// 
+    ///
     /// # 返回值
     /// - `Result<WeatherData>`: 成功返回天气数据，失败返回错误
     async fn fetch_weather_from_api(&self) -> Result<WeatherData> {
@@ -116,10 +116,10 @@ impl WeatherService {
     }
 
     /// 解析和风天气API的JSON响应
-    /// 
+    ///
     /// # 参数
     /// - `response`: API响应数据
-    /// 
+    ///
     /// # 返回值
     /// - `Result<WeatherData>`: 成功返回解析后的天气数据，失败返回错误
     fn parse_weather_response(&self, response: &[u8]) -> Result<WeatherData> {

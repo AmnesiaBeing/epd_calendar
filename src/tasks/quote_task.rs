@@ -1,7 +1,7 @@
 // src/tasks/quote_task.rs
 
 //! 名言任务模块 - 定时获取和更新名言数据
-//! 
+//!
 //! 该模块定时从名言服务获取随机名言，并发送更新事件到显示任务。
 
 use embassy_time::{Duration, Ticker};

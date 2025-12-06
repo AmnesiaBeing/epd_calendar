@@ -1,7 +1,7 @@
 // src/tasks/mod.rs
 
 //! 任务模块 - 定义系统异步任务和事件处理机制
-//! 
+//!
 //! 该模块包含显示任务、时间任务、天气任务、名言任务和状态任务等系统核心异步任务。
 
 pub mod display_task;
@@ -56,10 +56,10 @@ pub enum ComponentDataType {
 
 impl Debug for Hitokoto {
     /// 为Hitokoto结构体实现Debug trait
-    /// 
+    ///
     /// # 参数
     /// - `f`: 格式化器
-    /// 
+    ///
     /// # 返回值
     /// - `core::fmt::Result`: 格式化结果
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
