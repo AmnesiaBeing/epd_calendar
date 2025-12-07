@@ -1,4 +1,3 @@
-// src/service/config_manager.rs
 // src/service/config_service.rs
 
 //! 配置服务模块 - 处理系统配置的序列化、存储和验证

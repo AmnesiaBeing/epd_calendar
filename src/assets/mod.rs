@@ -1,6 +1,5 @@
-pub mod generated_battery_icons;
-pub mod generated_digit_icons;
+//! 资源导出模块
+//! 统一导出编译期生成的字体、图标、布局资源，提供资源映射辅助方法
+
 pub mod generated_fonts;
-pub mod generated_hitokoto_data;
-pub mod generated_network_icons;
-pub mod generated_weather_icons;
+pub mod generated_icons;

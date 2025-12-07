@@ -53,12 +53,8 @@ pub fn build(config: &BuildConfig, progress: &ProgressTracker) -> Result<()> {
         raw_charset.len()
     );
 
-    // 2. 定义字体尺寸配置
-    let font_size_configs = vec![
-        FontSizeConfig::new("Small", 16),  // 小号字体 16px
-        FontSizeConfig::new("Medium", 24), // 中号字体 24px
-        FontSizeConfig::new("Large", 40),  // 大号字体 40px
-    ];
+    // 2. 从构建配置中获取需要定义的字体尺寸
+    let font_size_configs = config.font_size_configs.clone();
 
     // 3. 渲染第一个字体，建立共享字符表（作为基准）
     progress.update_progress(1, font_size_configs.len() + 3, "渲染基准字体（Small）");

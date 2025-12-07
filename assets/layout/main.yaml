@@ -1,35 +1,55 @@
-# 根盒子：整个屏幕（800x480）
 type: container
-id: root
-rect: [0, 0, 800, 480] # x, y, width, height
-padding: [5, 5, 5, 5] # top, right, bottom, left
+id: main_container
+rect: [0, 0, 800, 480]
 children:
-  # 组件占位：状态区（电池+网络）
-  - id: status_area
-    type: container
-    rect: [700, 5, 90, 30] # 位置+尺寸
-    layout_ref: "components/status.yaml" # 引用组件细节配置
+  - type: text
+    id: title_text
+    position: [50, 50]
+    size: [200, 40]
+    content: "天气信息"
+    font_size: Large
 
-  # 组件占位：时间+日期区
-  - id: time_date_area
-    type: container
-    rect: [220, 5, 360, 128]
-    layout_ref: "components/time.yaml" # 引用组件细节配置
+  - type: text
+    id: temp_text
+    position: [50, 100]
+    size: [150, 30]
+    content: "温度: {{ temp }}°C"
+    font_size: Medium
 
-  # 组件占位：农历区
-  - id: lunar_area
-    type: container
-    rect: [0, 180, 240, 280]
-    layout_ref: "components/lunar.yaml" # 引用组件细节配置
+  - type: icon
+    id: weather_icon
+    position: [300, 50]
+    icon_id: sunny
+    importance: warning
 
-  # 组件占位：天气区
-  - id: weather_area
-    type: container
-    rect: [245, 135, 550, 200]
-    layout_ref: "components/weather.yaml" # 引用组件细节配置
+  - type: line
+    id: separator_line
+    start: [0, 200]
+    end: [800, 200]
+    thickness: 2
 
-  # 组件占位：格言区
-  - id: quote_area
-    type: container
-    rect: [0, 400, 800, 75]
-    layout_ref: "components/quote.yaml" # 引用组件细节配置
+  - type: rectangle
+    id: info_box
+    rect: [50, 220, 400, 100]
+    fill_importance: normal
+    stroke_importance: normal
+    stroke_thickness: 1
+
+  - type: container
+    id: inner_container
+    rect: [60, 230, 380, 80]
+    condition: "{{ show_details }}"
+    children:
+      - type: text
+        id: humidity_text
+        position: [0, 0]
+        size: [180, 25]
+        content: "湿度: {{ humidity }}%"
+        font_size: Small
+
+      - type: text
+        id: wind_text
+        position: [0, 30]
+        size: [180, 25]
+        content: "风速: {{ wind_speed }}m/s"
+        font_size: Small

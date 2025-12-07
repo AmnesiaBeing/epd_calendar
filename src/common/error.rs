@@ -98,6 +98,22 @@ pub enum AppError {
     #[error("Storage error")]
     StorageError,
 
+    // ===== 布局相关错误 =====
+    #[error("Layout deserialization failed")]
+    LayoutDeserialize,
+
+    #[error("Layout condition parse failed")]
+    LayoutConditionParse,
+
+    #[error("Layout placeholder not found")]
+    LayoutPlaceholderNotFound,
+
+    #[error("Invalid icon ID")]
+    InvalidIconId,
+
+    #[error("Render element failed")]
+    RenderElementFailed,
+
     // ===== 其他错误 =====
     #[error("Weather API error")]
     WeatherApiError,
