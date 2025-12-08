@@ -24,8 +24,8 @@ mod assets;
 mod common;
 mod driver;
 mod render;
-mod service;
 mod tasks;
+mod core;
 
 use crate::common::GlobalMutex;
 use crate::driver::display::DefaultDisplayDriver;

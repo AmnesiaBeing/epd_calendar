@@ -1,55 +1,275 @@
-type: container
-id: main_container
-rect: [0, 0, 800, 480]
-children:
-  - type: text
-    id: title_text
-    position: [50, 50]
-    size: [200, 40]
-    content: "天气信息"
-    font_size: Large
+# 主布局文件
+# 定义整个电子纸日历的布局结构
 
-  - type: text
-    id: temp_text
-    position: [50, 100]
-    size: [150, 30]
-    content: "温度: {{ temp }}°C"
-    font_size: Medium
-
-  - type: icon
-    id: weather_icon
-    position: [300, 50]
-    icon_id: sunny
-    importance: warning
-
-  - type: line
-    id: separator_line
-    start: [0, 200]
-    end: [800, 200]
-    thickness: 2
-
-  - type: rectangle
-    id: info_box
-    rect: [50, 220, 400, 100]
-    fill_importance: normal
-    stroke_importance: normal
-    stroke_thickness: 1
-
-  - type: container
-    id: inner_container
-    rect: [60, 230, 380, 80]
-    condition: "{{ show_details }}"
-    children:
-      - type: text
-        id: humidity_text
-        position: [0, 0]
-        size: [180, 25]
-        content: "湿度: {{ humidity }}%"
-        font_size: Small
-
-      - type: text
-        id: wind_text
-        position: [0, 30]
-        size: [180, 25]
-        content: "风速: {{ wind_speed }}m/s"
-        font_size: Small
+# 容器节点，作为所有其他元素的根容器
+container:
+  id: "root_container"
+  rect: [0, 0, 800, 480]
+  children:
+    # 时间显示区域
+    - container:
+        id: "time_container"
+        rect: [20, 20, 200, 100]
+        children:
+            # 时间显示
+            - text:
+                id: "time_display"
+                position: [0, 0]
+                size: [200, 60]
+                content: "{{time.hour}}:{{time.minute}}"
+                font_size: "large"
+                format: "time"
+                alignment: "center"
+            
+            # AM/PM显示
+            - text:
+                id: "am_pm_display"
+                position: [170, 0]
+                size: [30, 20]
+                content: "{{time.am_pm}}"
+                font_size: "small"
+                format: "plain"
+                alignment: "center"
+    
+    # 日期和农历显示区域
+    - container:
+        id: "date_lunar_container"
+        rect: [20, 130, 200, 120]
+        children:
+            # 公历日期显示
+            - text:
+                id: "date_display"
+                position: [0, 0]
+                size: [200, 30]
+                content: "{{date.day.year}}-{{date.day.month}}-{{date.day.day}}"
+                font_size: "medium"
+                format: "date"
+                alignment: "center"
+            
+            # 星期显示
+            - text:
+                id: "week_display"
+                position: [0, 35]
+                size: [200, 20]
+                content: "{{date.week}}"
+                font_size: "small"
+                format: "plain"
+                alignment: "center"
+            
+            # 农历年份显示
+            - text:
+                id: "lunar_year_display"
+                position: [0, 60]
+                size: [200, 20]
+                content: "农历{{lunar.ganzhi}}{{lunar.zodiac}}年"
+                font_size: "small"
+                format: "plain"
+                alignment: "center"
+            
+            # 农历日期显示
+            - text:
+                id: "lunar_date_display"
+                position: [0, 85]
+                size: [200, 30]
+                content: "{{lunar.day.month}}月{{lunar.day.day}}"
+                font_size: "medium"
+                format: "lunar_date"
+                alignment: "center"
+    
+    # 节日和节气显示
+    - container:
+        id: "festival_container"
+        rect: [20, 260, 200, 80]
+        children:
+            # 公历节日
+            - text:
+                id: "solar_festival_display"
+                position: [0, 0]
+                size: [200, 20]
+                content: "{{date.festival}}"
+                font_size: "small"
+                format: "plain"
+                alignment: "center"
+            
+            # 农历节日
+            - text:
+                id: "lunar_festival_display"
+                position: [0, 25]
+                size: [200, 20]
+                content: "{{lunar.festival}}"
+                font_size: "small"
+                format: "plain"
+                alignment: "center"
+            
+            # 节气显示
+            - text:
+                id: "solar_term_display"
+                position: [0, 50]
+                size: [200, 20]
+                content: "{{lunar.jieqi}}"
+                font_size: "small"
+                format: "plain"
+                alignment: "center"
+    
+    # 宜忌显示区域
+    - container:
+        id: "taboo_container"
+        rect: [20, 350, 300, 100]
+        children:
+            - text:
+                id: "taboo_display"
+                position: [0, 0]
+                size: [300, 100]
+                content: "宜：{{lunar.day_recommends}}\n忌：{{lunar.day_avoids}}"
+                font_size: "small"
+                format: "taboo"
+                alignment: "left"
+    
+    # 天气信息显示区域
+    - container:
+        id: "weather_container"
+        rect: [250, 20, 530, 250]
+        children:
+            # 天气位置
+            - text:
+                id: "weather_location"
+                position: [0, 0]
+                size: [530, 24]
+                content: "{{weather.location}}"
+                font_size: "medium"
+                format: "plain"
+                alignment: "center"
+            
+            # 当前天气图标
+            - icon:
+                id: "weather_icon"
+                position: [20, 30]
+                icon_id: "weather_{{weather.condition}}"
+                importance: "normal"
+            
+            # 当前温度
+            - text:
+                id: "current_temperature"
+                position: [100, 30]
+                size: [200, 40]
+                content: "{{weather.temperature}}°C"
+                font_size: "large"
+                format: "temperature"
+                alignment: "left"
+            
+            # 当前天气状况
+            - text:
+                id: "weather_condition"
+                position: [100, 75]
+                size: [200, 24]
+                content: "{{weather.condition}}"
+                font_size: "medium"
+                format: "plain"
+                alignment: "left"
+            
+            # 当前湿度
+            - text:
+                id: "current_humidity"
+                position: [100, 105]
+                size: [200, 20]
+                content: "湿度：{{weather.humidity}}%"
+                font_size: "small"
+                format: "humidity"
+                alignment: "left"
+            
+            # 传感器数据降级显示
+            - text:
+                id: "sensor_data"
+                position: [0, 220]
+                size: [530, 20]
+                content: "传感器：{{weather.sensor_data.temperature}}°C / {{weather.sensor_data.humidity}}%"
+                font_size: "small"
+                format: "plain"
+                alignment: "center"
+    
+    # 天气预报区域
+    - container:
+        id: "forecast_container"
+        rect: [250, 280, 530, 100]
+        children:
+            # 第一天预报
+            - text:
+                id: "forecast_day1"
+                position: [0, 0]
+                size: [170, 80]
+                content: "{{weather.forecast.day1.date}}\n{{weather.forecast.day1.condition}}\n{{weather.forecast.day1.high}}/{{weather.forecast.day1.low}}°C"
+                font_size: "small"
+                format: "multi_line"
+                alignment: "center"
+            
+            # 第二天预报
+            - text:
+                id: "forecast_day2"
+                position: [180, 0]
+                size: [170, 80]
+                content: "{{weather.forecast.day2.date}}\n{{weather.forecast.day2.condition}}\n{{weather.forecast.day2.high}}/{{weather.forecast.day2.low}}°C"
+                font_size: "small"
+                format: "multi_line"
+                alignment: "center"
+            
+            # 第三天预报
+            - text:
+                id: "forecast_day3"
+                position: [360, 0]
+                size: [170, 80]
+                content: "{{weather.forecast.day3.date}}\n{{weather.forecast.day3.condition}}\n{{weather.forecast.day3.high}}/{{weather.forecast.day3.low}}°C"
+                font_size: "small"
+                format: "multi_line"
+                alignment: "center"
+    
+    # 格言显示区域
+    - container:
+        id: "quote_container"
+        rect: [250, 390, 530, 70]
+        children:
+            - text:
+                id: "quote_content"
+                position: [0, 0]
+                size: [530, 40]
+                content: "{{quote.content}}"
+                font_size: "medium"
+                format: "multi_line"
+                alignment: "center"
+            
+            - text:
+                id: "quote_source"
+                position: [0, 45]
+                size: [530, 20]
+                content: "—— {{quote.from}}"
+                font_size: "small"
+                format: "plain"
+                alignment: "right"
+    
+    # 状态栏
+    - container:
+        id: "status_container"
+        rect: [0, 450, 800, 30]
+        children:
+            # 电池状态
+            - icon:
+                id: "battery_icon"
+                position: [750, 5]
+                icon_id: "battery_{{battery_level}}"
+                importance: "normal"
+            
+            # 充电状态
+            - text:
+                id: "charging_status"
+                position: [700, 5]
+                size: [50, 20]
+                content: "{{charging_status}}"
+                font_size: "small"
+                format: "plain"
+                alignment: "center"
+            
+            # 网络状态
+            - icon:
+                id: "network_icon"
+                position: [650, 5]
+                icon_id: "network_{{network_status}}"
+                importance: "normal"

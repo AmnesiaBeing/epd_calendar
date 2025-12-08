@@ -21,6 +21,11 @@ pub fn run() -> Result<()> {
     config.ensure_output_dirs()?;
     progress.complete_stage();
 
+    // 0. 处理格言数据
+    progress.start_stage("处理格言数据");
+    modules::hitokoto::build(&config, &progress)?;
+    progress.complete_stage();
+
     // 1. 生成字体集（严格按顺序执行）
     progress.start_stage("生成字体集");
     modules::font_generator::build(&config, &progress)?;

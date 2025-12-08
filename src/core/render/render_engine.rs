@@ -45,6 +45,27 @@ struct Container {
     condition: Option<String<64>>,
 }
 
+// 文本格式化类型
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+enum TextFormat {
+    Plain,
+    Date,
+    Time,
+    LunarDate,
+    Temperature,
+    Humidity,
+    MultiLine,
+    Taboo,
+}
+
+// 文本对齐方式
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+enum TextAlignment {
+    Left,
+    Center,
+    Right,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Text {
     id: String<32>,
@@ -52,6 +73,8 @@ struct Text {
     size: [u16; 2],
     content: String<128>,
     font_size: FontSize,
+    format: TextFormat,
+    alignment: TextAlignment,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -761,19 +784,64 @@ impl RenderEngine {
                 // 替换文本中的占位符
                 match PlaceholderReplacer::replace_placeholders(text.content.as_str(), state) {
                     Ok(replaced_text) => {
-                        // 创建文本渲染器并绘制
-                        let text_renderer = TextRenderer {
-                            font_size: text.font_size,
+                        // 创建文本渲染器
+                        let mut text_renderer = TextRenderer { 
+                            font_size: text.font_size, 
                         };
 
-                        // 调用文本渲染器的绘制方法
-                        if let Err(e) = text_renderer.draw(
-                            &replaced_text,
-                            text.position[0],
-                            text.position[1],
-                            &mut self.display,
-                        ) {
-                            log::warn!("Failed to render text '{}': {:?}", text.id.as_str(), e);
+                        // 计算文本位置
+                        let x = text.position[0];
+                        let y = text.position[1];
+                        let max_width = text.size[0];
+
+                        // 根据文本格式和对齐方式绘制
+                        match text.format {
+                            TextFormat::Plain | TextFormat::Date | TextFormat::Time | TextFormat::Temperature | TextFormat::Humidity => {
+                                // 计算对齐后的X坐标
+                                let text_width = text_renderer.calculate_text_width(&replaced_text);
+                                let aligned_x = match text.alignment {
+                                    TextAlignment::Left => x,
+                                    TextAlignment::Center => x + (max_width - text_width) / 2,
+                                    TextAlignment::Right => x + (max_width - text_width),
+                                };
+
+                                // 绘制单行文本
+                                if let Err(e) = text_renderer.draw(
+                                    &replaced_text,
+                                    aligned_x,
+                                    y,
+                                    &mut self.display,
+                                ) {
+                                    log::warn!("Failed to render text '{}': {:?}", text.id.as_str(), e);
+                                }
+                            },
+                            TextFormat::MultiLine => {
+                                // 绘制多行文本
+                                if let Err(e) = text_renderer.draw_multiline(
+                                    &replaced_text,
+                                    x,
+                                    y,
+                                    max_width,
+                                    &mut self.display,
+                                ) {
+                                    log::warn!("Failed to render multiline text '{}': {:?}", text.id.as_str(), e);
+                                }
+                            },
+                            TextFormat::LunarDate => {
+                                // 绘制农历日期，可能需要特殊处理
+                                if let Err(e) = text_renderer.draw(
+                                    &replaced_text,
+                                    x,
+                                    y,
+                                    &mut self.display,
+                                ) {
+                                    log::warn!("Failed to render lunar date '{}': {:?}", text.id.as_str(), e);
+                                }
+                            },
+                            TextFormat::Taboo => {
+                                // 绘制宜忌内容，需要特殊排版
+                                self.render_taboo_text(text, &replaced_text);
+                            },
                         }
                     }
                     Err(e) => {
@@ -917,6 +985,89 @@ impl RenderEngine {
                 _ => EinkColor::Black,
             },
             None => EinkColor::Black,
+        }
+    }
+
+    fn render_taboo_text(&mut self, text: &Text, content: &str) {
+        // 处理宜忌内容的特殊排版
+        let mut text_renderer = TextRenderer {
+            font_size: text.font_size,
+        };
+        
+        // 分割宜和忌内容
+        if let Some((taboo_part, avoid_part)) = content.split_once("\n忌：") {
+            // 处理宜内容
+            if let Some(do_content) = taboo_part.strip_prefix("宜：") {
+                self.draw_taboo_section(
+                    &mut text_renderer,
+                    text.position[0],
+                    text.position[1],
+                    text.size[0],
+                    "宜：",
+                    do_content
+                );
+            }
+            
+            // 处理忌内容（计算Y坐标位置）
+            let line_height = text_renderer.get_line_height();
+            let avoid_y = text.position[1] + line_height;
+            
+            self.draw_taboo_section(
+                &mut text_renderer,
+                text.position[0],
+                avoid_y,
+                text.size[0],
+                "忌：",
+                avoid_part
+            );
+        }
+    }
+
+    fn draw_taboo_section(
+        &mut self, 
+        text_renderer: &mut TextRenderer,
+        x: u16,
+        y: u16,
+        max_width: u16,
+        prefix: &str,
+        content: &str
+    ) {
+        // 计算前缀的宽度
+        let prefix_width = text_renderer.calculate_text_width(prefix);
+        
+        // 绘制前缀
+        if let Err(e) = text_renderer.draw(prefix, x, y, &mut self.display) {
+            log::warn!("Failed to render taboo prefix: {:?}", e);
+            return;
+        }
+        
+        // 计算内容区域的起始位置和可用宽度
+        let content_x = x + prefix_width;
+        let content_width = max_width - prefix_width;
+        
+        // 分割内容为多个项目
+        let items: Vec<&str> = content.split("、").collect();
+        
+        let mut current_x = content_x;
+        let mut current_y = y;
+        let line_height = text_renderer.get_line_height();
+        
+        for item in items {
+            let item_width = text_renderer.calculate_text_width(item);
+            
+            // 检查是否需要换行
+            if current_x + item_width > x + max_width {
+                current_x = content_x; // 换行后与内容区域左对齐
+                current_y += line_height;
+            }
+            
+            // 绘制项目
+            if let Err(e) = text_renderer.draw(item, current_x, current_y, &mut self.display) {
+                log::warn!("Failed to render taboo item: {:?}", e);
+            }
+            
+            // 更新当前X位置
+            current_x += item_width + text_renderer.calculate_text_width("、");
         }
     }
 

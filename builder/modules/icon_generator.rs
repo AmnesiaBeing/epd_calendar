@@ -650,7 +650,7 @@ fn generate_enums(
         {
             content.push_str(&format!("/// {}图标枚举\n", category));
             content.push_str("#[derive(Copy, Clone, Debug, PartialEq, Eq)]\n");
-            content.push_str(&format!("pub enum {} {{\n", category_config.enum_name));
+            content.push_str(&format!("pub enum {} {{ \n", category_config.enum_name));
 
             for icon in icons {
                 content.push_str(&format!(
@@ -671,7 +671,10 @@ fn generate_enums(
     if !weather_icons.is_empty() {
         content.push_str("/// 天气图标枚举\n");
         content.push_str("#[derive(Copy, Clone, Debug, PartialEq, Eq)]\n");
-        content.push_str("pub enum WeatherIcon {\n");
+        content.push_str(&format!(
+            "pub enum {} {{\n",
+            config.weather_icon_config.enum_name
+        ));
 
         for icon in weather_icons {
             content.push_str(&format!("    {}, // {}\n", icon.variant_name, icon.id));
@@ -680,7 +683,10 @@ fn generate_enums(
         content.push_str("}\n\n");
 
         // 生成天气图标转换方法（删除了as_api_str方法）
-        content.push_str("impl WeatherIcon {\n");
+        content.push_str(&format!(
+            "impl {} {{\n",
+            config.weather_icon_config.enum_name
+        ));
         content.push_str("    /// 从API字符串获取天气图标\n");
         content.push_str("    pub fn from_api_str(s: &str) -> Result<Self> {\n");
         content.push_str("        match s {\n");
