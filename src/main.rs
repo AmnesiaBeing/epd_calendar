@@ -22,26 +22,30 @@ use static_cell::StaticCell;
 
 mod assets;
 mod common;
-mod driver;
-mod render;
+mod kernel;
 mod tasks;
-mod core;
 
-use crate::common::GlobalMutex;
-use crate::driver::display::DefaultDisplayDriver;
-use crate::driver::network::{DefaultNetworkDriver, NetworkDriver};
-use crate::driver::ntp_source::SntpService;
-use crate::driver::power::DefaultPowerDriver;
-use crate::driver::sensor::DefaultSensorDriver;
-use crate::driver::storage::DefaultConfigStorage;
-use crate::driver::time_source::DefaultTimeSource;
-use crate::render::RenderEngine;
-use crate::service::{ConfigService, QuoteService, TimeService, WeatherService};
-use crate::tasks::{display_task, quote_task, status_task, time_task, weather_task};
+use crate::common::{GlobalChannel, GlobalMutex};
+use crate::kernel::data::generic_scheduler_task;
+use crate::kernel::data::{DataSourceEvent, DataSourceId, DataSourceScheduler};
+use crate::kernel::driver::display::DefaultDisplayDriver;
+use crate::kernel::driver::network::{DefaultNetworkDriver, NetworkDriver};
+use crate::kernel::driver::ntp_source::SntpService;
+use crate::kernel::driver::power::DefaultPowerDriver;
+use crate::kernel::driver::sensor::DefaultSensorDriver;
+use crate::kernel::driver::storage::DefaultConfigStorage;
+use crate::kernel::driver::time_source::DefaultTimeSource;
+use crate::kernel::render::engine::RenderEngine;
+
+// 创建数据源调度器
+static DATA_SOURCE_SCHEDULER: StaticCell<GlobalMutex<DataSourceScheduler>> = StaticCell::new();
+
+// 创建事件通道
+static DATA_SOURCE_CHANNEL: StaticCell<GlobalChannel<DataSourceEvent>> = StaticCell::new();
 
 /// 全局状态管理
 static NETWORK_DRIVER: StaticCell<GlobalMutex<DefaultNetworkDriver>> = StaticCell::new();
-static CONFIG_SERVICE: StaticCell<GlobalMutex<ConfigService>> = StaticCell::new();
+// static CONFIG_SERVICE: StaticCell<GlobalMutex<ConfigService>> = StaticCell::new();
 static TIME_SOURCE: StaticCell<GlobalMutex<DefaultTimeSource>> = StaticCell::new();
 
 #[cfg(feature = "embedded_esp")]
@@ -161,19 +165,14 @@ async fn cold_start(spawner: &Spawner) {
     let render_engine = RenderEngine::new(display_driver).unwrap();
 
     // 启动显示任务
-    spawner.spawn(display_task(render_engine)).unwrap();
+    // spawner.spawn(display_task(render_engine)).unwrap();
 
-    // 启动其他任务
-    spawner.spawn(quote_task(QuoteService::new())).unwrap();
     spawner
-        .spawn(status_task(power_monitor, network_driver_mutex))
-        .unwrap();
-    spawner.spawn(time_task(time_service)).unwrap();
-    spawner
-        .spawn(weather_task(WeatherService::new(
-            network_driver_mutex,
-            DefaultSensorDriver::new(),
-        )))
+        .spawn(generic_scheduler_task(
+            &DATA_SOURCE_SCHEDULER,
+            &SYSTEM_API,
+            &DATA_SOURCE_CHANNEL,
+        ))
         .unwrap();
 
     log::info!("EPD Calendar started successfully");
@@ -197,6 +196,31 @@ async fn init_logging() {
         rtt_target::rtt_init_print!();
         log::info!("Initializing logger for ESP32");
     }
+}
+
+// 注册数据源
+fn register_data_sources() {
+    let mut scheduler = DATA_SOURCE_SCHEDULER.lock();
+
+    // 注册时间数据源
+    scheduler
+        .register_source(
+            DataSourceId::Time,
+            &TIME_SOURCE,
+            60, // 每分钟刷新一次
+        )
+        .unwrap();
+
+    // 注册天气数据源
+    scheduler
+        .register_source(
+            DataSourceId::Weather,
+            &WEATHER_SOURCE,
+            1800, // 每30分钟刷新一次
+        )
+        .unwrap();
+
+    // 注册其他数据源...
 }
 
 /// 记录系统健康状态

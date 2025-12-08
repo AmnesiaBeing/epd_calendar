@@ -15,6 +15,10 @@ pub enum AppError {
     #[error("Main initialization failed")]
     MainInit,
 
+    // ===== 资源相关错误 =====
+    #[error("Invalid weather icon code")]
+    InvalidWeatherIconCode,
+
     // ===== 网络相关错误 =====
     #[error("Network stack initialization failed")]
     NetworkStackInitFailed,
@@ -113,6 +117,9 @@ pub enum AppError {
 
     #[error("Render element failed")]
     RenderElementFailed,
+
+    #[error("Render error")]
+    RenderError,
 
     // ===== 其他错误 =====
     #[error("Weather API error")]

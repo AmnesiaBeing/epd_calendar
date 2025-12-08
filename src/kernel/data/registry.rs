@@ -1,10 +1,10 @@
-// src/core/data/registry.rs
+// src/kernel/data/registry.rs
 //! 数据源注册表模块
 //! 管理所有数据源实例的注册表
 
 use crate::common::error::{AppError, Result};
-use crate::core::data::source::DataSource;
-use crate::core::data::types::DataSourceId;
+use crate::kernel::data::source::DataSource;
+use crate::kernel::data::types::DataSourceId;
 use heapless::Vec;
 use spin::Mutex;
 
@@ -69,7 +69,7 @@ impl DataSourceRegistry {
     }
 
     /// 刷新所有数据源
-    pub async fn refresh_all(&self, system_api: &dyn crate::core::system::api::SystemApi) -> Result<()> {
+    pub async fn refresh_all(&self, system_api: &dyn crate::kernel::system::api::SystemApi) -> Result<()> {
         for data_source in &self.data_sources {
             data_source.lock().refresh(system_api).await?;
         }
@@ -77,7 +77,7 @@ impl DataSourceRegistry {
     }
 
     /// 按ID刷新数据源
-    pub async fn refresh_by_id(&self, id: DataSourceId, system_api: &dyn crate::core::system::api::SystemApi) -> Result<()> {
+    pub async fn refresh_by_id(&self, id: DataSourceId, system_api: &dyn crate::kernel::system::api::SystemApi) -> Result<()> {
         if let Some(data_source) = self.get_data_source(id) {
             data_source.lock().refresh(system_api).await?;
             Ok(())

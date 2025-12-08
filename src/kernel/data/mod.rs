@@ -4,9 +4,12 @@
 
 pub mod registry;
 pub mod source;
-pub mod types;
 pub mod sources;
+pub mod types;
 
 pub use registry::DataSourceRegistry;
 pub use source::{DataSource, DataSourceCache};
 pub use types::{DataSourceId, DynamicValue, FieldMeta, FieldType};
+
+pub mod scheduler;
+pub use scheduler::{DataSourceEvent, DataSourceScheduler, generic_scheduler_task};

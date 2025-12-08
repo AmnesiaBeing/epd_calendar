@@ -6,18 +6,6 @@
 /// 包含配置、错误处理、系统状态、天气数据等公共组件
 pub mod config;
 pub mod error;
-pub mod system_state;
-pub mod weather;
-
-pub use system_state::SystemState;
-
-pub use crate::assets::generated_hitokoto_data::Hitokoto;
-pub use system_state::BatteryLevel;
-pub use system_state::ChargingStatus;
-pub use system_state::DateData;
-pub use system_state::NetworkStatus;
-pub use system_state::TimeData;
-pub use system_state::WeatherData;
 
 use embassy_sync::{channel::Channel, mutex::Mutex};
 

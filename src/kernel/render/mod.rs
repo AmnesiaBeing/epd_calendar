@@ -1,8 +1,6 @@
 // src/render/mod.rs
-mod components;
 
-mod render_engine;
-pub use render_engine::RenderEngine;
+pub mod engine;
 
 mod image_renderer;
 pub use image_renderer::draw_binary_image;

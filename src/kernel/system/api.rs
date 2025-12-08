@@ -2,19 +2,19 @@
 //! 系统API接口模块
 //! 定义系统级别的模块化API接口，包含硬件、网络和配置存储子接口
 
+use crate::common::GlobalMutex;
 use crate::common::config::{CONFIG_MAGIC, MAX_CONFIG_SIZE, SystemConfig, default_config_version};
 use crate::common::error::{AppError, Result};
-use crate::common::GlobalMutex;
-use crate::driver::network::{DefaultNetworkDriver, NetworkDriver};
-use crate::driver::power::{DefaultPowerDriver, PowerDriver};
-use crate::driver::storage::{ConfigStorage, DefaultConfigStorage, DefaultStorageDriver};
+use crate::kernel::driver::network::{DefaultNetworkDriver, NetworkDriver};
+use crate::kernel::driver::power::{DefaultPowerDriver, PowerDriver};
+use crate::kernel::driver::storage::{ConfigStorage, DefaultConfigStorage, DefaultStorageDriver};
 use alloc::vec::Vec;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::Channel;
 use embassy_time::{Duration, Instant};
+use heapless::{String, Vec};
 use postcard::{from_bytes, to_allocvec};
 use spin::Mutex;
-use heapless::{String, Vec};
 
 /// 硬件API接口
 /// 处理硬件相关操作：电池/充电状态、系统时间戳/tick、WiFi连接/状态等
@@ -110,7 +110,7 @@ impl DefaultSystemApi {
             config_dirty: Mutex::new(false),
         }
     }
-    
+
     /// 验证并加载配置数据
     fn validate_and_load_config(&self, data: &[u8]) -> Result<SystemConfig> {
         if data.len() < 8 {
@@ -145,10 +145,13 @@ impl DefaultSystemApi {
             AppError::ConfigDeserializationError
         })?;
 
-        log::info!("Config loaded successfully, version: {}", config.config_version);
+        log::info!(
+            "Config loaded successfully, version: {}",
+            config.config_version
+        );
         Ok(config)
     }
-    
+
     /// 初始化配置
     pub fn init_config(&self) -> Result<()> {
         match self.config_storage.lock().read_config_block()? {
@@ -213,7 +216,10 @@ impl HardwareApi for DefaultSystemApi {
 
     async fn connect_wifi(&self, ssid: &str, password: &str) -> Result<()> {
         // 连接到WiFi
-        self.network_driver.blocking_lock().connect(ssid, password).await
+        self.network_driver
+            .blocking_lock()
+            .connect(ssid, password)
+            .await
     }
 
     async fn disconnect_wifi(&self) -> Result<()> {
@@ -231,7 +237,10 @@ impl NetworkClientApi for DefaultSystemApi {
 
     async fn http_post(&self, url: &str, body: &[u8]) -> Result<String<256>> {
         // 发送HTTP POST请求
-        self.network_driver.blocking_lock().http_post(url, body).await
+        self.network_driver
+            .blocking_lock()
+            .http_post(url, body)
+            .await
     }
 }
 
@@ -242,10 +251,12 @@ impl ConfigStorageApi for DefaultSystemApi {
         match self.config_storage.lock().read_config_block()? {
             Some(data) => {
                 let mut result = heapless::Vec::new();
-                result.extend_from_slice(&data).map_err(|_| AppError::ConfigTooLarge)?;
+                result
+                    .extend_from_slice(&data)
+                    .map_err(|_| AppError::ConfigTooLarge)?;
                 Ok(Some(result))
-            },
-            None => Ok(None)
+            }
+            None => Ok(None),
         }
     }
 
@@ -282,7 +293,7 @@ impl SystemStatusMonitor {
             last_network: None,
         }
     }
-    
+
     /// 检查系统状态变化
     pub fn check_status_changes(&mut self) {
         // 检查电池状态变化
@@ -298,7 +309,8 @@ impl SystemStatusMonitor {
         if self.last_charging != Some(charging) {
             log::info!("Charging status changed: {}", charging);
             self.last_charging = Some(charging);
-            let _ = SYSTEM_STATUS_CHANNEL.try_send(SystemStatusEvent::ChargingStatusChanged(charging));
+            let _ =
+                SYSTEM_STATUS_CHANNEL.try_send(SystemStatusEvent::ChargingStatusChanged(charging));
         }
 
         // 检查网络状态变化
@@ -306,16 +318,17 @@ impl SystemStatusMonitor {
         if self.last_network != Some(network) {
             log::info!("Network status changed: {}", network);
             self.last_network = Some(network);
-            let _ = SYSTEM_STATUS_CHANNEL.try_send(SystemStatusEvent::NetworkStatusChanged(network));
+            let _ =
+                SYSTEM_STATUS_CHANNEL.try_send(SystemStatusEvent::NetworkStatusChanged(network));
         }
     }
-    
+
     /// 启动状态监控任务
     pub async fn run(&mut self) {
         log::info!("System status monitor started");
-        
+
         let mut ticker = embassy_time::Ticker::every(Duration::from_secs(1 * 60)); // 每1分钟检查一次状态
-        
+
         loop {
             ticker.next().await;
             log::debug!("Checking system status");

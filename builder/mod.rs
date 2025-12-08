@@ -47,27 +47,7 @@ pub fn run() -> Result<()> {
 
 /// 配置增量编译触发
 fn configure_incremental_build(config: &config::BuildConfig) {
-    // 监听builder目录变更
-    println!("cargo:rerun-if-changed=builder/");
-
-    // 监听字体目录变更
-    println!("cargo:rerun-if-changed=assets/fonts/");
-
-    // 遍历本地图标分类，监听每个分类目录变更
-    for category in &config.local_icon_categories {
-        println!("cargo:rerun-if-changed={}", category.dir.display());
-    }
-
-    // 监听天气图标目录变更
-    println!(
-        "cargo:rerun-if-changed={}",
-        config.weather_icon_config.dir.display()
-    );
-    println!(
-        "cargo:rerun-if-changed={}",
-        config.weather_icon_config.list_path.display()
-    );
-
-    // 监听布局目录变更
-    println!("cargo:rerun-if-changed=assets/layout/");
+    println!("cargo::rerun-if-changed=build.rs");
+    println!("cargo::rerun-if-changed=builder/");
+    println!("cargo::rerun-if-changed=assets/");
 }

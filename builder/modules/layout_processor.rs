@@ -26,7 +26,6 @@ const MAX_CHILDREN_COUNT: usize = 64;
 type String32 = String;
 type String128 = String;
 type String64 = String;
-type String16 = String;
 
 // ==================== 枚举和结构体定义 ====================
 
@@ -53,7 +52,7 @@ impl FromStr for Importance {
 
 /// 坐标验证结果
 #[derive(Debug, Clone)]
-pub struct CoordinateBounds {
+struct CoordinateBounds {
     x: u16,
     y: u16,
     width: u16,
@@ -82,107 +81,137 @@ impl CoordinateBounds {
     }
 }
 
-/// 布局方向
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-pub enum LayoutDirection {
-    Horizontal, // 水平布局
-    Vertical,   // 垂直布局
+/// 边框定义
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Border {
+    pub top: u16,
+    pub right: u16,
+    pub bottom: u16,
+    pub left: u16,
 }
 
-impl FromStr for LayoutDirection {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
-            "horizontal" => Ok(LayoutDirection::Horizontal),
-            "vertical" => Ok(LayoutDirection::Vertical),
-            _ => Err(format!("无效的布局方向: {}", s)),
+impl Default for Border {
+    fn default() -> Self {
+        Self {
+            top: 0,
+            right: 0,
+            bottom: 0,
+            left: 0,
         }
     }
 }
 
-/// 容器对齐方式
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-pub enum ContainerAlignment {
-    Start,        // 开始对齐（左对齐或上对齐）
-    Center,       // 居中对齐
-    End,          // 结束对齐（右对齐或下对齐）
-    Stretch,      // 拉伸填充
-    SpaceBetween, // 两端对齐，子元素之间间隔相等
-}
-
-impl FromStr for ContainerAlignment {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
-            "start" => Ok(ContainerAlignment::Start),
-            "center" => Ok(ContainerAlignment::Center),
-            "end" => Ok(ContainerAlignment::End),
-            "stretch" => Ok(ContainerAlignment::Stretch),
-            "space_between" => Ok(ContainerAlignment::SpaceBetween),
-            _ => Err(format!("无效的容器对齐方式: {}", s)),
+impl Border {
+    /// 验证边框是否在合理范围内
+    fn validate(&self, container_bounds: &CoordinateBounds) -> Result<()> {
+        if self.top > container_bounds.height
+            || self.bottom > container_bounds.height
+            || self.left > container_bounds.width
+            || self.right > container_bounds.width
+        {
+            return Err(anyhow::anyhow!("边框宽度超出容器范围"));
         }
+        Ok(())
     }
 }
 
-/// 文本水平对齐方式
+/// 文本对齐方式
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-pub enum TextHorizontalAlignment {
+pub enum TextAlignment {
     Left,
     Center,
     Right,
 }
 
-impl FromStr for TextHorizontalAlignment {
+impl FromStr for TextAlignment {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "left" => Ok(TextHorizontalAlignment::Left),
-            "center" => Ok(TextHorizontalAlignment::Center),
-            "right" => Ok(TextHorizontalAlignment::Right),
-            _ => Err(format!("无效的文本水平对齐方式: {}", s)),
+            "left" => Ok(TextAlignment::Left),
+            "center" => Ok(TextAlignment::Center),
+            "right" => Ok(TextAlignment::Right),
+            _ => Err(format!("无效的文本对齐方式: {}", s)),
         }
     }
 }
 
-/// 文本垂直对齐方式
+/// 垂直对齐方式
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-pub enum TextVerticalAlignment {
+pub enum VerticalAlignment {
     Top,
-    Middle,
+    Center,
     Bottom,
 }
 
-impl FromStr for TextVerticalAlignment {
+impl FromStr for VerticalAlignment {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "top" => Ok(TextVerticalAlignment::Top),
-            "middle" => Ok(TextVerticalAlignment::Middle),
-            "bottom" => Ok(TextVerticalAlignment::Bottom),
-            _ => Err(format!("无效的文本垂直对齐方式: {}", s)),
+            "top" => Ok(VerticalAlignment::Top),
+            "center" => Ok(VerticalAlignment::Center),
+            "bottom" => Ok(VerticalAlignment::Bottom),
+            _ => Err(format!("无效的垂直对齐方式: {}", s)),
         }
     }
 }
 
-// ==================== Element Trait ====================
+/// 容器布局方向
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum ContainerDirection {
+    Horizontal,
+    Vertical,
+}
 
-/// 布局元素Trait，定义所有布局元素必须实现的功能
-pub trait Element: std::fmt::Debug {
+impl FromStr for ContainerDirection {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "horizontal" => Ok(ContainerDirection::Horizontal),
+            "vertical" => Ok(ContainerDirection::Vertical),
+            _ => Err(format!("无效的容器方向: {}", s)),
+        }
+    }
+}
+
+/// 子元素布局配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChildLayout {
+    pub node: LayoutNode,
+    pub weight: Option<f32>, // 权重，用于比例布局
+    pub is_absolute: bool,   // 是否为绝对定位
+}
+
+// ==================== Element trait ====================
+
+/// 元素trait，定义所有布局元素的通用行为
+trait Element {
     /// 获取元素ID
     fn id(&self) -> &str;
 
-    /// 验证元素合法性
-    fn validate(&self, id_set: &mut HashSet<String>) -> Result<()>;
+    /// 获取元素的边界矩形
+    fn rect(&self) -> [u16; 4];
 
-    /// 验证元素边界是否在屏幕范围内
-    fn validate_bounds(&self) -> Result<()>;
+    /// 验证元素的基本属性
+    fn validate_basic(&self, id_set: &mut HashSet<String>) -> Result<()> {
+        validate_id(self.id(), id_set)?;
+        Ok(())
+    }
 
-    /// 获取元素边界（用于验证）
-    fn get_bounds(&self) -> CoordinateBounds;
+    /// 验证元素的位置和大小
+    fn validate_bounds(&self) -> Result<()> {
+        let rect = self.rect();
+        let bounds = CoordinateBounds::new(rect[0], rect[1], rect[2], rect[3]);
+        validate_bounds(self.id(), &bounds)
+    }
+
+    /// 验证元素的所有属性
+    fn validate(&self, id_set: &mut HashSet<String>) -> Result<()> {
+        self.validate_basic(id_set)?;
+        self.validate_bounds()
+    }
 }
 
 // ==================== 布局结构体定义 ====================
@@ -210,6 +239,17 @@ impl Element for LayoutNode {
         }
     }
 
+    fn rect(&self) -> [u16; 4] {
+        match self {
+            LayoutNode::Container(c) => c.rect,
+            LayoutNode::Text(t) => t.rect,
+            LayoutNode::Icon(i) => i.rect,
+            LayoutNode::Line(l) => line_to_rect(l),
+            LayoutNode::Rectangle(r) => r.rect,
+            LayoutNode::Circle(c) => circle_to_rect(c),
+        }
+    }
+
     fn validate(&self, id_set: &mut HashSet<String>) -> Result<()> {
         match self {
             LayoutNode::Container(c) => c.validate(id_set),
@@ -220,53 +260,32 @@ impl Element for LayoutNode {
             LayoutNode::Circle(c) => c.validate(id_set),
         }
     }
-
-    fn validate_bounds(&self) -> Result<()> {
-        match self {
-            LayoutNode::Container(c) => c.validate_bounds(),
-            LayoutNode::Text(t) => t.validate_bounds(),
-            LayoutNode::Icon(i) => i.validate_bounds(),
-            LayoutNode::Line(l) => l.validate_bounds(),
-            LayoutNode::Rectangle(r) => r.validate_bounds(),
-            LayoutNode::Circle(c) => c.validate_bounds(),
-        }
-    }
-
-    fn get_bounds(&self) -> CoordinateBounds {
-        match self {
-            LayoutNode::Container(c) => c.get_bounds(),
-            LayoutNode::Text(t) => t.get_bounds(),
-            LayoutNode::Icon(i) => i.get_bounds(),
-            LayoutNode::Line(l) => l.get_bounds(),
-            LayoutNode::Rectangle(r) => r.get_bounds(),
-            LayoutNode::Circle(c) => c.get_bounds(),
-        }
-    }
 }
 
-/// 容器子元素定义
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ContainerChild {
-    pub node: LayoutNode,
-    pub weight: Option<f32>, // 布局权重，None表示使用固定尺寸
+/// 将线条转换为边界矩形
+fn line_to_rect(line: &Line) -> [u16; 4] {
+    let x1 = line.start[0];
+    let y1 = line.start[1];
+    let x2 = line.end[0];
+    let y2 = line.end[1];
+
+    let x_min = x1.min(x2);
+    let y_min = y1.min(y2);
+    let x_max = x1.max(x2);
+    let y_max = y1.max(y2);
+
+    [x_min, y_min, x_max - x_min, y_max - y_min]
 }
 
-impl ContainerChild {
-    fn validate(&self, id_set: &mut HashSet<String>) -> Result<()> {
-        self.node.validate(id_set)?;
-
-        // 验证weight值
-        if let Some(weight) = self.weight {
-            if weight <= 0.0 {
-                return Err(anyhow::anyhow!(
-                    "容器子元素权重必须大于0，当前值: {}",
-                    weight
-                ));
-            }
-        }
-
-        Ok(())
-    }
+/// 将圆形转换为边界矩形
+fn circle_to_rect(circle: &Circle) -> [u16; 4] {
+    let diameter = circle.radius * 2;
+    [
+        circle.center[0].saturating_sub(circle.radius),
+        circle.center[1].saturating_sub(circle.radius),
+        diameter,
+        diameter,
+    ]
 }
 
 /// 容器元素
@@ -274,11 +293,12 @@ impl ContainerChild {
 pub struct Container {
     pub id: String32,
     pub rect: [u16; 4],
-    pub direction: LayoutDirection,
-    pub main_axis_alignment: ContainerAlignment,
-    pub cross_axis_alignment: ContainerAlignment,
-    pub children: Vec<ContainerChild>,
+    pub children: Vec<ChildLayout>,
     pub condition: Option<String64>,
+    pub direction: ContainerDirection,
+    pub alignment: TextAlignment,
+    pub vertical_alignment: VerticalAlignment,
+    pub border: Border,
 }
 
 impl Element for Container {
@@ -286,17 +306,24 @@ impl Element for Container {
         &self.id
     }
 
+    fn rect(&self) -> [u16; 4] {
+        self.rect
+    }
+
     fn validate(&self, id_set: &mut HashSet<String>) -> Result<()> {
-        // 验证ID
-        validate_id(&self.id, id_set)?;
+        self.validate_basic(id_set)?;
 
-        // 验证边界
-        self.validate_bounds()?;
+        // 验证容器边界
+        let bounds = CoordinateBounds::new(self.rect[0], self.rect[1], self.rect[2], self.rect[3]);
+        validate_bounds(&self.id, &bounds)?;
 
-        // 验证条件表达式
+        // 验证条件
         if let Some(condition) = &self.condition {
             validate_condition(condition)?;
         }
+
+        // 验证边框
+        self.border.validate(&bounds)?;
 
         // 验证子元素数量
         if self.children.len() > MAX_CHILDREN_COUNT {
@@ -309,75 +336,42 @@ impl Element for Container {
         }
 
         // 验证子元素
-        for (index, child) in self.children.iter().enumerate() {
-            child
-                .validate(id_set)
-                .with_context(|| format!("容器 '{}' 的第{}个子元素验证失败", self.id, index + 1))?;
-        }
+        let mut child_id_set = HashSet::new();
 
-        // 验证布局权重
-        let has_weight = self.children.iter().any(|c| c.weight.is_some());
-        let has_no_weight = self.children.iter().any(|c| c.weight.is_none());
+        for child in &self.children {
+            child.node.validate(&mut child_id_set)?;
 
-        // 如果混合使用权重和非权重布局，需要验证rect是否设置
-        if has_weight && has_no_weight {
-            for child in &self.children {
-                if child.weight.is_none() {
-                    // 对于非权重子元素，检查其是否有有效的rect
-                    match &child.node {
-                        LayoutNode::Container(c) => {
-                            if c.rect[2] == 0 || c.rect[3] == 0 {
-                                return Err(anyhow::anyhow!(
-                                    "容器 '{}' 中非权重子容器必须设置宽度和高度",
-                                    self.id
-                                ));
-                            }
-                        }
-                        LayoutNode::Text(t) => {
-                            if t.size[0] == 0 || t.size[1] == 0 {
-                                return Err(anyhow::anyhow!(
-                                    "容器 '{}' 中非权重文本元素必须设置宽度和高度",
-                                    self.id
-                                ));
-                            }
-                        }
-                        LayoutNode::Icon(i) => {
-                            // 图标通常有固定尺寸，不需要验证
-                        }
-                        LayoutNode::Line(_) => {
-                            // 线条元素不参与布局
-                        }
-                        LayoutNode::Rectangle(r) => {
-                            if r.rect[2] == 0 || r.rect[3] == 0 {
-                                return Err(anyhow::anyhow!(
-                                    "容器 '{}' 中非权重矩形元素必须设置宽度和高度",
-                                    self.id
-                                ));
-                            }
-                        }
-                        LayoutNode::Circle(c) => {
-                            if c.radius == 0 {
-                                return Err(anyhow::anyhow!(
-                                    "容器 '{}' 中非权重圆形元素必须设置半径",
-                                    self.id
-                                ));
-                            }
-                        }
-                    }
+            // 验证权重不为负数
+            if let Some(weight) = child.weight {
+                if weight < 0.0 {
+                    return Err(anyhow::anyhow!(
+                        "容器 '{}' 的子元素 '{}' 权重不能为负数: {}",
+                        self.id,
+                        child.node.id(),
+                        weight
+                    ));
                 }
             }
         }
 
+        // 验证绝对定位的子元素
+        let absolute_children: Vec<_> = self.children.iter().filter(|c| c.is_absolute).collect();
+
+        for absolute_child in absolute_children {
+            // 绝对定位的子元素必须在父容器范围内
+            let child_rect = absolute_child.node.rect();
+            let child_bounds =
+                CoordinateBounds::new(child_rect[0], child_rect[1], child_rect[2], child_rect[3]);
+
+            if !is_within_bounds(&child_bounds, &bounds) {
+                return Err(anyhow::anyhow!(
+                    "绝对定位的元素 '{}' 超出父容器范围",
+                    absolute_child.node.id()
+                ));
+            }
+        }
+
         Ok(())
-    }
-
-    fn validate_bounds(&self) -> Result<()> {
-        let bounds = self.get_bounds();
-        validate_bounds(&self.id, &bounds)
-    }
-
-    fn get_bounds(&self) -> CoordinateBounds {
-        CoordinateBounds::new(self.rect[0], self.rect[1], self.rect[2], self.rect[3])
     }
 }
 
@@ -385,12 +379,57 @@ impl Element for Container {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Text {
     pub id: String32,
-    pub position: [u16; 2],
-    pub size: [u16; 2],
+    pub rect: [u16; 4],
     pub content: String128,
     pub font_size: FontSizeConfig,
-    pub horizontal_alignment: TextHorizontalAlignment,
-    pub vertical_alignment: TextVerticalAlignment,
+    pub alignment: TextAlignment,
+    pub vertical_alignment: VerticalAlignment,
+    pub max_width: Option<u16>, // 文本最大宽度，用于自动换行
+    pub max_lines: Option<u8>,  // 文本最大行数
+}
+
+impl Serialize for FontSizeConfig {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        // 序列化为字体名称字符串，如 "Small", "Medium", "Large"
+        serializer.serialize_str(&self.name)
+    }
+}
+
+impl<'de> Deserialize<'de> for FontSizeConfig {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        // 从字符串反序列化，如 "small", "medium", "large"
+        let font_size_str = String::deserialize(deserializer)?;
+
+        // 获取构建配置中的字体尺寸配置
+        let build_config = BuildConfig::load()
+            .map_err(|e| serde::de::Error::custom(format!("加载构建配置失败: {}", e)))?;
+
+        // 查找匹配的字体配置
+        for font_config in &build_config.font_size_configs {
+            if font_config.name.to_lowercase() == font_size_str.to_lowercase() {
+                return Ok(font_config.clone());
+            }
+        }
+
+        // 如果没有找到匹配的配置，返回错误
+        let available_sizes: Vec<String> = build_config
+            .font_size_configs
+            .iter()
+            .map(|f| f.name.to_lowercase())
+            .collect();
+
+        Err(serde::de::Error::custom(format!(
+            "无效的字体尺寸: {}，支持的尺寸: {}",
+            font_size_str,
+            available_sizes.join(", ")
+        )))
+    }
 }
 
 impl Element for Text {
@@ -398,14 +437,14 @@ impl Element for Text {
         &self.id
     }
 
-    fn validate(&self, id_set: &mut HashSet<String>) -> Result<()> {
-        // 验证ID
-        validate_id(&self.id, id_set)?;
+    fn rect(&self) -> [u16; 4] {
+        self.rect
+    }
 
-        // 验证边界
+    fn validate(&self, id_set: &mut HashSet<String>) -> Result<()> {
+        self.validate_basic(id_set)?;
         self.validate_bounds()?;
 
-        // 验证内容长度
         if self.content.len() > MAX_CONTENT_LENGTH {
             return Err(anyhow::anyhow!(
                 "文本 '{}' 内容长度超过限制: {} > {}",
@@ -415,31 +454,12 @@ impl Element for Text {
             ));
         }
 
-        // 验证内容是否为空
+        // 验证内容
         if self.content.is_empty() {
             return Err(anyhow::anyhow!("文本元素 '{}' 内容不能为空", self.id));
         }
 
-        // 验证占位符格式（只验证花括号匹配，不验证字段名）
-        if self.content.contains("{{") || self.content.contains("}}") {
-            validate_placeholder_format(&self.content)?;
-        }
-
         Ok(())
-    }
-
-    fn validate_bounds(&self) -> Result<()> {
-        let bounds = self.get_bounds();
-        validate_bounds(&self.id, &bounds)
-    }
-
-    fn get_bounds(&self) -> CoordinateBounds {
-        CoordinateBounds::new(
-            self.position[0],
-            self.position[1],
-            self.size[0],
-            self.size[1],
-        )
     }
 }
 
@@ -447,8 +467,8 @@ impl Element for Text {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Icon {
     pub id: String32,
-    pub position: [u16; 2],
-    pub icon_id: String32,
+    pub rect: [u16; 4],
+    pub icon_id: String32, // 可以是静态ID，也可以是格式化字符串如{{time.hour}}
     pub importance: Option<Importance>,
 }
 
@@ -457,27 +477,21 @@ impl Element for Icon {
         &self.id
     }
 
-    fn validate(&self, id_set: &mut HashSet<String>) -> Result<()> {
-        // 验证ID
-        validate_id(&self.id, id_set)?;
+    fn rect(&self) -> [u16; 4] {
+        self.rect
+    }
 
-        // 验证边界
+    fn validate(&self, id_set: &mut HashSet<String>) -> Result<()> {
+        self.validate_basic(id_set)?;
         self.validate_bounds()?;
 
-        // 验证图标ID
-        validate_icon_id(&self.icon_id)?;
+        // 图标ID可以是格式化字符串，运行时解析
+        // 这里只验证基本格式
+        if self.icon_id.is_empty() {
+            return Err(anyhow::anyhow!("图标 '{}' 的icon_id不能为空", self.id));
+        }
 
         Ok(())
-    }
-
-    fn validate_bounds(&self) -> Result<()> {
-        let bounds = self.get_bounds();
-        validate_bounds(&self.id, &bounds)
-    }
-
-    fn get_bounds(&self) -> CoordinateBounds {
-        // 图标通常有固定尺寸，这里假设为0x0，实际渲染时使用图标资源尺寸
-        CoordinateBounds::new(self.position[0], self.position[1], 0, 0)
     }
 }
 
@@ -496,32 +510,39 @@ impl Element for Line {
         &self.id
     }
 
-    fn validate(&self, id_set: &mut HashSet<String>) -> Result<()> {
-        // 验证ID
-        validate_id(&self.id, id_set)?;
+    fn rect(&self) -> [u16; 4] {
+        line_to_rect(self)
+    }
 
-        // 验证边界
-        self.validate_bounds()?;
+    fn validate_bounds(&self) -> Result<()> {
+        // 线条元素特殊处理：起点和终点都在屏幕内即可
+        let start_bounds = CoordinateBounds::new(self.start[0], self.start[1], 0, 0);
+        let end_bounds = CoordinateBounds::new(self.end[0], self.end[1], 0, 0);
+
+        if !start_bounds.is_within_screen() {
+            return Err(anyhow::anyhow!(
+                "线条 '{}' 起点超出屏幕范围: ({}, {})",
+                self.id,
+                self.start[0],
+                self.start[1]
+            ));
+        }
+
+        if !end_bounds.is_within_screen() {
+            return Err(anyhow::anyhow!(
+                "线条 '{}' 终点超出屏幕范围: ({}, {})",
+                self.id,
+                self.end[0],
+                self.end[1]
+            ));
+        }
 
         Ok(())
     }
 
-    fn validate_bounds(&self) -> Result<()> {
-        // 验证起点和终点都在屏幕内
-        let start_bounds = CoordinateBounds::new(self.start[0], self.start[1], 0, 0);
-        let end_bounds = CoordinateBounds::new(self.end[0], self.end[1], 0, 0);
-
-        validate_bounds(&self.id, &start_bounds)?;
-        validate_bounds(&self.id, &end_bounds)
-    }
-
-    fn get_bounds(&self) -> CoordinateBounds {
-        let x_min = self.start[0].min(self.end[0]);
-        let y_min = self.start[1].min(self.end[1]);
-        let width = self.start[0].abs_diff(self.end[0]);
-        let height = self.start[1].abs_diff(self.end[1]);
-
-        CoordinateBounds::new(x_min, y_min, width, height)
+    fn validate(&self, id_set: &mut HashSet<String>) -> Result<()> {
+        self.validate_basic(id_set)?;
+        self.validate_bounds()
     }
 }
 
@@ -540,23 +561,13 @@ impl Element for Rectangle {
         &self.id
     }
 
+    fn rect(&self) -> [u16; 4] {
+        self.rect
+    }
+
     fn validate(&self, id_set: &mut HashSet<String>) -> Result<()> {
-        // 验证ID
-        validate_id(&self.id, id_set)?;
-
-        // 验证边界
-        self.validate_bounds()?;
-
-        Ok(())
-    }
-
-    fn validate_bounds(&self) -> Result<()> {
-        let bounds = self.get_bounds();
-        validate_bounds(&self.id, &bounds)
-    }
-
-    fn get_bounds(&self) -> CoordinateBounds {
-        CoordinateBounds::new(self.rect[0], self.rect[1], self.rect[2], self.rect[3])
+        self.validate_basic(id_set)?;
+        self.validate_bounds()
     }
 }
 
@@ -576,18 +587,24 @@ impl Element for Circle {
         &self.id
     }
 
-    fn validate(&self, id_set: &mut HashSet<String>) -> Result<()> {
-        // 验证ID
-        validate_id(&self.id, id_set)?;
-
-        // 验证边界
-        self.validate_bounds()?;
-
-        Ok(())
+    fn rect(&self) -> [u16; 4] {
+        circle_to_rect(self)
     }
 
-    fn validate_bounds(&self) -> Result<()> {
-        let bounds = self.get_bounds();
+    fn validate(&self, id_set: &mut HashSet<String>) -> Result<()> {
+        self.validate_basic(id_set)?;
+
+        // 检查圆心
+        let center_bounds = CoordinateBounds::new(self.center[0], self.center[1], 0, 0);
+        validate_bounds(&self.id, &center_bounds)?;
+
+        // 检查外接矩形
+        let bounds = CoordinateBounds::new(
+            self.center[0].saturating_sub(self.radius),
+            self.center[1].saturating_sub(self.radius),
+            self.radius * 2,
+            self.radius * 2,
+        );
 
         if !bounds.is_within_screen() {
             return Err(anyhow::anyhow!(
@@ -600,16 +617,6 @@ impl Element for Circle {
         }
 
         Ok(())
-    }
-
-    fn get_bounds(&self) -> CoordinateBounds {
-        let diameter = self.radius * 2;
-        CoordinateBounds::new(
-            self.center[0].saturating_sub(self.radius),
-            self.center[1].saturating_sub(self.radius),
-            diameter,
-            diameter,
-        )
     }
 }
 
@@ -637,34 +644,45 @@ enum YamlLayoutNode {
 struct YamlContainer {
     id: String,
     rect: Option<[u16; 4]>,
-    direction: Option<String>,
-    main_axis_alignment: Option<String>,
-    cross_axis_alignment: Option<String>,
-    children: Vec<YamlContainerChild>,
+    children: Vec<YamlChild>,
     condition: Option<String>,
+    direction: Option<String>,
+    alignment: Option<String>,
+    vertical_alignment: Option<String>,
+    border: Option<YamlBorder>,
 }
 
 #[derive(Debug, Deserialize)]
-struct YamlContainerChild {
+struct YamlChild {
     node: YamlLayoutNode,
     weight: Option<f32>,
+    is_absolute: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+struct YamlBorder {
+    top: Option<u16>,
+    right: Option<u16>,
+    bottom: Option<u16>,
+    left: Option<u16>,
 }
 
 #[derive(Debug, Deserialize)]
 struct YamlText {
     id: String,
-    position: Option<[u16; 2]>, // 可选，当在容器中使用权重布局时可省略
-    size: Option<[u16; 2]>,     // 可选，当在容器中使用权重布局时可省略
+    rect: [u16; 4],
     content: String,
     font_size: String,
-    horizontal_alignment: Option<String>,
+    alignment: Option<String>,
     vertical_alignment: Option<String>,
+    max_width: Option<u16>,
+    max_lines: Option<u8>,
 }
 
 #[derive(Debug, Deserialize)]
 struct YamlIcon {
     id: String,
-    position: [u16; 2],
+    rect: [u16; 4],
     icon_id: String,
     importance: Option<String>,
 }
@@ -695,44 +713,6 @@ struct YamlCircle {
     fill_importance: Option<String>,
     stroke_importance: Option<String>,
     stroke_thickness: u16,
-}
-
-impl Serialize for FontSizeConfig {
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_str(&self.name)
-    }
-}
-
-impl<'de> Deserialize<'de> for FontSizeConfig {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let font_size_str = String::deserialize(deserializer)?;
-        let build_config = BuildConfig::load()
-            .map_err(|e| serde::de::Error::custom(format!("加载构建配置失败: {}", e)))?;
-
-        for font_config in &build_config.font_size_configs {
-            if font_config.name.to_lowercase() == font_size_str.to_lowercase() {
-                return Ok(font_config.clone());
-            }
-        }
-
-        let available_sizes: Vec<String> = build_config
-            .font_size_configs
-            .iter()
-            .map(|f| f.name.to_lowercase())
-            .collect();
-
-        Err(serde::de::Error::custom(format!(
-            "无效的字体尺寸: {}，支持的尺寸: {}",
-            font_size_str,
-            available_sizes.join(", ")
-        )))
-    }
 }
 
 // ==================== 布局构建器 ====================
@@ -772,6 +752,7 @@ impl LayoutBuilder {
 
     /// 获取布局文件路径
     fn get_layout_path(config: &BuildConfig) -> Result<PathBuf> {
+        // 这里可以根据配置选择不同的布局文件
         let path = &config.main_layout_path;
         if !path.exists() {
             return Err(anyhow::anyhow!("布局文件不存在: {}", path.display()));
@@ -785,42 +766,49 @@ impl LayoutBuilder {
             YamlLayoutNode::Container(yaml) => {
                 let mut children = Vec::new();
                 for child in &yaml.children {
-                    children.push(ContainerChild {
+                    children.push(ChildLayout {
                         node: Self::convert_yaml_to_layout(&child.node)?,
                         weight: child.weight,
+                        is_absolute: child.is_absolute.unwrap_or(false),
                     });
                 }
 
-                let direction = yaml
-                    .direction
-                    .as_deref()
-                    .map(|d| LayoutDirection::from_str(d))
-                    .transpose()
-                    .map_err(|e| anyhow::anyhow!("布局方向解析失败: {}", e))?
-                    .unwrap_or(LayoutDirection::Vertical);
+                // 解析方向
+                let direction = match yaml.direction.as_deref() {
+                    Some("vertical") => ContainerDirection::Vertical,
+                    Some("horizontal") | None => ContainerDirection::Horizontal,
+                    Some(dir) => {
+                        return Err(anyhow::anyhow!("无效的容器方向: {}", dir));
+                    }
+                };
 
-                let main_axis_alignment = yaml
-                    .main_axis_alignment
-                    .as_deref()
-                    .map(|a| ContainerAlignment::from_str(a))
-                    .transpose()
-                    .map_err(|e| anyhow::anyhow!("主轴对齐方式解析失败: {}", e))?
-                    .unwrap_or(ContainerAlignment::Start);
+                // 解析对齐方式
+                let alignment = match yaml.alignment.as_deref() {
+                    Some(align_str) => TextAlignment::from_str(align_str)
+                        .map_err(|e| anyhow::anyhow!("容器对齐解析失败: {}", e))?,
+                    None => TextAlignment::Left,
+                };
 
-                let cross_axis_alignment = yaml
-                    .cross_axis_alignment
-                    .as_deref()
-                    .map(|a| ContainerAlignment::from_str(a))
-                    .transpose()
-                    .map_err(|e| anyhow::anyhow!("交叉轴对齐方式解析失败: {}", e))?
-                    .unwrap_or(ContainerAlignment::Start);
+                let vertical_alignment = match yaml.vertical_alignment.as_deref() {
+                    Some(valign_str) => VerticalAlignment::from_str(valign_str)
+                        .map_err(|e| anyhow::anyhow!("容器垂直对齐解析失败: {}", e))?,
+                    None => VerticalAlignment::Top,
+                };
+
+                // 解析边框
+                let border = match &yaml.border {
+                    Some(yaml_border) => Border {
+                        top: yaml_border.top.unwrap_or(0),
+                        right: yaml_border.right.unwrap_or(0),
+                        bottom: yaml_border.bottom.unwrap_or(0),
+                        left: yaml_border.left.unwrap_or(0),
+                    },
+                    None => Border::default(),
+                };
 
                 Ok(LayoutNode::Container(Container {
                     id: Self::validate_and_truncate_string(&yaml.id, MAX_ID_LENGTH, "容器ID")?,
                     rect: yaml.rect.unwrap_or([0, 0, 0, 0]),
-                    direction,
-                    main_axis_alignment,
-                    cross_axis_alignment,
                     children,
                     condition: yaml
                         .condition
@@ -833,43 +821,45 @@ impl LayoutBuilder {
                             )
                         })
                         .transpose()?,
+                    direction,
+                    alignment,
+                    vertical_alignment,
+                    border,
                 }))
             }
 
             YamlLayoutNode::Text(yaml) => {
+                // 使用FontSizeConfig的Deserialize实现来解析字体尺寸
                 let font_size = FontSizeConfig::deserialize(
                     serde::de::value::StringDeserializer::new(yaml.font_size.clone()),
                 )
                 .map_err(|e: serde::de::value::Error| anyhow::anyhow!("字体尺寸解析失败: {}", e))?;
 
-                let horizontal_alignment = yaml
-                    .horizontal_alignment
-                    .as_deref()
-                    .map(|a| TextHorizontalAlignment::from_str(a))
-                    .transpose()
-                    .map_err(|e| anyhow::anyhow!("文本水平对齐解析失败: {}", e))?
-                    .unwrap_or(TextHorizontalAlignment::Left);
+                let alignment = match yaml.alignment.as_deref() {
+                    Some(align_str) => TextAlignment::from_str(align_str)
+                        .map_err(|e| anyhow::anyhow!("文本对齐解析失败: {}", e))?,
+                    None => TextAlignment::Left,
+                };
 
-                let vertical_alignment = yaml
-                    .vertical_alignment
-                    .as_deref()
-                    .map(|a| TextVerticalAlignment::from_str(a))
-                    .transpose()
-                    .map_err(|e| anyhow::anyhow!("文本垂直对齐解析失败: {}", e))?
-                    .unwrap_or(TextVerticalAlignment::Top);
+                let vertical_alignment = match yaml.vertical_alignment.as_deref() {
+                    Some(valign_str) => VerticalAlignment::from_str(valign_str)
+                        .map_err(|e| anyhow::anyhow!("文本垂直对齐解析失败: {}", e))?,
+                    None => VerticalAlignment::Top,
+                };
 
                 Ok(LayoutNode::Text(Text {
                     id: Self::validate_and_truncate_string(&yaml.id, MAX_ID_LENGTH, "文本ID")?,
-                    position: yaml.position.unwrap_or([0, 0]),
-                    size: yaml.size.unwrap_or([0, 0]),
+                    rect: yaml.rect,
                     content: Self::validate_and_truncate_string(
                         &yaml.content,
                         MAX_CONTENT_LENGTH,
                         "文本内容",
                     )?,
                     font_size,
-                    horizontal_alignment,
+                    alignment,
                     vertical_alignment,
+                    max_width: yaml.max_width,
+                    max_lines: yaml.max_lines,
                 }))
             }
 
@@ -883,7 +873,7 @@ impl LayoutBuilder {
 
                 Ok(LayoutNode::Icon(Icon {
                     id: Self::validate_and_truncate_string(&yaml.id, MAX_ID_LENGTH, "图标ID")?,
-                    position: yaml.position,
+                    rect: yaml.rect,
                     icon_id: Self::validate_and_truncate_string(
                         &yaml.icon_id,
                         MAX_ID_LENGTH,
@@ -964,6 +954,7 @@ impl LayoutBuilder {
     /// 验证并截断字符串
     fn validate_and_truncate_string(s: &str, max_len: usize, field_name: &str) -> Result<String> {
         if s.len() > max_len {
+            // 发出警告但不失败，自动截断
             println!(
                 "cargo:warning=警告: {} '{}' 长度超过限制 ({} > {})，已自动截断",
                 field_name,
@@ -994,10 +985,12 @@ impl LayoutBuilder {
         fs::create_dir_all(output_dir)
             .with_context(|| format!("创建输出目录失败: {}", output_dir.display()))?;
 
+        // 写入二进制文件
         let bin_path = output_dir.join("generated_layouts.bin");
         fs::write(&bin_path, layout_bin)
             .with_context(|| format!("写入二进制文件失败: {}", bin_path.display()))?;
 
+        // 生成Rust代码文件
         let rust_path = output_dir.join("generated_layouts.rs");
         let rust_content = Self::generate_rust_code(layout_bin.len());
         fs::write(&rust_path, rust_content)
@@ -1065,14 +1058,12 @@ fn validate_bounds(id: &str, bounds: &CoordinateBounds) -> Result<()> {
             bounds.height
         ));
     }
-    Ok(())
-}
 
-/// 验证图标ID
-fn validate_icon_id(icon_id: &str) -> Result<()> {
-    if icon_id.is_empty() {
-        return Err(anyhow::anyhow!("图标ID不能为空"));
+    // 验证宽度和高度是否合理
+    if bounds.width == 0 || bounds.height == 0 {
+        return Err(anyhow::anyhow!("元素 '{}' 的宽度或高度不能为0", id));
     }
+
     Ok(())
 }
 
@@ -1086,76 +1077,16 @@ fn validate_condition(condition: &str) -> Result<()> {
         ));
     }
 
-    // 只验证基本的格式，不验证字段名（运行时处理）
-    let variables = extract_variables_from_condition(condition);
-    for var in variables {
-        if var.trim().is_empty() {
-            return Err(anyhow::anyhow!("条件表达式中包含空的占位符变量"));
-        }
-    }
-
+    // 不再验证变量是否存在，因为变量在运行时获取
     Ok(())
 }
 
-/// 验证占位符格式（只验证花括号匹配，不验证字段名）
-fn validate_placeholder_format(content: &str) -> Result<()> {
-    let mut stack = Vec::new();
-    let mut chars = content.chars().peekable();
-
-    while let Some(c) = chars.next() {
-        if c == '{' {
-            if chars.peek() == Some(&'{') {
-                chars.next(); // 跳过第二个 '{'
-                stack.push('{');
-            }
-        } else if c == '}' {
-            if chars.peek() == Some(&'}') {
-                chars.next(); // 跳过第二个 '}'
-                if stack.pop().is_none() {
-                    return Err(anyhow::anyhow!("占位符花括号不匹配: 多余的 '}}'"));
-                }
-            }
-        }
-    }
-
-    if !stack.is_empty() {
-        return Err(anyhow::anyhow!("占位符花括号不匹配: 缺少 '}}'"));
-    }
-
-    Ok(())
-}
-
-/// 从条件表达式中提取变量
-fn extract_variables_from_condition(condition: &str) -> Vec<String> {
-    let mut variables = Vec::new();
-    let chars = condition.chars().collect::<Vec<_>>();
-    let mut i = 0;
-
-    while i < chars.len() {
-        if i + 1 < chars.len() && chars[i] == '{' && chars[i + 1] == '{' {
-            let start = i + 2;
-            let mut end = start;
-
-            while end < chars.len()
-                && !(chars[end] == '}' && end + 1 < chars.len() && chars[end + 1] == '}')
-            {
-                end += 1;
-            }
-
-            if end < chars.len() {
-                let var_str: String = chars[start..end].iter().collect();
-                let var = var_str.trim().to_string();
-                if !var.is_empty() {
-                    variables.push(var);
-                }
-                i = end + 2;
-                continue;
-            }
-        }
-        i += 1;
-    }
-
-    variables
+/// 检查一个边界是否在另一个边界内
+fn is_within_bounds(inner: &CoordinateBounds, outer: &CoordinateBounds) -> bool {
+    inner.x >= outer.x
+        && inner.y >= outer.y
+        && inner.right <= outer.right
+        && inner.bottom <= outer.bottom
 }
 
 // ==================== 导出函数 ====================

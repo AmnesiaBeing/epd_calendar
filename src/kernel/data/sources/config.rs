@@ -4,8 +4,8 @@
 
 use crate::common::error::{AppError, Result};
 use crate::common::types::{DynamicValue, FieldMeta};
-use crate::core::data::{DataSource, DataSourceCache, DataSourceId};
-use crate::core::system::api::{ConfigStorageApi, HardwareApi, SystemApi};
+use crate::kernel::data::{DataSource, DataSourceCache, DataSourceId};
+use crate::kernel::system::api::{ConfigStorageApi, HardwareApi, SystemApi};
 use heapless::Vec as HeaplessVec;
 use heapless::String as HeaplessString;
 use serde::{Deserialize, Serialize};

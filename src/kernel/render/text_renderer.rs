@@ -16,7 +16,7 @@ use embedded_graphics::primitives::Rectangle;
 use epd_waveshare::color::QuadColor;
 
 use crate::assets::generated_fonts::{FontSize, GlyphMetrics};
-use crate::render::draw_binary_image;
+use crate::kernel::render::draw_binary_image;
 
 /// 文本水平对齐方式
 ///

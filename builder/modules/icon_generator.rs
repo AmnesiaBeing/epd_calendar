@@ -700,7 +700,7 @@ fn generate_enums(
             }
         }
 
-        content.push_str("            _ => AppError::InvalidWeatherIconCode(s.to_string()),\n");
+        content.push_str("            _ => Err(AppError::InvalidWeatherIconCode),\n");
         content.push_str("        }\n");
         content.push_str("    }\n");
         content.push_str("}\n\n");
