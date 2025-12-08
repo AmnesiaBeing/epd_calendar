@@ -1,4 +1,4 @@
-// src/driver/network/esp.rs
+// src/kernel/driver/network/esp.rs
 
 //! ESP32平台网络驱动实现
 //!
@@ -8,14 +8,14 @@ use embassy_executor::Spawner;
 use embassy_net::Stack;
 use embassy_net::{Config, StackResources};
 use embassy_time::{Duration, Timer};
-use esp_hal::peripherals::{Peripherals, WIFI};
+use esp_hal::peripherals::Peripherals;
 use esp_radio::Controller;
 use esp_radio::wifi::{ClientConfig, ModeConfig, WifiController, WifiDevice};
 use static_cell::StaticCell;
 
 use crate::common::error::AppError;
 use crate::common::error::Result;
-use crate::driver::network::NetworkDriver;
+use crate::kernel::driver::network::NetworkDriver;
 
 /// ESP-RADIO控制器静态实例
 static ESP_RADIO_CTRL: StaticCell<Controller> = StaticCell::new();

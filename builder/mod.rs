@@ -46,7 +46,7 @@ pub fn run() -> Result<()> {
 }
 
 /// 配置增量编译触发
-fn configure_incremental_build(config: &config::BuildConfig) {
+fn configure_incremental_build(_config: &config::BuildConfig) {
     println!("cargo::rerun-if-changed=build.rs");
     println!("cargo::rerun-if-changed=builder/");
     println!("cargo::rerun-if-changed=assets/");

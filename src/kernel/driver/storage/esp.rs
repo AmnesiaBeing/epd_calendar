@@ -8,13 +8,12 @@ use embedded_storage::nor_flash::NorFlash;
 use embedded_storage::nor_flash::ReadNorFlash;
 use esp_bootloader_esp_idf::partitions::{self, FlashRegion};
 use esp_bootloader_esp_idf::partitions::{DataPartitionSubType, PartitionType};
-use esp_hal::peripherals::FLASH;
 use esp_hal::peripherals::Peripherals;
 use esp_storage::FlashStorage;
 use static_cell::StaticCell;
 
 use crate::common::error::{AppError, Result};
-use crate::driver::storage::ConfigStorage;
+use crate::kernel::driver::storage::ConfigStorage;
 
 /// Flash存储静态实例
 static FLASH_STORAGE: StaticCell<FlashStorage<'static>> = StaticCell::new();

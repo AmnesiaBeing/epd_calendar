@@ -5,7 +5,6 @@
 //! - 在指定矩形内绘制图像
 //! - 支持水平/垂直对齐
 //! - 内边距配置
-#![allow(unused)]
 
 use embedded_graphics::geometry::Size;
 use embedded_graphics::prelude::*;

@@ -127,6 +127,21 @@ pub enum AppError {
 
     #[error("Quote error")]
     QuoteError,
+
+    #[error("Data source not found")]
+    DataSourceNotFound,
+
+    #[error("Invalid field name")]
+    InvalidFieldName,
+
+    #[error("Field not found")]
+    FieldNotFound,
+
+    #[error("Field already exists")]
+    FieldAlreadyExists,
+
+    #[error("Data capacity exceeded")]
+    DataCapacityExceeded,
 }
 
 /// 应用程序结果类型别名

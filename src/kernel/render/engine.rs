@@ -4,14 +4,13 @@
 use alloc::format;
 use core::str::FromStr;
 use embedded_graphics::{
-    Drawable,
-    draw_target::DrawTarget,
     geometry::{Point, Size},
-    image::Image,
-    mono_font::MonoTextStyle,
+    image::ImageRaw,
     pixelcolor::BinaryColor,
-    primitives::{Circle, Line as GfxLine, PrimitiveStyle, Rectangle as GfxRectangle},
+    primitives::Rectangle as GfxRectangle,
 };
+
+use crate::kernel::render::{graphics_renderer, image_renderer, text_renderer};
 use heapless::{String, Vec};
 use postcard::from_bytes;
 use serde::Deserialize;
@@ -22,11 +21,7 @@ type String64 = String<64>;
 type String128 = String<128>;
 
 use crate::{
-    assets::{
-        generated_fonts::{Font, FontCollection},
-        generated_icons::{ICON_DATA, Icon, IconId},
-        generated_layouts::MAIN_LAYOUT_BIN,
-    },
+    assets::{generated_icons::IconId, generated_layouts::MAIN_LAYOUT_BIN},
     common::error::{AppError, Result},
     kernel::data::{registry::DataSourceRegistry, types::DynamicValue},
     kernel::driver::display::DisplayDriver,
@@ -230,29 +225,26 @@ pub struct CircleElement {
 pub struct RenderContext<'a> {
     pub display_driver: &'a mut dyn DisplayDriver,
     pub data_registry: &'a DataSourceRegistry,
-    pub fonts: &'a FontCollection,
+    pub text_renderer: text_renderer::TextRenderer,
+    pub image_renderer: image_renderer::ImageRenderer,
+    pub graphics_renderer: graphics_renderer::GraphicsRenderer,
 }
 
 /// 布局渲染引擎
 pub struct RenderEngine {
     root_layout: Option<LayoutNode>,
     data_registry: &'static DataSourceRegistry,
-    fonts: &'static FontCollection,
 }
 
 impl RenderEngine {
     /// 创建新的渲染引擎实例
-    pub fn new(
-        data_registry: &'static DataSourceRegistry,
-        fonts: &'static FontCollection,
-    ) -> Result<Self> {
+    pub fn new(data_registry: &'static DataSourceRegistry) -> Result<Self> {
         // 加载并解析布局数据
         let root_layout = Self::load_layout()?;
 
         Ok(Self {
             root_layout: Some(root_layout),
             data_registry,
-            fonts,
         })
     }
 
@@ -349,59 +341,22 @@ impl RenderEngine {
     ) -> Result<()> {
         let border = &container.border;
 
-        // 如果有边框，绘制四条边
-        if border.top > 0 {
-            let top_line = GfxLine::new(
+        // 如果有边框，使用图形渲染器绘制
+        if border.top > 0 || border.bottom > 0 || border.left > 0 || border.right > 0 {
+            let gfx_rect = GfxRectangle::new(
                 Point::new(rect.x as i32, rect.y as i32),
-                Point::new((rect.x + rect.width) as i32, rect.y as i32),
-            )
-            .into_styled(PrimitiveStyle::with_stroke(
-                Self::importance_to_color(&Importance::Normal),
-                border.top as u32,
-            ));
+                Size::new(rect.width as u32, rect.height as u32),
+            );
 
-            top_line.draw(context.display_driver)?;
-        }
-
-        if border.bottom > 0 {
-            let bottom_y = rect.y + rect.height - border.top;
-            let bottom_line = GfxLine::new(
-                Point::new(rect.x as i32, bottom_y as i32),
-                Point::new((rect.x + rect.width) as i32, bottom_y as i32),
-            )
-            .into_styled(PrimitiveStyle::with_stroke(
-                Self::importance_to_color(&Importance::Normal),
-                border.bottom as u32,
-            ));
-
-            bottom_line.draw(context.display_driver)?;
-        }
-
-        if border.left > 0 {
-            let left_line = GfxLine::new(
-                Point::new(rect.x as i32, rect.y as i32),
-                Point::new(rect.x as i32, (rect.y + rect.height) as i32),
-            )
-            .into_styled(PrimitiveStyle::with_stroke(
-                Self::importance_to_color(&Importance::Normal),
-                border.left as u32,
-            ));
-
-            left_line.draw(context.display_driver)?;
-        }
-
-        if border.right > 0 {
-            let right_x = rect.x + rect.width - border.right;
-            let right_line = GfxLine::new(
-                Point::new(right_x as i32, rect.y as i32),
-                Point::new(right_x as i32, (rect.y + rect.height) as i32),
-            )
-            .into_styled(PrimitiveStyle::with_stroke(
-                Self::importance_to_color(&Importance::Normal),
-                border.right as u32,
-            ));
-
-            right_line.draw(context.display_driver)?;
+            context.graphics_renderer.draw_border(
+                context.display_driver,
+                gfx_rect,
+                border.top,
+                border.right,
+                border.bottom,
+                border.left,
+                &Importance::Normal,
+            )?;
         }
 
         Ok(())
@@ -545,142 +500,40 @@ impl RenderEngine {
             return Ok(());
         }
 
-        // 获取字体
-        let font = self
-            .fonts
-            .get(&text.font_size)
-            .ok_or_else(|| AppError::LayoutError(format!("字体未找到: {}", text.font_size)))?;
-
         // 计算文本位置
         let text_rect = LayoutRect::from_array(text.rect).relative_to(parent_rect);
 
-        // 计算文本对齐的起始位置
-        let start_point = self.calculate_text_position(
-            &actual_content,
-            font,
-            &text_rect,
-            text.alignment,
-            text.vertical_alignment,
+        // 转换为 GfxRectangle
+        let gfx_rect = GfxRectangle::new(
+            Point::new(text_rect.x as i32, text_rect.y as i32),
+            Size::new(text_rect.width, text_rect.height),
         );
 
-        // 创建文本样式
-        let text_style =
-            MonoTextStyle::new(&font.font, Self::importance_to_color(&Importance::Normal));
+        // 转换对齐方式
+        let horizontal_align = match text.alignment {
+            TextAlignment::Left => text_renderer::TextAlignment::Left,
+            TextAlignment::Center => text_renderer::TextAlignment::Center,
+            TextAlignment::Right => text_renderer::TextAlignment::Right,
+        };
 
-        // 处理文本换行
-        if let Some(max_width) = text.max_width {
-            self.render_text_with_wrapping(
-                &actual_content,
-                start_point,
-                max_width,
-                text.max_lines.unwrap_or(u8::MAX),
-                text_style,
+        let vertical_align = match text.vertical_alignment {
+            VerticalAlignment::Top => text_renderer::VerticalAlignment::Top,
+            VerticalAlignment::Center => text_renderer::VerticalAlignment::Center,
+            VerticalAlignment::Bottom => text_renderer::VerticalAlignment::Bottom,
+        };
+
+        // 直接使用上下文的文本渲染器绘制文本
+        context
+            .text_renderer
+            .draw_in_rect(
                 context.display_driver,
+                &actual_content,
+                gfx_rect,
+                text_renderer::Padding::all(0),
+                horizontal_align,
+                vertical_align,
             )
-        } else {
-            // 单行文本
-            let text_obj =
-                embedded_graphics::text::Text::new(&actual_content, start_point, text_style);
-
-            text_obj
-                .draw(context.display_driver)
-                .map_err(|e| AppError::RenderError(format!("文本渲染失败: {}", e)))
-        }
-    }
-
-    /// 渲染带换行的文本
-    fn render_text_with_wrapping(
-        &self,
-        content: &str,
-        start_point: Point,
-        max_width: u16,
-        max_lines: u8,
-        text_style: MonoTextStyle<BinaryColor>,
-        display: &mut dyn DisplayDriver,
-    ) -> Result<()> {
-        let font_height = text_style.font.character_size.height;
-        let mut current_point = start_point;
-        let mut lines_rendered = 0;
-
-        // 简单的换行算法（按字符分割）
-        let mut current_line = String::<256>::new();
-
-        for ch in content.chars() {
-            if ch == '\n' {
-                // 渲染当前行
-                if !current_line.is_empty() {
-                    let text_obj = embedded_graphics::text::Text::new(
-                        &current_line,
-                        current_point,
-                        text_style,
-                    );
-
-                    text_obj
-                        .draw(display)
-                        .map_err(|e| AppError::RenderError(format!("文本渲染失败: {}", e)))?;
-
-                    current_line.clear();
-                    current_point.y += font_height as i32;
-                    lines_rendered += 1;
-                }
-
-                if lines_rendered >= max_lines {
-                    break;
-                }
-                continue;
-            }
-
-            // 检查当前行宽度
-            current_line
-                .push(ch)
-                .map_err(|_| AppError::RenderError("文本内容过长".to_string()))?;
-
-            // 这里可以添加更精确的宽度计算
-            // 简化处理：如果行太长，就换行
-            if current_line.len()
-                > (max_width / text_style.font.character_size.width as u16) as usize
-            {
-                // 移除最后一个字符并换行
-                current_line.pop();
-
-                if !current_line.is_empty() {
-                    let text_obj = embedded_graphics::text::Text::new(
-                        &current_line,
-                        current_point,
-                        text_style,
-                    );
-
-                    text_obj
-                        .draw(display)
-                        .map_err(|e| AppError::RenderError(format!("文本渲染失败: {}", e)))?;
-
-                    current_line.clear();
-                    current_point.y += font_height as i32;
-                    lines_rendered += 1;
-
-                    if lines_rendered >= max_lines {
-                        break;
-                    }
-                }
-
-                // 在新行添加当前字符
-                current_line
-                    .push(ch)
-                    .map_err(|_| AppError::RenderError("文本内容过长".to_string()))?;
-            }
-        }
-
-        // 渲染最后一行
-        if !current_line.is_empty() && lines_rendered < max_lines {
-            let text_obj =
-                embedded_graphics::text::Text::new(&current_line, current_point, text_style);
-
-            text_obj
-                .draw(display)
-                .map_err(|e| AppError::RenderError(format!("文本渲染失败: {}", e)))?;
-        }
-
-        Ok(())
+            .map_err(|e| AppError::RenderError(format!("文本渲染失败: {}", e)))
     }
 
     /// 渲染图标元素
@@ -703,15 +556,18 @@ impl RenderEngine {
         // 计算图标位置
         let icon_rect = LayoutRect::from_array(icon.rect).relative_to(parent_rect);
 
-        // 创建图标图像
-        let image = Image::new(
-            &icon_data,
-            Point::new(icon_rect.x as i32, icon_rect.y as i32),
-        );
+        // 设置图像渲染器的位置
+        context
+            .image_renderer
+            .move_to(Point::new(icon_rect.x as i32, icon_rect.y as i32));
+
+        // 使用图标数据的实际尺寸
+        let size = Size::new(icon_data.width(), icon_data.height());
 
         // 绘制图标
-        image
-            .draw(context.display_driver)
+        context
+            .image_renderer
+            .draw_image(context.display_driver, icon_data.data(), size)
             .map_err(|e| AppError::RenderError(format!("图标渲染失败: {}", e)))
     }
 
@@ -728,19 +584,22 @@ impl RenderEngine {
         let end_x = line.end[0] as i32 + parent_rect.x as i32;
         let end_y = line.end[1] as i32 + parent_rect.y as i32;
 
-        // 获取颜色
-        let color = match line.importance {
-            Some(imp) => Self::importance_to_color(&imp),
-            None => Self::importance_to_color(&Importance::Normal),
+        // 获取重要程度
+        let importance = match &line.importance {
+            Some(imp) => imp,
+            None => &Importance::Normal,
         };
 
-        // 创建线条
-        let line_obj = GfxLine::new(Point::new(start_x, start_y), Point::new(end_x, end_y))
-            .into_styled(PrimitiveStyle::with_stroke(color, line.thickness as u32));
-
-        // 绘制线条
-        line_obj
-            .draw(context.display_driver)
+        // 使用上下文的图形渲染器绘制线条
+        context
+            .graphics_renderer
+            .draw_line(
+                context.display_driver,
+                Point::new(start_x, start_y),
+                Point::new(end_x, end_y),
+                line.thickness,
+                importance,
+            )
             .map_err(|e| AppError::RenderError(format!("线条渲染失败: {}", e)))
     }
 
@@ -754,34 +613,17 @@ impl RenderEngine {
         // 计算实际位置
         let rect_rect = LayoutRect::from_array(rect.rect).relative_to(parent_rect);
 
-        // 创建矩形
-        let rectangle = GfxRectangle::new(
-            Point::new(rect_rect.x as i32, rect_rect.y as i32),
-            Size::new(rect_rect.width as u32, rect_rect.height as u32),
-        );
-
-        // 设置样式
-        let mut style = PrimitiveStyle::default();
-
-        // 填充颜色
-        if let Some(fill_importance) = &rect.fill_importance {
-            style = style.with_fill(Self::importance_to_color(fill_importance));
-        }
-
-        // 边框
-        if rect.stroke_thickness > 0 {
-            let stroke_color = match &rect.stroke_importance {
-                Some(imp) => Self::importance_to_color(imp),
-                None => Self::importance_to_color(&Importance::Normal),
-            };
-
-            style = style.with_stroke(stroke_color, rect.stroke_thickness as u32);
-        }
-
-        // 绘制矩形
-        rectangle
-            .into_styled(style)
-            .draw(context.display_driver)
+        // 使用上下文的图形渲染器绘制矩形
+        context
+            .graphics_renderer
+            .draw_rectangle(
+                context.display_driver,
+                Point::new(rect_rect.x as i32, rect_rect.y as i32),
+                Size::new(rect_rect.width as u32, rect_rect.height as u32),
+                rect.fill_importance.as_ref(),
+                rect.stroke_importance.as_ref(),
+                rect.stroke_thickness,
+            )
             .map_err(|e| AppError::RenderError(format!("矩形渲染失败: {}", e)))
     }
 
@@ -796,34 +638,17 @@ impl RenderEngine {
         let center_x = circle.center[0] as i32 + parent_rect.x as i32;
         let center_y = circle.center[1] as i32 + parent_rect.y as i32;
 
-        // 创建圆形
-        let circle_obj = Circle::new(
-            Point::new(center_x, center_y),
-            circle.radius as u32 * 2, // diameter
-        );
-
-        // 设置样式
-        let mut style = PrimitiveStyle::default();
-
-        // 填充颜色
-        if let Some(fill_importance) = &circle.fill_importance {
-            style = style.with_fill(Self::importance_to_color(fill_importance));
-        }
-
-        // 边框
-        if circle.stroke_thickness > 0 {
-            let stroke_color = match &circle.stroke_importance {
-                Some(imp) => Self::importance_to_color(imp),
-                None => Self::importance_to_color(&Importance::Normal),
-            };
-
-            style = style.with_stroke(stroke_color, circle.stroke_thickness as u32);
-        }
-
-        // 绘制圆形
-        circle_obj
-            .into_styled(style)
-            .draw(context.display_driver)
+        // 使用上下文的图形渲染器绘制圆形
+        context
+            .graphics_renderer
+            .draw_circle(
+                context.display_driver,
+                Point::new(center_x, center_y),
+                circle.radius as u32 * 2, // diameter
+                circle.fill_importance.as_ref(),
+                circle.stroke_importance.as_ref(),
+                circle.stroke_thickness,
+            )
             .map_err(|e| AppError::RenderError(format!("圆形渲染失败: {}", e)))
     }
 
@@ -864,7 +689,8 @@ impl RenderEngine {
             }
         }
 
-        Ok(result.to_string())
+        // 修改这里：直接返回 result，而不是 result.to_string()
+        Ok(result)
     }
 
     /// 获取占位符对应的值
@@ -1011,20 +837,48 @@ impl RenderEngine {
     }
 
     /// 查找图标数据
-    fn find_icon_data(
-        &self,
-        icon_id: &str,
-    ) -> Result<embedded_graphics::image::ImageRaw<'static, BinaryColor>> {
-        // 这里应该根据项目实际的图标数据结构来实现
-        // 简化实现：假设有全局的ICON_DATA和ICON_IDS
-        let index = ICON_IDS
-            .iter()
-            .position(|&id| id == icon_id)
-            .ok_or_else(|| AppError::LayoutError(format!("图标未找到: {}", icon_id)))?;
+    fn find_icon_data(&self, icon_id: &str) -> Result<ImageRaw<'static, BinaryColor>> {
+        // 解析图标ID字符串，格式可能是 "category::icon_name" 或直接是图标ID
+        let (category, icon_name) = if let Some(pos) = icon_id.find("::") {
+            let (cat, name) = icon_id.split_at(pos);
+            (cat, &name[2..]) // 去掉"::"
+        } else {
+            // 默认尝试数字图标
+            ("digit", icon_id)
+        };
 
-        // 这里需要根据实际的数据结构获取图标数据
-        // 简化处理：返回一个占位图标
-        Ok(embedded_graphics::image::ImageRaw::new(&[0u8; 1], 1))
+        // 根据类别查找图标
+        match category {
+            "digit" => {
+                // 数字图标，如 digit_0, digit_1, ..., digit_9
+                if icon_name.len() > 6 && icon_name.starts_with("digit_") {
+                    if let Ok(num_str) = icon_name.get(6..) {
+                        if let Ok(num) = num_str.parse::<u8>() {
+                            if num <= 9 {
+                                // 在数字图标数据中查找
+                                return self.get_digit_icon_data(num);
+                            }
+                        }
+                    }
+                }
+                // 特殊数字图标如 "colon"
+                if icon_name == "colon" {
+                    return self.get_digit_icon_data(10); // 假设colon是第10个数字图标
+                }
+            }
+            "weather" => {
+                // 天气图标
+                return self.get_weather_icon_data(icon_name);
+            }
+            _ => {
+                // 其他图标类别，如 "system", "ui"等
+                if let Some(category_config) = self.find_icon_category(category) {
+                    return self.get_local_icon_data(category_config, icon_name);
+                }
+            }
+        }
+
+        Err(AppError::LayoutError(format!("图标未找到: {}", icon_id)))
     }
 
     /// 评估条件表达式
@@ -1056,47 +910,6 @@ impl RenderEngine {
 
         // 默认返回true，让元素显示
         Ok(true)
-    }
-
-    /// 计算文本位置（考虑对齐方式）
-    fn calculate_text_position(
-        &self,
-        text: &str,
-        font: &Font,
-        rect: &LayoutRect,
-        alignment: TextAlignment,
-        vertical_alignment: VerticalAlignment,
-    ) -> Point {
-        let char_width = font.font.character_size.width as i32;
-        let char_height = font.font.character_size.height as i32;
-
-        // 计算文本宽度（简化：假设所有字符等宽）
-        let text_width = text.len() as i32 * char_width;
-
-        // 水平对齐
-        let x = match alignment {
-            TextAlignment::Left => rect.x as i32,
-            TextAlignment::Center => rect.x as i32 + (rect.width as i32 - text_width) / 2,
-            TextAlignment::Right => rect.x as i32 + rect.width as i32 - text_width,
-        };
-
-        // 垂直对齐
-        let y = match vertical_alignment {
-            VerticalAlignment::Top => rect.y as i32,
-            VerticalAlignment::Center => rect.y as i32 + (rect.height as i32 - char_height) / 2,
-            VerticalAlignment::Bottom => rect.y as i32 + rect.height as i32 - char_height,
-        };
-
-        Point::new(x, y)
-    }
-
-    /// 将重要程度转换为颜色
-    fn importance_to_color(importance: &Importance) -> BinaryColor {
-        match importance {
-            Importance::Normal => BinaryColor::Off,  // 黑色/关闭
-            Importance::Warning => BinaryColor::On,  // 白色/开启（黄色在4色屏上可能映射为白色）
-            Importance::Critical => BinaryColor::On, // 白色/开启（红色在4色屏上可能映射为白色）
-        }
     }
 }
 

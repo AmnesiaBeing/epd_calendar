@@ -6,7 +6,6 @@
 //! - 基于基线的精确字符定位
 //! - 支持水平/垂直对齐
 //! - 内边距配置
-#![allow(unused)]
 
 use alloc::string::ToString;
 use alloc::vec::Vec;

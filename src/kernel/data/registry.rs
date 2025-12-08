@@ -2,16 +2,16 @@
 //! 数据源注册表模块
 //! 管理所有数据源实例的注册表
 
+use crate::common::GlobalMutex;
 use crate::common::error::{AppError, Result};
 use crate::kernel::data::source::DataSource;
 use crate::kernel::data::types::DataSourceId;
 use heapless::Vec;
-use spin::Mutex;
 
 /// 数据源注册表
 pub struct DataSourceRegistry {
     /// 数据源列表
-    data_sources: Vec<&'static Mutex<dyn DataSource + Send>>,
+    data_sources: Vec<&'static GlobalMutex<dyn DataSource + Send>, 8>,
 }
 
 impl Default for DataSourceRegistry {
@@ -31,14 +31,11 @@ impl DataSourceRegistry {
     /// 注册数据源
     pub fn register_data_source(
         &mut self,
-        data_source: &'static Mutex<dyn DataSource + Send>,
+        data_source: &'static GlobalMutex<dyn DataSource + Send>,
     ) -> Result<()> {
         // 检查是否已注册
         let id = data_source.lock().id();
-        if self.data_sources
-            .iter()
-            .any(|ds| ds.lock().id() == id)
-        {
+        if self.data_sources.iter().any(|ds| ds.lock().id() == id) {
             return Err(AppError::DataSourceAlreadyRegistered);
         }
 
@@ -54,7 +51,7 @@ impl DataSourceRegistry {
     pub fn get_data_source(
         &self,
         id: DataSourceId,
-    ) -> Option<&'static Mutex<dyn DataSource + Send>> {
+    ) -> Option<&'static GlobalMutex<dyn DataSource + Send>> {
         self.data_sources
             .iter()
             .find(|ds| ds.lock().id() == id)
@@ -62,14 +59,15 @@ impl DataSourceRegistry {
     }
 
     /// 获取所有数据源
-    pub fn get_all_data_sources(
-        &self,
-    ) -> &[&'static Mutex<dyn DataSource + Send>] {
+    pub fn get_all_data_sources(&self) -> &[&'static GlobalMutex<dyn DataSource + Send>] {
         &self.data_sources
     }
 
     /// 刷新所有数据源
-    pub async fn refresh_all(&self, system_api: &dyn crate::kernel::system::api::SystemApi) -> Result<()> {
+    pub async fn refresh_all(
+        &self,
+        system_api: &dyn crate::kernel::system::api::SystemApi,
+    ) -> Result<()> {
         for data_source in &self.data_sources {
             data_source.lock().refresh(system_api).await?;
         }
@@ -77,7 +75,11 @@ impl DataSourceRegistry {
     }
 
     /// 按ID刷新数据源
-    pub async fn refresh_by_id(&self, id: DataSourceId, system_api: &dyn crate::kernel::system::api::SystemApi) -> Result<()> {
+    pub async fn refresh_by_id(
+        &self,
+        id: DataSourceId,
+        system_api: &dyn crate::kernel::system::api::SystemApi,
+    ) -> Result<()> {
         if let Some(data_source) = self.get_data_source(id) {
             data_source.lock().refresh(system_api).await?;
             Ok(())
@@ -88,4 +90,5 @@ impl DataSourceRegistry {
 }
 
 /// 全局数据源注册表实例
-pub static DATA_SOURCE_REGISTRY: Mutex<DataSourceRegistry> = Mutex::new(DataSourceRegistry::new());
+pub static DATA_SOURCE_REGISTRY: GlobalMutex<DataSourceRegistry> =
+    GlobalMutex::new(DataSourceRegistry::new());

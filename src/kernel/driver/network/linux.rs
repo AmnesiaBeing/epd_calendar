@@ -1,4 +1,4 @@
-// src/driver/network/linux.rs
+// src/kernel/driver/network/linux.rs
 
 //! Linux平台网络驱动实现
 //!
@@ -12,7 +12,7 @@ use static_cell::StaticCell;
 
 use crate::common::error::AppError;
 use crate::common::error::Result;
-use crate::driver::network::NetworkDriver;
+use crate::kernel::driver::network::NetworkDriver;
 
 /// 网络任务异步函数
 ///

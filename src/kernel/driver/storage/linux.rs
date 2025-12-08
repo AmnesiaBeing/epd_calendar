@@ -1,11 +1,11 @@
-// src/driver/storage/linux.rs
+// src/kernel/driver/storage/linux.rs
 
 //! Linux平台存储驱动实现
 //!
 //! 提供Linux平台的文件存储功能，使用文件系统进行配置数据持久化
 
 use crate::common::error::{AppError, Result};
-use crate::driver::storage::ConfigStorage;
+use crate::kernel::driver::storage::ConfigStorage;
 use std::fs;
 use std::path::Path;
 

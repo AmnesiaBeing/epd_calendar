@@ -1,4 +1,4 @@
-// src/driver/storage/mod.rs
+// src/kernel/driver/storage/mod.rs
 
 //! 存储驱动模块
 //!

@@ -3,28 +3,18 @@
 //! 定义系统级别的模块化API接口，包含硬件、网络和配置存储子接口
 
 use crate::common::GlobalMutex;
-use crate::common::config::{CONFIG_MAGIC, MAX_CONFIG_SIZE, SystemConfig, default_config_version};
+use crate::common::config::{CONFIG_MAGIC, SystemConfig};
 use crate::common::error::{AppError, Result};
 use crate::kernel::driver::network::{DefaultNetworkDriver, NetworkDriver};
 use crate::kernel::driver::power::{DefaultPowerDriver, PowerDriver};
-use crate::kernel::driver::storage::{ConfigStorage, DefaultConfigStorage, DefaultStorageDriver};
-use alloc::vec::Vec;
-use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
-use embassy_sync::channel::Channel;
-use embassy_time::{Duration, Instant};
-use heapless::{String, Vec};
-use postcard::{from_bytes, to_allocvec};
-use spin::Mutex;
+use crate::kernel::driver::storage::{ConfigStorage, DefaultConfigStorage};
+
+use heapless::String;
+use postcard::from_bytes;
 
 /// 硬件API接口
 /// 处理硬件相关操作：电池/充电状态、系统时间戳/tick、WiFi连接/状态等
-pub trait HardwareApi: Send + Sync {
-    /// 获取系统时间戳（秒）
-    fn get_system_timestamp(&self) -> u32;
-
-    /// 获取系统时间戳（毫秒）
-    fn get_system_ticks(&self) -> u64;
-
+pub trait HardwareApi {
     /// 获取电池电量
     fn get_battery_level(&self) -> u8;
 
@@ -43,7 +33,7 @@ pub trait HardwareApi: Send + Sync {
 
 /// 网络客户端API接口
 /// 专做网络请求：HTTP GET/POST，纯数据传输，不涉及硬件控制
-pub trait NetworkClientApi: Send + Sync {
+pub trait NetworkClientApi {
     /// 发送HTTP GET请求
     async fn http_get(&self, url: &str) -> Result<String<256>>;
 
@@ -53,7 +43,7 @@ pub trait NetworkClientApi: Send + Sync {
 
 /// 配置存储API接口
 /// 底层配置存储：仅做配置的原始读写（无默认值、无缓存），对接存储驱动
-pub trait ConfigStorageApi: Send + Sync {
+pub trait ConfigApi {
     /// 读取配置数据
     fn read_config(&self) -> Result<Option<heapless::Vec<u8, 1024>>>;
 
@@ -66,31 +56,29 @@ pub trait ConfigStorageApi: Send + Sync {
 
 /// 系统API接口
 /// 聚合接口：提供子接口的统一访问入口，无独立逻辑
-pub trait SystemApi: Send + Sync {
+pub trait SystemApi {
     /// 获取硬件API实例
-    fn hardware_api(&self) -> &dyn HardwareApi;
+    fn get_hardware_api(&self) -> &dyn HardwareApi;
 
     /// 获取网络客户端API实例
-    fn network_client_api(&self) -> &dyn NetworkClientApi;
+    fn get_network_client_api(&self) -> &dyn NetworkClientApi;
 
     /// 获取配置存储API实例
-    fn config_storage_api(&self) -> &dyn ConfigStorageApi;
+    fn get_config_api(&self) -> &dyn ConfigApi;
 }
 
 /// 默认系统API实现
 pub struct DefaultSystemApi {
     /// 电源驱动实例
-    power_driver: Mutex<DefaultPowerDriver>,
+    power_driver: GlobalMutex<DefaultPowerDriver>,
     /// 网络驱动实例（全局互斥锁保护）
     network_driver: &'static GlobalMutex<DefaultNetworkDriver>,
-    /// 存储驱动实例
-    storage_driver: Mutex<DefaultStorageDriver>,
     /// 配置存储驱动实例
-    config_storage: Mutex<DefaultConfigStorage>,
+    config_storage: GlobalMutex<DefaultConfigStorage>,
     /// 当前配置
-    current_config: Mutex<SystemConfig>,
+    current_config: GlobalMutex<SystemConfig>,
     /// 配置是否已修改但未保存
-    config_dirty: Mutex<bool>,
+    config_dirty: GlobalMutex<bool>,
 }
 
 impl DefaultSystemApi {
@@ -98,16 +86,14 @@ impl DefaultSystemApi {
     pub fn new(
         power_driver: DefaultPowerDriver,
         network_driver: &'static GlobalMutex<DefaultNetworkDriver>,
-        storage_driver: DefaultStorageDriver,
         config_storage: DefaultConfigStorage,
     ) -> Self {
         Self {
-            power_driver: Mutex::new(power_driver),
+            power_driver: GlobalMutex::new(power_driver),
             network_driver,
-            storage_driver: Mutex::new(storage_driver),
-            config_storage: Mutex::new(config_storage),
-            current_config: Mutex::new(SystemConfig::default()),
-            config_dirty: Mutex::new(false),
+            config_storage: GlobalMutex::new(config_storage),
+            current_config: GlobalMutex::new(SystemConfig::default()),
+            config_dirty: GlobalMutex::new(false),
         }
     }
 
@@ -171,17 +157,17 @@ impl DefaultSystemApi {
 }
 
 impl SystemApi for DefaultSystemApi {
-    fn hardware_api(&self) -> &dyn HardwareApi {
+    fn get_hardware_api(&self) -> &dyn HardwareApi {
         // 返回硬件API实现
         &self
     }
 
-    fn network_client_api(&self) -> &dyn NetworkClientApi {
+    fn get_network_client_api(&self) -> &dyn NetworkClientApi {
         // 返回网络客户端API实现
         &self
     }
 
-    fn config_storage_api(&self) -> &dyn ConfigStorageApi {
+    fn get_config_api(&self) -> &dyn ConfigApi {
         // 返回配置存储API实现
         &self
     }
@@ -189,16 +175,6 @@ impl SystemApi for DefaultSystemApi {
 
 // 硬件API实现
 impl HardwareApi for DefaultSystemApi {
-    fn get_system_timestamp(&self) -> u32 {
-        // 获取系统时间戳（秒）
-        Instant::now().as_secs() as u32
-    }
-
-    fn get_system_ticks(&self) -> u64 {
-        // 获取系统时间戳（毫秒）
-        Instant::now().as_millis()
-    }
-
     fn get_battery_level(&self) -> u8 {
         // 获取电池电量
         100
@@ -245,7 +221,7 @@ impl NetworkClientApi for DefaultSystemApi {
 }
 
 // 配置存储API实现
-impl ConfigStorageApi for DefaultSystemApi {
+impl ConfigApi for DefaultSystemApi {
     fn read_config(&self) -> Result<Option<heapless::Vec<u8, 1024>>> {
         // 读取配置数据
         match self.config_storage.lock().read_config_block()? {
@@ -267,72 +243,6 @@ impl ConfigStorageApi for DefaultSystemApi {
 
     fn delete_config(&self) -> Result<()> {
         // 删除配置数据
-        Err(AppError::NotImplemented)
-    }
-}
-
-/// 系统状态监控器
-pub struct SystemStatusMonitor {
-    /// 系统API实例
-    system_api: &'static Mutex<DefaultSystemApi>,
-    /// 上次电池电量
-    last_battery: Option<u8>,
-    /// 上次充电状态
-    last_charging: Option<bool>,
-    /// 上次网络状态
-    last_network: Option<bool>,
-}
-
-impl SystemStatusMonitor {
-    /// 创建新的系统状态监控器实例
-    pub fn new(system_api: &'static Mutex<DefaultSystemApi>) -> Self {
-        Self {
-            system_api,
-            last_battery: None,
-            last_charging: None,
-            last_network: None,
-        }
-    }
-
-    /// 检查系统状态变化
-    pub fn check_status_changes(&mut self) {
-        // 检查电池状态变化
-        let battery = self.system_api.lock().get_battery_level();
-        if self.last_battery != Some(battery) {
-            log::info!("Battery level changed: {}%", battery);
-            self.last_battery = Some(battery);
-            let _ = SYSTEM_STATUS_CHANNEL.try_send(SystemStatusEvent::BatteryLevelChanged(battery));
-        }
-
-        // 检查充电状态变化
-        let charging = self.system_api.lock().is_charging();
-        if self.last_charging != Some(charging) {
-            log::info!("Charging status changed: {}", charging);
-            self.last_charging = Some(charging);
-            let _ =
-                SYSTEM_STATUS_CHANNEL.try_send(SystemStatusEvent::ChargingStatusChanged(charging));
-        }
-
-        // 检查网络状态变化
-        let network = self.system_api.lock().is_network_available();
-        if self.last_network != Some(network) {
-            log::info!("Network status changed: {}", network);
-            self.last_network = Some(network);
-            let _ =
-                SYSTEM_STATUS_CHANNEL.try_send(SystemStatusEvent::NetworkStatusChanged(network));
-        }
-    }
-
-    /// 启动状态监控任务
-    pub async fn run(&mut self) {
-        log::info!("System status monitor started");
-
-        let mut ticker = embassy_time::Ticker::every(Duration::from_secs(1 * 60)); // 每1分钟检查一次状态
-
-        loop {
-            ticker.next().await;
-            log::debug!("Checking system status");
-            self.check_status_changes();
-        }
+        unimplemented!()
     }
 }

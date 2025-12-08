@@ -18,9 +18,9 @@ use sntpc::{NtpContext, NtpTimestampGenerator, get_time};
 use crate::common::GlobalMutex;
 use crate::common::error::AppError;
 use crate::common::error::Result;
-use crate::driver::network::{DefaultNetworkDriver, NetworkDriver};
-use crate::driver::time_source::DefaultTimeSource;
-use crate::driver::time_source::TimeSource;
+use crate::kernel::driver::network::{DefaultNetworkDriver, NetworkDriver};
+use crate::kernel::driver::time_source::DefaultTimeSource;
+use crate::kernel::driver::time_source::TimeSource;
 
 /// SNTP请求超时时间（秒）
 const SNTP_TIMEOUT_SECONDS: u64 = 5;

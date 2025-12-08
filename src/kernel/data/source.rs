@@ -3,9 +3,9 @@
 //! 定义数据源接口和缓存结构
 
 use crate::common::error::{AppError, Result};
-use crate::core::data::types::{DataSourceId, DynamicValue, FieldMeta};
+use crate::kernel::data::types::{DataSourceId, DynamicValue, FieldMeta};
 use heapless::{String, Vec};
-use spin::Mutex;
+use serde::{Deserialize, Serialize};
 
 /// 数据源缓存结构
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -40,7 +40,8 @@ impl DataSourceCache {
     /// 设置字段值
     pub fn set_field(&mut self, name: String<32>, value: DynamicValue) -> Result<()> {
         // 查找字段是否已存在
-        if let Some(index) = self.fields
+        if let Some(index) = self
+            .fields
             .iter()
             .position(|(field_name, _)| field_name.as_str() == name.as_str())
         {
@@ -85,10 +86,13 @@ pub trait DataSource {
     fn fields(&self) -> &[FieldMeta];
 
     /// 获取字段值
-    fn get_field_value(&self, name: &str) -> Result<DynamicValue>;
+    async fn get_field_value(&self, name: &str) -> Result<DynamicValue>;
 
     /// 刷新数据源
-    async fn refresh(&mut self, system_api: &dyn crate::core::system::api::SystemApi) -> Result<()>;
+    async fn refresh(
+        &mut self,
+        system_api: &dyn crate::kernel::system::api::SystemApi,
+    ) -> Result<()>;
 
     /// 获取刷新间隔（秒）
     fn refresh_interval(&self) -> u32;

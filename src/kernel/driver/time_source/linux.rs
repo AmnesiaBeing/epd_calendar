@@ -1,4 +1,4 @@
-// src/driver/time_source/linux.rs
+// src/kernel/driver/time_source/linux.rs
 
 //! Linux平台时间源驱动实现
 //!
@@ -13,7 +13,7 @@ use embassy_time::Instant;
 use jiff::{Timestamp, Zoned, tz::TimeZone};
 
 use crate::common::error::{AppError, Result};
-use crate::driver::time_source::TimeSource;
+use crate::kernel::driver::time_source::TimeSource;
 
 /// 模拟器RTC时间源结构体
 ///

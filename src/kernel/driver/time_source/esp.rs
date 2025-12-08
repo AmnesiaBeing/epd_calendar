@@ -1,4 +1,4 @@
-// src/driver/time_source/esp.rs
+// src/kernel/driver/time_source/esp.rs
 
 //! ESP32平台时间源驱动实现
 //!
@@ -10,7 +10,7 @@ use esp_hal::rtc_cntl::Rtc;
 use jiff::Timestamp;
 
 use crate::common::error::{AppError, Result};
-use crate::driver::time_source::TimeSource;
+use crate::kernel::driver::time_source::TimeSource;
 
 /// ESP32 RTC时间源结构体
 ///

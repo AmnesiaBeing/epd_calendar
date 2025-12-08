@@ -167,13 +167,13 @@ impl FontRenderer {
 
             rendered_chars += 1;
 
-            // 每100个字符打印进度
-            if rendered_chars % 100 == 0 {
+            // 每1000个字符打印进度
+            if rendered_chars % 1000 == 0 {
                 println!(
                     "cargo:warning=  渲染进度: {}/{} ({}%)",
                     rendered_chars,
                     all_chars.len(),
-                    (rendered_chars * 100) / all_chars.len()
+                    (rendered_chars * 1000) / all_chars.len()
                 );
             }
         }
