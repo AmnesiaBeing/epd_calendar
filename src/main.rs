@@ -177,10 +177,9 @@ async fn cold_start(spawner: &Spawner) -> Result<()> {
         .await?;
 
     // 注册天气数据源
-    let weather_source_mutex = WEATHER_SOURCE.init(Mutex::new(WeatherDataSource::new(
-        system_api,
-        DefaultSensorDriver::new(),
-    )?));
+    let weather_source_mutex = WEATHER_SOURCE.init(Mutex::new(
+        WeatherDataSource::new(system_api, DefaultSensorDriver::new()).await?,
+    ));
     data_source_registry
         .lock()
         .await
