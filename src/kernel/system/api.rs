@@ -12,7 +12,6 @@ use crate::kernel::driver::storage::{ConfigStorage, DefaultConfigStorage};
 use alloc::boxed::Box;
 use async_trait::async_trait;
 use embassy_net::dns::DnsSocket;
-use embassy_net::tcp::TcpSocket;
 use embassy_net::tcp::client::{TcpClient, TcpClientState};
 use heapless::{String, Vec};
 use reqwless::client::HttpClient;
@@ -213,14 +212,21 @@ impl NetworkClientApi for DefaultSystemApi {
 
         // 从URL中提取主机名作为Host头部
         let host = extract_host(url);
+
+        // 将headers数组绑定到变量，确保其生命周期足够长
         let headers = [(("Host", host))];
 
-        let mut request = client
+        // 分解请求构建步骤，避免临时值生命周期问题
+        let mut request_builder = client
             .request(reqwless::request::Method::GET, url)
             .await
-            .map_err(|_| AppError::NetworkRequestFailed)?
-            .content_type(reqwless::headers::ContentType::TextPlain)
-            .headers(&headers)
+            .map_err(|_| AppError::NetworkRequestFailed)?;
+
+        request_builder = request_builder.content_type(reqwless::headers::ContentType::TextPlain);
+
+        request_builder = request_builder.headers(&headers);
+
+        let request = request_builder
             .send(&mut buffer)
             .await
             .map_err(|_| AppError::NetworkRequestFailed)?;
@@ -281,14 +287,21 @@ impl NetworkClientApi for DefaultSystemApi {
 
         // 从URL中提取主机名作为Host头部
         let host = extract_host(url);
+
+        // 将headers数组绑定到变量，确保其生命周期足够长
         let headers = [(("Host", host))];
 
-        let mut request = client
+        // 分解请求构建步骤，避免临时值生命周期问题
+        let mut request_builder = client
             .request(reqwless::request::Method::GET, url)
             .await
-            .map_err(|_| AppError::NetworkRequestFailed)?
-            .content_type(reqwless::headers::ContentType::TextPlain)
-            .headers(&headers)
+            .map_err(|_| AppError::NetworkRequestFailed)?;
+
+        request_builder = request_builder.content_type(reqwless::headers::ContentType::TextPlain);
+
+        request_builder = request_builder.headers(&headers);
+
+        let request = request_builder
             .send(&mut buffer)
             .await
             .map_err(|_| AppError::NetworkRequestFailed)?;

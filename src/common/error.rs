@@ -179,6 +179,15 @@ pub enum AppError {
     #[error("Invalid API URL")]
     InvalidApiUrl,
 
+    #[error("JSON parse failed")]
+    JsonParseFailed,
+
+    #[error("Invalid API key")]
+    InvalidApiKey,
+
+    #[error("Weather data not found")]
+    WeatherDataNotFound,
+
     #[error("Invalid path format")]
     InvalidPathFormat,
 
@@ -187,6 +196,9 @@ pub enum AppError {
 
     #[error("Power driver error")]
     PowerError,
+
+    #[error("Invalid date")]
+    InvalidDate,
 }
 
 /// 应用程序结果类型别名
