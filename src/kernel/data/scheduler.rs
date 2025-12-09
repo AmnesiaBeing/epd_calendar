@@ -1,154 +1,145 @@
 // src/kernel/data/scheduler.rs
 //! 数据源调度器模块
-//! 实现单静态任务的数据源调度，适配embassy"静态任务、无堆分配"特性
+//! 实现单静态任务的数据源调度
 
+use crate::common::GlobalMutex;
 use crate::common::error::{AppError, Result};
-use crate::common::{GlobalChannel, GlobalMutex};
-use crate::kernel::data::source::DataSource;
-use crate::kernel::data::types::DataSourceId;
-use crate::kernel::system::api::SystemApi;
+use crate::kernel::data::{DataSource, DataSourceId, DynamicValue};
+use crate::kernel::system::api::DefaultSystemApi;
 
-use embassy_time::{Duration, Ticker};
+use embassy_time::{Duration, Instant, Ticker};
 use heapless::Vec;
+use static_cell::StaticCell;
 
-/// 数据源更新事件
-pub enum DataSourceEvent {
-    /// 数据源已更新
-    Updated(DataSourceId),
-    /// 数据源更新失败
-    Failed(DataSourceId, AppError),
-}
+/// 创建数据源调度器
+static DATA_SOURCE_SCHEDULER: StaticCell<GlobalMutex<DataSourceRegistry>> = StaticCell::new();
+
+/// 下一个可用的数据源ID
+static NEXT_ID: GlobalMutex<DataSourceId> = GlobalMutex::new(0);
 
 /// 数据源元数据
-pub struct SourceMeta {
+struct SourceMeta {
     /// 数据源ID
     pub id: DataSourceId,
     /// 数据源实例
     pub instance: &'static GlobalMutex<dyn DataSource>,
-    /// 刷新间隔（秒）
-    pub interval_secs: u64,
-    /// 上次刷新时间（系统ticks）
-    pub last_refresh_tick: u64,
+    /// 刷新间隔
+    pub interval_tick: Duration,
+    /// 上次刷新时间
+    pub last_refresh_tick: Instant,
 }
 
 /// 数据源调度器
 /// 管理所有数据源的定时刷新，适配embassy静态任务特性
-pub struct DataSourceScheduler {
+pub struct DataSourceRegistry {
     /// 数据源元数据列表
     pub sources: Vec<SourceMeta, 8>,
-    /// 最小刷新间隔（秒）
-    pub min_interval: u64,
+    /// 最小刷新间隔
+    pub min_interval_tick: Duration,
 }
 
-impl Default for DataSourceScheduler {
+impl Default for DataSourceRegistry {
     fn default() -> Self {
         Self {
             sources: Vec::new(),
-            min_interval: 60, // 默认最小间隔60秒
+            min_interval_tick: Duration::from_secs(60), // 默认最小间隔60秒
         }
     }
 }
 
-impl DataSourceScheduler {
+impl DataSourceRegistry {
     /// 创建新的数据源调度器
-    pub const fn new() -> Self {
-        Self {
-            sources: Vec::new(),
-            min_interval: 60,
-        }
+    pub fn new() -> &'static GlobalMutex<Self> {
+        DATA_SOURCE_SCHEDULER.init(GlobalMutex::new(DataSourceRegistry::default()))
     }
 
     /// 静态注册数据源
-    pub fn register_source(
+    pub async fn register_source(
         &mut self,
-        id: DataSourceId,
         instance: &'static GlobalMutex<dyn DataSource>,
-        interval_secs: u32,
+        interval_secs: u64,
     ) -> Result<()> {
-        // 检查数据源是否已注册
-        if self.sources.iter().any(|s| s.id == id) {
-            log::warn!("DataSource {:?} already registered", id);
-            return Ok(());
-        }
+        // 获取下一个可用ID
+        let id = *NEXT_ID.lock().await;
+        *NEXT_ID.lock().await += 1;
 
         // 添加数据源元数据
         self.sources.push(SourceMeta {
             id,
             instance,
-            interval_secs: interval_secs as u64,
-            last_refresh_tick: 0,
-        })?;
+            interval_tick: Duration::from_secs(interval_secs),
+            last_refresh_tick: Instant::MIN,
+        });
 
         // 重新计算最小刷新间隔
-        self.min_interval = self.get_min_interval();
+        self.min_interval_tick = self.get_min_interval();
         log::info!(
             "Registered DataSource {:?}, interval: {}s, new min interval: {}s",
             id,
             interval_secs,
-            self.min_interval
+            self.min_interval_tick / 1000
         );
 
         Ok(())
     }
 
     /// 计算所有数据源的最小刷新间隔
-    pub fn get_min_interval(&self) -> u64 {
+    pub fn get_min_interval(&self) -> Duration {
         if self.sources.is_empty() {
-            return 60; // 默认60秒
+            return Duration::from_secs(60); // 默认60秒
         }
 
         // 取所有数据源间隔的最小值
         self.sources
             .iter()
-            .map(|s| s.interval_secs)
+            .map(|s| s.interval_tick)
             .min()
-            .unwrap_or(60)
-    }
-
-    /// 手动触发指定数据源的刷新
-    pub async fn refresh_source(
-        &mut self,
-        id: DataSourceId,
-        system_api: &dyn SystemApi,
-        event_chan: &GlobalChannel<DataSourceEvent, 8>,
-    ) -> Result<()> {
-        // 查找数据源
-        if let Some(source_meta) = self.sources.iter_mut().find(|s| s.id == id) {
-            // 执行刷新
-            let mut source = source_meta.instance.lock().await;
-            if source.refresh(system_api).await.is_ok() {
-                let now = system_api.get_hardware_api().get_system_ticks();
-                source_meta.last_refresh_tick = now;
-                event_chan.send(DataSourceEvent::Updated(id)).await.ok();
-                log::debug!("[{}] Manually refreshed", id);
-            }
-        }
-
-        Ok(())
+            .unwrap_or(Duration::from_secs(60))
     }
 
     /// 刷新所有数据源
     pub async fn refresh_all(
         &mut self,
-        system_api: &dyn SystemApi,
-        event_chan: &GlobalChannel<DataSourceEvent, 8>,
+        system_api: &'static GlobalMutex<DefaultSystemApi>,
     ) -> Result<()> {
-        let now = system_api.get_hardware_api().get_system_ticks();
+        let now = Instant::now();
 
         for source_meta in self.sources.iter_mut() {
             // 执行刷新
             let mut source = source_meta.instance.lock().await;
             if source.refresh(system_api).await.is_ok() {
                 source_meta.last_refresh_tick = now;
-                event_chan
-                    .send(DataSourceEvent::Updated(source_meta.id))
-                    .await
-                    .ok();
                 log::debug!("[{}] Refreshed in refresh_all", source_meta.id);
             }
         }
 
         Ok(())
+    }
+
+    /// 通过字符串路径获取数据
+    /// 路径格式：数据源名称.字段名称，例如："config.wifi_ssid"、"datetime.date.year"
+    pub async fn get_value_by_path(&self, path: &str) -> Result<DynamicValue> {
+        // 解析路径，分离数据源名称和字段名称
+        let parts: Vec<&str, 2> = path.split('.').collect();
+        if parts.len() < 2 {
+            return Err(AppError::InvalidPathFormat);
+        }
+
+        let source_name = parts[0];
+        let field_name = parts[1..].join(".");
+
+        // 查找对应的数据源
+        for source_meta in self.sources.iter() {
+            let source = source_meta.instance.lock().await;
+            if source.name() == source_name {
+                // 从数据源中获取字段值
+                let value = source.get_field_value(&field_name)?;
+                return Ok(value);
+            }
+        }
+
+        // 未找到数据源
+        Err(AppError::DataSourceNotFound)
     }
 }
 
@@ -156,29 +147,40 @@ impl DataSourceScheduler {
 /// 按所有数据源的最小刷新间隔定时执行，遍历检查各数据源是否达到刷新时间
 #[embassy_executor::task]
 pub async fn generic_scheduler_task(
-    scheduler: &'static GlobalMutex<DataSourceScheduler>,
-    system_api: &'static dyn SystemApi,
-    event_chan: &'static GlobalChannel<DataSourceEvent>,
+    scheduler: &'static GlobalMutex<DataSourceRegistry>,
+    system_api: &'static GlobalMutex<DefaultSystemApi>,
 ) {
     log::info!("Starting DataSource scheduler task");
-
-    // 初始化：获取最小刷新间隔
-    let min_interval = scheduler.lock().await.get_min_interval();
-    let mut ticker = Ticker::every(Duration::from_secs(min_interval));
-
-    log::info!("Scheduler ticker set to {} seconds", min_interval);
+    let mut current_min_interval = Duration::MAX;
+    let mut ticker: Option<Ticker> = None;
 
     loop {
-        ticker.next().await; // 低功耗休眠，到点唤醒
+        // 每次循环检查并更新最小间隔
+        let guard = scheduler.lock().await;
+        let new_min_interval = guard.get_min_interval();
+        drop(guard); // 尽早释放锁
+
+        // 如果最小间隔变化，重建ticker
+        if new_min_interval != current_min_interval {
+            current_min_interval = new_min_interval;
+            ticker = Some(Ticker::every(current_min_interval));
+            log::info!(
+                "Updated scheduler ticker to {} ms",
+                current_min_interval / 1000
+            );
+        }
+
+        // 等待ticker触发（unwrap安全：上面已初始化）
+        ticker.as_mut().unwrap().next().await;
 
         log::debug!("Scheduler tick - checking data sources");
         let mut guard = scheduler.lock().await;
-        let now = system_api.get_hardware_api().get_system_ticks();
+        let now = Instant::now();
 
         // 遍历数据源，检查是否需要刷新
         for source_meta in guard.sources.iter_mut() {
             // 判断是否达到刷新时间
-            if now - source_meta.last_refresh_tick >= source_meta.interval_secs * 1000 {
+            if now - source_meta.last_refresh_tick >= source_meta.interval_tick {
                 // 转换为毫秒
                 log::debug!(
                     "[{:?}] Ready for refresh (now: {}, last: {}, interval: {})
@@ -186,7 +188,7 @@ pub async fn generic_scheduler_task(
                     source_meta.id,
                     now,
                     source_meta.last_refresh_tick,
-                    source_meta.interval_secs
+                    source_meta.interval_tick
                 );
 
                 // 执行刷新
@@ -194,16 +196,10 @@ pub async fn generic_scheduler_task(
                 match source.refresh(system_api).await {
                     Ok(_) => {
                         source_meta.last_refresh_tick = now; // 更新上次刷新时间
-                        event_chan
-                            .send(DataSourceEvent::Updated(source_meta.id))
-                            .await;
                         log::debug!("[{:?}] Refreshed successfully", source_meta.id);
                     }
                     Err(e) => {
                         log::warn!("[{:?}] Refresh failed: {:?}", source_meta.id, e);
-                        event_chan
-                            .send(DataSourceEvent::Failed(source_meta.id, e))
-                            .await;
                     }
                 }
             }

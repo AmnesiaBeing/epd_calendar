@@ -1,5 +1,7 @@
 //! 布局处理模块 - 解析YAML布局文件，验证资源合法性，生成二进制布局数据
 
+#![allow(unused)]
+
 use crate::builder::config::BuildConfig;
 use crate::builder::modules::font_generator::FontSizeConfig;
 use crate::builder::utils::progress::ProgressTracker;
@@ -734,7 +736,7 @@ impl LayoutBuilder {
         progress.update_progress(3, 4, "生成布局文件");
         Self::generate_layout_files(config, &layout_bin)?;
 
-        println!("cargo:warning=  布局处理完成，成功生成布局数据");
+        // println!("cargo:warning=  布局处理完成，成功生成布局数据");
         Ok(())
     }
 
@@ -955,13 +957,13 @@ impl LayoutBuilder {
     fn validate_and_truncate_string(s: &str, max_len: usize, field_name: &str) -> Result<String> {
         if s.len() > max_len {
             // 发出警告但不失败，自动截断
-            println!(
-                "cargo:warning=警告: {} '{}' 长度超过限制 ({} > {})，已自动截断",
-                field_name,
-                s,
-                s.len(),
-                max_len
-            );
+            // println!(
+            //     "cargo:warning=警告: {} '{}' 长度超过限制 ({} > {})，已自动截断",
+            //     field_name,
+            //     s,
+            //     s.len(),
+            //     max_len
+            // );
             Ok(s.chars().take(max_len).collect())
         } else {
             Ok(s.to_string())

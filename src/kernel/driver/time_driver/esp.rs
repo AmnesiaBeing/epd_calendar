@@ -10,13 +10,13 @@ use esp_hal::rtc_cntl::Rtc;
 use jiff::Timestamp;
 
 use crate::common::error::{AppError, Result};
-use crate::kernel::driver::time_source::TimeSource;
+use crate::kernel::driver::time_driver::TimeDriver;
 
 /// ESP32 RTC时间源结构体
 ///
 /// 使用ESP32硬件RTC提供系统时间功能
 #[cfg(feature = "embedded_esp")]
-pub struct RtcTimeSource {
+pub struct RtcTimeDriver {
     /// ESP32 RTC实例
     rtc: Rtc<'static>,
     /// 是否已同步（通过外部接口更新时间后设为true）
@@ -24,7 +24,7 @@ pub struct RtcTimeSource {
 }
 
 #[cfg(feature = "embedded_esp")]
-impl RtcTimeSource {
+impl RtcTimeDriver {
     /// 创建新的ESP32 RTC时间源实例
     ///
     /// # 参数
@@ -45,7 +45,7 @@ impl RtcTimeSource {
 }
 
 #[cfg(feature = "embedded_esp")]
-impl TimeSource for RtcTimeSource {
+impl TimeDriver for RtcTimeDriver {
     /// 获取当前时间
     ///
     /// # 返回值

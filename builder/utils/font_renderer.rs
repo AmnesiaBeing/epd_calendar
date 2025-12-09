@@ -59,7 +59,7 @@ pub struct FontRenderer;
 impl FontRenderer {
     /// 渲染字体 - 生成字符二值位图和度量参数
     pub fn render_font(config: &FontConfig) -> Result<FontRenderResult> {
-        let start_time = std::time::Instant::now();
+        // let start_time = std::time::Instant::now();
 
         // 1. 初始化FreeType
         let lib = Library::init().map_err(|e| anyhow!("初始化freetype库失败: {}", e))?;
@@ -168,33 +168,33 @@ impl FontRenderer {
             rendered_chars += 1;
 
             // 每1000个字符打印进度
-            if rendered_chars % 1000 == 0 {
-                println!(
-                    "cargo:warning=  渲染进度: {}/{} ({}%)",
-                    rendered_chars,
-                    all_chars.len(),
-                    (rendered_chars * 1000) / all_chars.len()
-                );
-            }
+            // if rendered_chars % 1000 == 0 {
+            //     println!(
+            //         "cargo:warning=  渲染进度: {}/{} ({}%)",
+            //         rendered_chars,
+            //         all_chars.len(),
+            //         (rendered_chars * 1000) / all_chars.len()
+            //     );
+            // }
         }
 
-        let duration = start_time.elapsed();
+        // let duration = start_time.elapsed();
 
         // 打印统计信息
-        println!(
-            "cargo:warning=  字体渲染完成，耗时: {:.2}秒",
-            duration.as_secs_f32()
-        );
-        println!(
-            "cargo:warning=  统计: 总共{}字符，成功渲染{}，缺失{}",
-            all_chars.len(),
-            rendered_chars,
-            missing_chars.len()
-        );
-        println!(
-            "cargo:warning=  生成位图数据大小: {}KB",
-            glyph_data.len() / 1024
-        );
+        // println!(
+        //     "cargo:warning=  字体渲染完成，耗时: {:.2}秒",
+        //     duration.as_secs_f32()
+        // );
+        // println!(
+        //     "cargo:warning=  统计: 总共{}字符，成功渲染{}，缺失{}",
+        //     all_chars.len(),
+        //     rendered_chars,
+        //     missing_chars.len()
+        // );
+        // println!(
+        //     "cargo:warning=  生成位图数据大小: {}KB",
+        //     glyph_data.len() / 1024
+        // );
 
         Ok(FontRenderResult {
             glyph_data,

@@ -47,6 +47,18 @@ pub enum AppError {
     #[error("HTTPS request failed")]
     HttpsRequestFailed,
 
+    #[error("Network request failed")]
+    NetworkRequestFailed,
+
+    #[error("Network response too large")]
+    NetworkResponseTooLarge,
+
+    #[error("Network response invalid")]
+    NetworkResponseInvalid,
+
+    #[error("Buffer overflow")]
+    BufferOverflow,
+
     #[error("TLS handshake failed")]
     TlsHandshakeFailed,
 
@@ -142,6 +154,39 @@ pub enum AppError {
 
     #[error("Data capacity exceeded")]
     DataCapacityExceeded,
+
+    #[error("Field limit exceeded")]
+    FieldLimitExceeded,
+
+    #[error("Lunar calculation error")]
+    LunarCalculationError,
+
+    #[error("Cache set failed")]
+    CacheSetFailed,
+
+    #[error("Time driver error")]
+    TimeDriverError,
+
+    #[error("Invalid location ID")]
+    InvalidLocationId,
+
+    #[error("Invalid weather condition")]
+    InvalidWeatherCondition,
+
+    #[error("Field metadata limit exceeded")]
+    FieldMetaLimitExceeded,
+
+    #[error("Invalid API URL")]
+    InvalidApiUrl,
+
+    #[error("Invalid path format")]
+    InvalidPathFormat,
+
+    #[error("Invalid config data")]
+    InvalidConfigData,
+
+    #[error("Power driver error")]
+    PowerError,
 }
 
 /// 应用程序结果类型别名

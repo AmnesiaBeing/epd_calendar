@@ -1,5 +1,7 @@
 //! 格言数据处理模块
 
+#![allow(unused)]
+
 use crate::builder::config::BuildConfig;
 use crate::builder::utils::{self, progress::ProgressTracker};
 use anyhow::{Context, Result};
@@ -30,7 +32,7 @@ fn load_char_set() -> Result<HashSet<char>> {
         .with_context(|| format!("读取字符集文件失败: {}", chars_path.display()))?;
 
     let char_set: HashSet<char> = content.chars().collect();
-    println!("cargo:warning=  加载字符集: {} 个字符", char_set.len());
+    // println!("cargo:warning=  加载字符集: {} 个字符", char_set.len());
 
     Ok(char_set)
 }
@@ -54,10 +56,10 @@ pub fn build(config: &BuildConfig, progress: &ProgressTracker) -> Result<()> {
     progress.update_progress(3, 4, "生成数据文件");
     generate_hitokoto_data(config, &hitokotos)?;
 
-    println!(
-        "cargo:warning=  格言数据处理完成，共处理 {} 个分类",
-        categories.len()
-    );
+    // println!(
+    //     "cargo:warning=  格言数据处理完成，共处理 {} 个分类",
+    //     categories.len()
+    // );
 
     Ok(())
 }
@@ -103,20 +105,20 @@ pub fn parse_all_json_files(
         result.push((category.id, valid_hitokotos_in_category));
 
         // 更新进度
-        println!(
-            "cargo:warning=  已处理分类: {}/{}, 当前分类: 有效{}条, 忽略{}条",
-            index + 1,
-            categories.len(),
-            result.last().unwrap().1.len(),
-            hitokotos.len() - result.last().unwrap().1.len()
-        );
+        // println!(
+        //     "cargo:warning=  已处理分类: {}/{}, 当前分类: 有效{}条, 忽略{}条",
+        //     index + 1,
+        //     categories.len(),
+        //     result.last().unwrap().1.len(),
+        //     hitokotos.len() - result.last().unwrap().1.len()
+        // );
     }
 
     // 报告统计信息
-    println!(
-        "cargo:warning=  格言统计: 总共{}条, 有效{}条, 忽略{}条",
-        total_hitokotos, valid_hitokotos, ignored_hitokotos
-    );
+    // println!(
+    //     "cargo:warning=  格言统计: 总共{}条, 有效{}条, 忽略{}条",
+    //     total_hitokotos, valid_hitokotos, ignored_hitokotos
+    // );
 
     Ok(result)
 }
@@ -213,12 +215,12 @@ fn generate_hitokoto_data(config: &BuildConfig, hitokotos: &[(u32, Vec<Hitokoto>
 
     utils::file_utils::write_string_file(&output_path, &content)?;
 
-    println!(
-        "cargo:warning=  生成格言数据: 来源{}个, 作者{}个, 格言{}条",
-        from_vec.len(),
-        from_who_vec.len(),
-        all_hitokotos.len()
-    );
+    // println!(
+    //     "cargo:warning=  生成格言数据: 来源{}个, 作者{}个, 格言{}条",
+    //     from_vec.len(),
+    //     from_who_vec.len(),
+    //     all_hitokotos.len()
+    // );
 
     Ok(())
 }

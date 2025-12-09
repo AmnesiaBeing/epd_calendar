@@ -1,6 +1,8 @@
 //! 图标生成模块
 //! 整合本地静态图标与天气图标生成逻辑，输出统一的枚举、位图数据及辅助方法
 
+#![allow(unused)]
+
 use anyhow::{Context, Result, bail};
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -91,7 +93,7 @@ pub fn build(config: &BuildConfig, progress: &ProgressTracker) -> Result<()> {
     progress.update_progress(4, 4, "生成统一图标文件");
     generate_unified_icon_file(config, &all_icons)?;
 
-    println!("cargo:warning=  所有图标处理完成");
+    // println!("cargo:warning=  所有图标处理完成");
     Ok(())
 }
 
@@ -113,21 +115,21 @@ fn process_local_icon_categories(
 
         match process_local_icon_category(category, &mut stats) {
             Ok(icons) => all_icons.extend(icons),
-            Err(e) => {
-                println!(
-                    "cargo:warning=Error: 处理{}图标分类失败: {}",
-                    category.category, e,
-                );
+            Err(_e) => {
+                // println!(
+                //     "cargo:warning=Error: 处理{}图标分类失败: {}",
+                //     category.category, e,
+                // );
             }
         }
     }
 
-    if stats.error_icons > 0 {
-        println!(
-            "cargo:warning=Warning: 本地图标处理中有{}个错误",
-            stats.error_icons,
-        );
-    }
+    // if stats.error_icons > 0 {
+    //     println!(
+    //         "cargo:warning=Warning: 本地图标处理中有{}个错误",
+    //         stats.error_icons,
+    //     );
+    // }
 
     Ok(all_icons)
 }
@@ -156,7 +158,7 @@ fn process_local_icon_category(
             Ok(icon) => processed_icons.push(icon),
             Err(e) => {
                 stats.record_error();
-                println!("cargo:warning=Error: 处理图标失败: {}", e);
+                // println!("cargo:warning=Error: 处理图标失败: {}", e);
                 // 继续处理其他图标而不是立即失败
             }
         }
@@ -239,12 +241,12 @@ fn process_weather_icons(
     // 加载并处理图标列表
     let icons = load_and_process_weather_icons(weather_config, &mut stats, progress)?;
 
-    if stats.error_icons > 0 {
-        println!(
-            "cargo:warning=Warning: 天气图标处理中有{}个错误",
-            stats.error_icons,
-        );
-    }
+    // if stats.error_icons > 0 {
+    //     println!(
+    //         "cargo:warning=Warning: 天气图标处理中有{}个错误",
+    //         stats.error_icons,
+    //     );
+    // }
 
     Ok(icons)
 }
@@ -277,9 +279,9 @@ fn load_and_process_weather_icons(
 
         match process_single_weather_icon(icon, config, stats) {
             Ok(processed_icon) => weather_icons.push(processed_icon),
-            Err(e) => {
+            Err(_e) => {
                 stats.record_error();
-                println!("cargo:warning=Error: 处理天气图标失败: {}", e);
+                // println!("cargo:warning=Error: 处理天气图标失败: {}", e);
             }
         }
     }
@@ -511,10 +513,10 @@ fn merge_and_validate_icons(
     }
 
     if !duplicate_variants.is_empty() {
-        println!(
-            "cargo:warning=Warning: 发现重复的变体名: {:?}",
-            duplicate_variants,
-        );
+        // println!(
+        //     "cargo:warning=Warning: 发现重复的变体名: {:?}",
+        //     duplicate_variants,
+        // );
 
         // 为重复的变体名添加后缀
         let mut name_count = HashMap::new();
@@ -613,11 +615,11 @@ fn generate_unified_icon_file(config: &BuildConfig, all_icons: &[ProcessedIconIn
     file_utils::write_string_file(&output_path, &content)
         .with_context(|| format!("写入生成的图标文件失败: {:?}", output_path))?;
 
-    println!(
-        "cargo:warning=  生成统一图标文件成功: {} ({}个图标)",
-        output_path.display(),
-        all_icons.len()
-    );
+    // println!(
+    //     "cargo:warning=  生成统一图标文件成功: {} ({}个图标)",
+    //     output_path.display(),
+    //     all_icons.len()
+    // );
 
     Ok(())
 }

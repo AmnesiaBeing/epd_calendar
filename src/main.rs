@@ -1,11 +1,6 @@
 // src/main.rs
 //! EPD日历应用主入口模块
-//!
-//! 本模块负责：
-//! - 应用程序的初始化和启动
-//! - 全局状态管理
-//! - 任务调度和系统监控
-//! - 支持嵌入式ESP32和Linux模拟器环境
+
 #![cfg_attr(feature = "embedded_esp", no_std)]
 #![cfg_attr(feature = "embedded_esp", no_main)]
 
@@ -25,28 +20,30 @@ mod common;
 mod kernel;
 mod tasks;
 
-use crate::common::{GlobalChannel, GlobalMutex};
+use crate::common::GlobalMutex;
+use crate::common::error::Result;
+use crate::kernel::data::DataSourceRegistry;
 use crate::kernel::data::generic_scheduler_task;
-use crate::kernel::data::{DataSourceEvent, DataSourceId, DataSourceScheduler};
+use crate::kernel::data::sources::time::TimeDataSource;
+use crate::kernel::data::sources::weather::WeatherDataSource;
 use crate::kernel::driver::display::DefaultDisplayDriver;
 use crate::kernel::driver::network::{DefaultNetworkDriver, NetworkDriver};
 use crate::kernel::driver::ntp_source::SntpService;
 use crate::kernel::driver::power::DefaultPowerDriver;
 use crate::kernel::driver::sensor::DefaultSensorDriver;
 use crate::kernel::driver::storage::DefaultConfigStorage;
-use crate::kernel::driver::time_source::DefaultTimeSource;
+use crate::kernel::driver::time_driver::DefaultTimeDriver;
 use crate::kernel::render::engine::RenderEngine;
+use crate::kernel::system::api::DefaultSystemApi;
 
-// 创建数据源调度器
-static DATA_SOURCE_SCHEDULER: StaticCell<GlobalMutex<DataSourceScheduler>> = StaticCell::new();
-
-// 创建事件通道
-static DATA_SOURCE_CHANNEL: StaticCell<GlobalChannel<DataSourceEvent>> = StaticCell::new();
-
-/// 全局状态管理
+/// 全局驱动状态管理
 static NETWORK_DRIVER: StaticCell<GlobalMutex<DefaultNetworkDriver>> = StaticCell::new();
-// static CONFIG_SERVICE: StaticCell<GlobalMutex<ConfigService>> = StaticCell::new();
-static TIME_SOURCE: StaticCell<GlobalMutex<DefaultTimeSource>> = StaticCell::new();
+static TIME_DRIVER: StaticCell<GlobalMutex<DefaultTimeDriver>> = StaticCell::new();
+static SYSTEM_API: StaticCell<GlobalMutex<DefaultSystemApi>> = StaticCell::new();
+
+/// 全局数据源管理
+static TIME_SOURCE: StaticCell<GlobalMutex<TimeDataSource>> = StaticCell::new();
+static WEATHER_SOURCE: StaticCell<GlobalMutex<WeatherDataSource>> = StaticCell::new();
 
 #[cfg(feature = "embedded_esp")]
 esp_bootloader_esp_idf::esp_app_desc!();
@@ -101,7 +98,7 @@ async fn main(spawner: Spawner) {
 /// 4. 初始化时间源和SNTP服务
 /// 5. 初始化显示驱动和渲染引擎
 /// 6. 启动所有后台任务
-async fn cold_start(spawner: &Spawner) {
+async fn cold_start(spawner: &Spawner) -> Result<()> {
     // 初始化日志系统
     init_logging().await;
     log::info!("EPD Calendar starting...");
@@ -117,43 +114,31 @@ async fn cold_start(spawner: &Spawner) {
     #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
     let storage_driver = DefaultConfigStorage::new("flash.bin", 4096).unwrap();
 
-    // TODO: 配置服务暂时还没做
-    let mut _config_service = ConfigService::new(storage_driver);
-
     #[cfg(feature = "embedded_esp")]
     let mut network_driver = DefaultNetworkDriver::new(&peripherals).unwrap();
     #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
     let mut network_driver = DefaultNetworkDriver::new();
 
-    match network_driver.initialize(spawner).await {
-        Ok(driver) => driver,
-        Err(e) => {
-            log::error!("Failed to initialize network driver: {}", e);
-            return;
-        }
-    };
+    network_driver.initialize(spawner).await?;
 
     // 初始化网络驱动
     let network_driver_mutex = NETWORK_DRIVER.init(Mutex::new(network_driver));
 
-    // 初始化时间源
+    // 初始化时间驱动
     #[cfg(feature = "embedded_esp")]
-    let time_source = DefaultTimeSource::new(&peripherals);
+    let time_driver = DefaultTimeDriver::new(&peripherals);
     #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
-    let time_source = DefaultTimeSource::new();
-    let time_source_mutex = TIME_SOURCE.init(Mutex::new(time_source));
+    let time_driver = DefaultTimeDriver::new();
+    let time_driver_mutex = TIME_DRIVER.init(Mutex::new(time_driver));
 
-    // 初始化SNTP时间源
-    let _ = SntpService::initialize(&spawner, network_driver_mutex, time_source_mutex);
-
-    // 初始化时间服务
-    let time_service = TimeService::new(time_source_mutex);
+    // 初始化SNTP更新时间驱动
+    let _ = SntpService::initialize(&spawner, network_driver_mutex, time_driver_mutex);
 
     // 初始化其他驱动和服务
     #[cfg(feature = "embedded_esp")]
-    let power_monitor = DefaultPowerDriver::new();
+    let power_driver = DefaultPowerDriver::new();
     #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
-    let power_monitor = DefaultPowerDriver::new();
+    let power_driver = DefaultPowerDriver::new();
 
     // 初始化显示驱动
     #[cfg(feature = "embedded_esp")]
@@ -162,20 +147,56 @@ async fn cold_start(spawner: &Spawner) {
     let display_driver = DefaultDisplayDriver::new().await.unwrap();
 
     // 初始化渲染引擎
-    let render_engine = RenderEngine::new(display_driver).unwrap();
+    // let render_engine = RenderEngine::new(display_driver).unwrap();
 
     // 启动显示任务
     // spawner.spawn(display_task(render_engine)).unwrap();
 
+    let system_api = SYSTEM_API.init(Mutex::new(DefaultSystemApi::new(
+        power_driver,
+        network_driver_mutex,
+        storage_driver,
+    )));
+
+    let data_source_registry = DataSourceRegistry::new();
+
+    // 设置数据源注册表到系统API
+    let mut system_api_guard = system_api.lock().await;
+    system_api_guard.set_data_source_registry(data_source_registry);
+    drop(system_api_guard);
+
+    // 注册时间数据源
+    let time_source_mutex = TIME_SOURCE.init(Mutex::new(TimeDataSource::new(time_driver_mutex)?));
+    data_source_registry
+        .lock()
+        .await
+        .register_source(
+            time_source_mutex,
+            60, // 每分钟刷新一次
+        )
+        .await?;
+
+    // 注册天气数据源
+    let weather_source_mutex = WEATHER_SOURCE.init(Mutex::new(WeatherDataSource::new(
+        system_api,
+        DefaultSensorDriver::new(),
+    )?));
+    data_source_registry
+        .lock()
+        .await
+        .register_source(
+            weather_source_mutex,
+            2 * 60 * 60, // 每2小时刷新一次
+        )
+        .await?;
+
     spawner
-        .spawn(generic_scheduler_task(
-            &DATA_SOURCE_SCHEDULER,
-            &SYSTEM_API,
-            &DATA_SOURCE_CHANNEL,
-        ))
+        .spawn(generic_scheduler_task(data_source_registry, system_api))
         .unwrap();
 
     log::info!("EPD Calendar started successfully");
+
+    Ok(())
 }
 
 /// 初始化日志系统
@@ -196,31 +217,6 @@ async fn init_logging() {
         rtt_target::rtt_init_print!();
         log::info!("Initializing logger for ESP32");
     }
-}
-
-// 注册数据源
-fn register_data_sources() {
-    let mut scheduler = DATA_SOURCE_SCHEDULER.lock();
-
-    // 注册时间数据源
-    scheduler
-        .register_source(
-            DataSourceId::Time,
-            &TIME_SOURCE,
-            60, // 每分钟刷新一次
-        )
-        .unwrap();
-
-    // 注册天气数据源
-    scheduler
-        .register_source(
-            DataSourceId::Weather,
-            &WEATHER_SOURCE,
-            1800, // 每30分钟刷新一次
-        )
-        .unwrap();
-
-    // 注册其他数据源...
 }
 
 /// 记录系统健康状态

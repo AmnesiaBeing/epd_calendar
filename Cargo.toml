@@ -61,7 +61,6 @@ embedded_esp = [
 ]
 embedded_graphics_simulator = ["epd-waveshare/simulator"]
 spi_bitbang = ["bitbang-hal"]
-esp-sync = ["dep:esp-sync"]
 
 [profile.release]
 opt-level = 'z'
@@ -76,7 +75,7 @@ incremental = false      # 禁用增量编译
 [profile.dev]
 opt-level = 's'
 debug = 2
-incremental = false # 禁用增量编译
+# incremental = false # 禁用增量编译
 # panic = 'abort'
 
 [build-dependencies]
@@ -98,6 +97,7 @@ chrono = "0.4.42"
 # 核心依赖
 log = { version = "0.4", default-features = false }
 thiserror = { version = "2.0", default-features = false }
+async-trait = "0.1.89"
 
 # 嵌入式相关依赖
 embedded-hal = "=1.0"
@@ -138,10 +138,18 @@ serde = { version = "1.0", default-features = false, features = [
 postcard = { version = "1.1.3", default-features = false, features = ["alloc"] }
 
 # 网络相关
+reqwless = { version = "0.13.0", default-features = false, features = [
+    "embedded-tls",
+    "alloc",
+    "log",
+] }
 sntpc = { version = "0.7", default-features = false, features = [
     "embassy-socket",
     "log",
 ] }
+
+# GZip解压
+miniz_oxide = "0.8.9"
 
 # 随机数相关（esp-hal支持getrandom作为外部接口使用）
 getrandom = { version = "0.3", optional = true, default-features = false }

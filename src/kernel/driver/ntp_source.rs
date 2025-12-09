@@ -19,8 +19,8 @@ use crate::common::GlobalMutex;
 use crate::common::error::AppError;
 use crate::common::error::Result;
 use crate::kernel::driver::network::{DefaultNetworkDriver, NetworkDriver};
-use crate::kernel::driver::time_source::DefaultTimeSource;
-use crate::kernel::driver::time_source::TimeSource;
+use crate::kernel::driver::time_driver::DefaultTimeDriver;
+use crate::kernel::driver::time_driver::TimeDriver;
 
 /// SNTP请求超时时间（秒）
 const SNTP_TIMEOUT_SECONDS: u64 = 5;
@@ -38,7 +38,7 @@ const SNTP_SYNC_INTERVAL_SECONDS: u64 = 60;
 /// 定期执行NTP时间同步，确保系统时间准确
 #[embassy_executor::task]
 async fn start_sntp_task(
-    time_source: &'static GlobalMutex<DefaultTimeSource>,
+    time_driver: &'static GlobalMutex<DefaultTimeDriver>,
     mut sntp_service: SntpService,
 ) {
     log::info!("🕒 SNTP task started");
@@ -46,7 +46,8 @@ async fn start_sntp_task(
     let mut ticker = Ticker::every(Duration::from_secs(SNTP_SYNC_INTERVAL_SECONDS));
 
     // 任务启动时立即同步一次
-    match perform_sntp_sync(&mut sntp_service, time_source).await {
+    log::info!("Performing initial SNTP time sync");
+    match perform_sntp_sync(&mut sntp_service, time_driver).await {
         Ok(()) => log::info!("Initial SNTP sync successful"),
         Err(e) => log::warn!("Initial SNTP sync failed: {:?}", e),
     }
@@ -55,7 +56,7 @@ async fn start_sntp_task(
         ticker.next().await;
 
         log::info!("Performing scheduled SNTP time sync");
-        match perform_sntp_sync(&mut sntp_service, time_source).await {
+        match perform_sntp_sync(&mut sntp_service, time_driver).await {
             Ok(()) => log::info!("Scheduled SNTP sync completed successfully"),
             Err(e) => log::warn!("Scheduled SNTP sync failed: {:?}", e),
         }
@@ -66,17 +67,17 @@ async fn start_sntp_task(
 ///
 /// # 参数
 /// - `sntp_service`: SNTP服务实例
-/// - `time_source`: 时间源实例
+/// - `time_driver`: 时间驱动实例
 ///
 /// # 返回值
 /// - `Result<()>`: 同步结果
 async fn perform_sntp_sync(
     sntp_service: &mut SntpService,
-    time_source: &'static GlobalMutex<DefaultTimeSource>,
+    time_driver: &'static GlobalMutex<DefaultTimeDriver>,
 ) -> Result<()> {
     let timestamp = sntp_service.request_time().await?;
     log::info!("Received NTP timestamp: {}", timestamp);
-    let _ = time_source.lock().await.set_time(timestamp);
+    let _ = time_driver.lock().await.set_time(timestamp);
     Ok(())
 }
 
@@ -109,15 +110,15 @@ impl SntpService {
     /// # 参数
     /// - `spawner`: 任务生成器
     /// - `network_driver`: 网络驱动实例
-    /// - `time_source`: 时间源实例
+    /// - `time_driver`: 时间驱动实例
     pub fn initialize(
         spawner: &Spawner,
         network_driver: &'static GlobalMutex<DefaultNetworkDriver>,
-        time_source: &'static GlobalMutex<DefaultTimeSource>,
+        time_driver: &'static GlobalMutex<DefaultTimeDriver>,
     ) {
         let sntp_service = Self::new(network_driver);
         spawner
-            .spawn(start_sntp_task(time_source, sntp_service))
+            .spawn(start_sntp_task(time_driver, sntp_service))
             .unwrap();
     }
 

@@ -1,10 +1,5 @@
 // src/common/mod.rs
 
-/// 公共模块定义
-///
-/// 本模块定义了EPD日历系统的公共类型、常量和模块导出
-/// 包含配置、错误处理、系统状态、天气数据等公共组件
-pub mod config;
 pub mod error;
 
 use embassy_sync::{channel::Channel, mutex::Mutex};

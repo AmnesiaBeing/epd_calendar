@@ -25,7 +25,7 @@ use crate::common::error::Result;
 /// 时间源驱动接口定义
 ///
 /// 提供系统时间的获取和设置功能
-pub trait TimeSource {
+pub trait TimeDriver {
     /// 获取当前时间（UTC时间戳）
     ///
     /// # 返回值
@@ -50,7 +50,7 @@ mod linux;
 mod esp;
 
 #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
-pub type DefaultTimeSource = linux::SimulatedRtc;
+pub type DefaultTimeDriver = linux::SimulatedRtc;
 
 #[cfg(feature = "embedded_esp")]
-pub type DefaultTimeSource = esp::RtcTimeSource;
+pub type DefaultTimeDriver = esp::RtcTimeDriver;

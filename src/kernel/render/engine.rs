@@ -672,20 +672,16 @@ impl RenderEngine {
                         chars.next(); // 跳过第二个 '}'
                         break;
                     }
-                    placeholder
-                        .push(c)
-                        .map_err(|_| AppError::LayoutError("占位符过长".to_string()))?;
+                    placeholder.push(c).map_err(|_| AppError::BufferOverflow)?;
                 }
 
                 // 获取占位符对应的值
                 let value = self.get_placeholder_value(&placeholder, context)?;
                 result
                     .push_str(&value)
-                    .map_err(|_| AppError::LayoutError("替换后文本过长".to_string()))?;
+                    .map_err(|_| AppError::BufferOverflow)?
             } else {
-                result
-                    .push(c)
-                    .map_err(|_| AppError::LayoutError("文本过长".to_string()))?;
+                result.push(c).map_err(|_| AppError::BufferOverflow)?;
             }
         }
 

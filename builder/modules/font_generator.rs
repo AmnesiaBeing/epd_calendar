@@ -1,6 +1,8 @@
 //! 字体生成模块 - 支持可配置的字体尺寸
 //! 使用字体渲染器的返回结果，确保正确的字符映射
 
+#![allow(unused)]
+
 use crate::builder::config::BuildConfig;
 use crate::builder::utils::font_renderer::{FontConfig, FontRenderer, GlyphMetrics};
 use crate::builder::utils::{self, progress::ProgressTracker};
@@ -48,10 +50,10 @@ pub fn build(config: &BuildConfig, progress: &ProgressTracker) -> Result<()> {
 
     // 1. 读取并处理原始字符集
     let raw_charset = read_raw_charset(config)?;
-    println!(
-        "cargo:warning=  原始字符集统计 - 共 {} 个字符（去重后）",
-        raw_charset.len()
-    );
+    // println!(
+    //     "cargo:warning=  原始字符集统计 - 共 {} 个字符（去重后）",
+    //     raw_charset.len()
+    // );
 
     // 2. 从构建配置中获取需要定义的字体尺寸
     let font_size_configs = config.font_size_configs.clone();
@@ -66,11 +68,11 @@ pub fn build(config: &BuildConfig, progress: &ProgressTracker) -> Result<()> {
     };
     shared_charset.chars.sort(); // 确保字符有序
 
-    println!(
-        "cargo:warning=  共享字符表统计 - 成功: {} 个字符，缺失: {} 个字符",
-        shared_charset.chars.len(),
-        shared_charset.missing.len()
-    );
+    // println!(
+    //     "cargo:warning=  共享字符表统计 - 成功: {} 个字符，缺失: {} 个字符",
+    //     shared_charset.chars.len(),
+    //     shared_charset.missing.len()
+    // );
 
     // 4. 渲染其他字体尺寸（使用共享字符表）
     let mut font_bitmaps = vec![baseline_bitmap];
@@ -105,15 +107,15 @@ pub fn build(config: &BuildConfig, progress: &ProgressTracker) -> Result<()> {
     );
     generate_shared_font_files(config, &shared_charset, &font_size_configs, &font_bitmaps)?;
 
-    println!("cargo:warning=  字体生成完成 ✅");
-    println!(
-        "cargo:warning=  生成字体尺寸: {}",
-        font_size_configs
-            .iter()
-            .map(|f| format!("{} ({}px)", f.name, f.size))
-            .collect::<Vec<_>>()
-            .join(", ")
-    );
+    // println!("cargo:warning=  字体生成完成 ✅");
+    // println!(
+    //     "cargo:warning=  生成字体尺寸: {}",
+    //     font_size_configs
+    //         .iter()
+    //         .map(|f| format!("{} ({}px)", f.name, f.size))
+    //         .collect::<Vec<_>>()
+    //         .join(", ")
+    // );
 
     Ok(())
 }
@@ -201,20 +203,20 @@ fn write_font_bitmap(bitmap: &FontBitmap, path: &Path) -> Result<()> {
         .with_context(|| format!("写入字体文件失败: {}", path.display()))?;
 
     // 计算统计信息
-    let total_size_kb = bitmap.glyph_data.len() as f64 / 1024.0;
-    let avg_char_size = if bitmap.char_count > 0 {
-        bitmap.glyph_data.len() as f64 / bitmap.char_count as f64
-    } else {
-        0.0
-    };
+    // let total_size_kb = bitmap.glyph_data.len() as f64 / 1024.0;
+    // let avg_char_size = if bitmap.char_count > 0 {
+    //     bitmap.glyph_data.len() as f64 / bitmap.char_count as f64
+    // } else {
+    //     0.0
+    // };
 
-    println!(
-        "cargo:warning=  生成字体文件: {} | 大小: {:.2}KB | 字符数: {} | 平均字符大小: {:.2}字节/字符",
-        path.display(),
-        total_size_kb,
-        bitmap.char_count,
-        avg_char_size
-    );
+    // println!(
+    //     "cargo:warning=  生成字体文件: {} | 大小: {:.2}KB | 字符数: {} | 平均字符大小: {:.2}字节/字符",
+    //     path.display(),
+    //     total_size_kb,
+    //     bitmap.char_count,
+    //     avg_char_size
+    // );
 
     Ok(())
 }
@@ -429,10 +431,10 @@ fn generate_fonts_rs(
     utils::file_utils::write_string_file(&output_path, &content)
         .with_context(|| format!("写入Rust字体文件失败: {}", output_path.display()))?;
 
-    println!(
-        "cargo:warning=  生成Rust字体描述文件: {}",
-        output_path.display()
-    );
+    // println!(
+    //     "cargo:warning=  生成Rust字体描述文件: {}",
+    //     output_path.display()
+    // );
 
     Ok(())
 }

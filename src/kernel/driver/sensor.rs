@@ -140,7 +140,7 @@ impl SensorDriver for EspSensorDriver {
     }
 
     async fn calibrate(&mut self) -> Result<()> {
-        log::info!("Linux sensor calibrated");
+        log::info!("Esp sensor calibrated");
         Ok(())
     }
 }
