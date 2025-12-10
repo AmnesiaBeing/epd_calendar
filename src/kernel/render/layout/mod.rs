@@ -1,8 +1,8 @@
-//! Layout module for the rendering engine
-//! This module provides all necessary components for layout processing and rendering
+//! 布局渲染模块
+//! 负责解析、测量和渲染布局文件
 
-pub mod engine;
-pub mod nodes;
 pub mod context;
+pub mod engine;
 pub mod evaluator;
 pub mod loader;
+pub mod nodes;

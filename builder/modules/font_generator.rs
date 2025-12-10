@@ -238,6 +238,8 @@ fn generate_fonts_rs(
     content.push_str("#![allow(dead_code)]\n");
     content.push_str("#![allow(clippy::unreadable_literal)]\n\n");
 
+    content.push_str("use serde::{Deserialize, Serialize};\n\n");
+
     // 定义GlyphMetrics结构体（与渲染器一致）
     content.push_str("// ==================== 核心结构体定义 ====================\n");
     content.push_str("/// 单个字符的字形度量参数\n");
@@ -349,7 +351,7 @@ fn generate_fonts_rs(
     // 字体尺寸枚举
     content.push_str("// ==================== 字体尺寸枚举 ====================\n");
     content.push_str("/// 字体尺寸选项\n");
-    content.push_str("#[derive(Copy, Clone, Debug, PartialEq, Eq)]\n");
+    content.push_str("#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]\n");
     content.push_str("pub enum FontSize {\n");
     for font_config in font_configs {
         content.push_str(&format!(

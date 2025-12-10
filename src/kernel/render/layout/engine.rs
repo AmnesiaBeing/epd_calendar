@@ -1,78 +1,280 @@
-use crate::common::error::{AppError, Result};
-use crate::kernel::data::app_data::{AppData, AppDataType};
-use crate::kernel::render::layout::context::LayoutContext;
-use crate::kernel::render::layout::evaluator::LayoutEvaluator;
-use crate::kernel::render::layout::loader::LayoutLoader;
-use crate::kernel::render::layout::nodes::{LayoutNode, Container, Text, Icon, Line, Rectangle, Circle};
-use core::fmt::Write;
-use heapless::String;
-use log::info;
+//! 布局渲染引擎
+//! 负责协调布局的测量、计算和渲染过程
 
-/// Layout engine responsible for loading, evaluating, and preparing layout nodes for rendering
-pub struct LayoutEngine {
-    loader: LayoutLoader,
-    evaluator: LayoutEvaluator,
+use crate::common::error::AppError;
+use crate::kernel::data::DataSourceRegistry;
+use crate::kernel::render::graphics::{GraphicsRenderError, GraphicsRenderer};
+use crate::kernel::render::image::{ImageRenderError, ImageRenderer};
+use crate::kernel::render::layout::context::RenderContext;
+use crate::kernel::render::layout::evaluator::{
+    DEFAULT_EVALUATOR, EvaluationError, ExpressionEvaluator,
+};
+use crate::kernel::render::layout::loader::{DEFAULT_LOADER, LayoutLoadError, LayoutLoader};
+use crate::kernel::render::layout::nodes::*;
+use crate::kernel::render::text::TextRenderer;
+use embedded_graphics::draw_target::DrawTarget;
+use epd_waveshare::color::QuadColor;
+
+/// 渲染引擎错误
+#[derive(Debug, PartialEq, Eq)]
+pub enum RenderEngineError {
+    /// 布局加载失败
+    LayoutLoadFailed,
+    /// 条件评估失败
+    ConditionEvaluationFailed,
+    /// 渲染失败
+    RenderFailed,
+    /// 资源未找到
+    ResourceNotFound,
 }
 
-impl LayoutEngine {
-    /// Create a new instance of LayoutEngine
-    pub fn new() -> Self {
+impl From<LayoutLoadError> for RenderEngineError {
+    fn from(_: LayoutLoadError) -> Self {
+        RenderEngineError::LayoutLoadFailed
+    }
+}
+
+impl From<EvaluationError> for RenderEngineError {
+    fn from(_: EvaluationError) -> Self {
+        RenderEngineError::ConditionEvaluationFailed
+    }
+}
+
+impl From<ImageRenderError> for RenderEngineError {
+    fn from(_: ImageRenderError) -> Self {
+        RenderEngineError::RenderFailed
+    }
+}
+
+impl From<GraphicsRenderError> for RenderEngineError {
+    fn from(_: GraphicsRenderError) -> Self {
+        RenderEngineError::RenderFailed
+    }
+}
+
+impl From<AppError> for RenderEngineError {
+    fn from(_: AppError) -> Self {
+        RenderEngineError::RenderFailed
+    }
+}
+
+/// 渲染引擎
+pub struct RenderEngine {
+    layout_loader: LayoutLoader,
+    expression_evaluator: ExpressionEvaluator,
+    text_renderer: TextRenderer,
+    image_renderer: ImageRenderer,
+    graphics_renderer: GraphicsRenderer,
+}
+
+impl RenderEngine {
+    /// 创建新的渲染引擎
+    pub const fn new() -> Self {
         Self {
-            loader: LayoutLoader::new(),
-            evaluator: LayoutEvaluator::new(),
+            layout_loader: DEFAULT_LOADER,
+            expression_evaluator: DEFAULT_EVALUATOR,
+            text_renderer: TextRenderer::new(),
+            image_renderer: ImageRenderer::new(),
+            graphics_renderer: GraphicsRenderer::new(),
         }
     }
 
-    /// Process the layout: load, evaluate, and prepare for rendering
-    pub fn process_layout(&self, app_data: &AppData) -> Result<LayoutNode> {
-        // Load the layout from embedded data
-        info!("Loading layout from embedded data");
-        let mut layout = self.loader.load_layout()?;
+    /// 渲染布局到绘图目标
+    pub fn render_layout<D: DrawTarget<Color = QuadColor>>(
+        &self,
+        draw_target: &mut D,
+        data_source_registry: &DataSourceRegistry,
+    ) -> Result<bool, RenderEngineError> {
+        // 加载布局
+        let layout = self
+            .layout_loader
+            .load_layout()
+            .map_err(|_| RenderEngineError::LayoutLoadFailed)?;
 
-        // Create a layout context with app data
-        let context = LayoutContext::new(app_data);
+        // 创建渲染上下文
+        let mut context = RenderContext::new(draw_target, data_source_registry);
 
-        // Evaluate the layout (process conditions, variables, etc.)
-        info!("Evaluating layout");
-        self.evaluator.evaluate_layout(&mut layout, &context)?;
+        // 渲染根节点
+        self.render_node(&layout, &mut context)?;
 
-        Ok(layout)
+        Ok(context.needs_redraw)
     }
 
-    /// Prepare the layout for rendering by calculating positions, sizes, and other properties
-    fn prepare_layout(&self, node: &mut LayoutNode, context: &LayoutContext) -> Result<()> {
-        // Process the current node
-        self.process_node_geometry(node, context)?;
-        self.process_node_visibility(node, context)?;
+    /// 渲染节点
+    fn render_node<D: DrawTarget<Color = QuadColor>>(
+        &self,
+        node: &LayoutNode,
+        context: &mut RenderContext<'_, D>,
+    ) -> Result<(), RenderEngineError> {
+        // 检查节点是否应该渲染
+        if !self.should_render(node, &context.data_source_registry)? {
+            return Ok(());
+        }
 
-        // Process children recursively
+        // 根据节点类型进行渲染
         match node {
-            LayoutNode::Container(container) => {
-                for child in &mut container.children {
-                    self.process_layout(&mut child.node, context)?;
-                }
-            },
-            _ => {},
+            LayoutNode::Container(container) => self.render_container(&*container, context),
+            LayoutNode::Text(text) => self.render_text(text, context),
+            LayoutNode::Icon(icon) => self.render_icon(icon, context),
+            LayoutNode::Line(line) => self.render_line(line, context),
+            LayoutNode::Rectangle(rect) => self.render_rectangle(rect, context),
+            LayoutNode::Circle(circle) => self.render_circle(circle, context),
+        }
+    }
+
+    /// 检查节点是否应该渲染（评估条件）
+    fn should_render(
+        &self,
+        node: &LayoutNode,
+        data: &DataSourceRegistry,
+    ) -> Result<bool, RenderEngineError> {
+        let condition = match node {
+            LayoutNode::Container(container) => &container.condition,
+            LayoutNode::Text(_) => &None,
+            LayoutNode::Icon(_) => &None,
+            LayoutNode::Line(_) => &None,
+            LayoutNode::Rectangle(_) => &None,
+            LayoutNode::Circle(_) => &None,
+        };
+
+        if let Some(condition) = condition {
+            self.expression_evaluator
+                .evaluate_condition(condition.as_str(), data)
+                .map_err(|_| RenderEngineError::ConditionEvaluationFailed)
+        } else {
+            Ok(true)
+        }
+    }
+
+    /// 渲染容器节点
+    fn render_container<D: DrawTarget<Color = QuadColor>>(
+        &self,
+        container: &Container,
+        context: &mut RenderContext<'_, D>,
+    ) -> Result<(), RenderEngineError> {
+        // 渲染边框
+        self.graphics_renderer.draw_border(
+            context.draw_target,
+            container.rect,
+            &container.border,
+        )?;
+
+        // 增加渲染深度
+        context.push_depth();
+
+        // 渲染子节点
+        for child in &container.children {
+            self.render_node(&child.node, context)?;
         }
 
-        Ok(())
-    }
-
-    /// Process node geometry (calculate actual positions and sizes)
-    fn process_node_geometry(&self, node: &mut LayoutNode, context: &LayoutContext) -> Result<()> {
-        // TODO: Implement geometry processing if needed
-        // - The layout is already processed at compile time, but we might need to adjust some positions
-        // based on dynamic data
+        // 减少渲染深度
+        context.pop_depth();
 
         Ok(())
     }
 
-    /// Process node visibility (evaluate visibility conditions)
-    fn process_node_visibility(&self, node: &mut LayoutNode, context: &LayoutContext) -> Result<()> {
-        // TODO: Implement visibility processing
-        // - Evaluate visibility conditions
-        // - Remove nodes that should not be visible
+    /// 渲染文本节点
+    fn render_text<D: DrawTarget<Color = QuadColor>>(
+        &self,
+        text: &Text,
+        context: &mut RenderContext<'_, D>,
+    ) -> Result<(), RenderEngineError> {
+        // 替换占位符
+        let content = self
+            .expression_evaluator
+            .replace_placeholders(text.content.as_str(), &context.data_source_registry)
+            .map_err(|_| RenderEngineError::RenderFailed)?;
+
+        // 渲染文本
+        self.text_renderer.render(
+            context.draw_target,
+            text.rect,
+            content.as_str(),
+            text.alignment,
+            text.vertical_alignment,
+            text.max_width,
+            text.max_lines,
+            text.font_size,
+        )?;
+
+        Ok(())
+    }
+
+    /// 渲染图标节点
+    fn render_icon<D: DrawTarget<Color = QuadColor>>(
+        &self,
+        icon: &Icon,
+        context: &mut RenderContext<'_, D>,
+    ) -> Result<(), RenderEngineError> {
+        // 替换占位符
+        let icon_id = self
+            .expression_evaluator
+            .replace_placeholders(icon.icon_id.as_str(), &context.data_source_registry)
+            .map_err(|_| RenderEngineError::RenderFailed)?;
+
+        // 渲染图标
+        self.image_renderer.render(
+            context.draw_target,
+            icon.rect,
+            icon_id.as_str(),
+            icon.importance,
+        )?;
+
+        Ok(())
+    }
+
+    /// 渲染线条节点
+    fn render_line<D: DrawTarget<Color = QuadColor>>(
+        &self,
+        line: &Line,
+        context: &mut RenderContext<'_, D>,
+    ) -> Result<(), RenderEngineError> {
+        self.graphics_renderer.draw_line(
+            context.draw_target,
+            line.start,
+            line.end,
+            line.thickness,
+            line.importance,
+        )?;
+
+        Ok(())
+    }
+
+    /// 渲染矩形节点
+    fn render_rectangle<D: DrawTarget<Color = QuadColor>>(
+        &self,
+        rect: &Rectangle,
+        context: &mut RenderContext<'_, D>,
+    ) -> Result<(), RenderEngineError> {
+        self.graphics_renderer.draw_rectangle(
+            context.draw_target,
+            rect.rect,
+            rect.fill_importance,
+            rect.stroke_importance,
+            rect.stroke_thickness,
+        )?;
+
+        Ok(())
+    }
+
+    /// 渲染圆形节点
+    fn render_circle<D: DrawTarget<Color = QuadColor>>(
+        &self,
+        circle: &Circle,
+        context: &mut RenderContext<'_, D>,
+    ) -> Result<(), RenderEngineError> {
+        self.graphics_renderer.draw_circle(
+            context.draw_target,
+            circle.center,
+            circle.radius,
+            circle.fill_importance,
+            circle.stroke_importance,
+            circle.stroke_thickness,
+        )?;
 
         Ok(())
     }
 }
+
+/// 默认渲染引擎实例
+pub const DEFAULT_ENGINE: RenderEngine = RenderEngine::new();

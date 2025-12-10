@@ -36,6 +36,8 @@ pub struct DataSourceRegistry {
     sources: Vec<SourceMeta, 8>,
     /// 最小刷新间隔
     min_interval_tick: Duration,
+    /// 任何数据源的最后更新时间
+    last_any_updated: Instant,
 }
 
 impl Default for DataSourceRegistry {
@@ -43,6 +45,7 @@ impl Default for DataSourceRegistry {
         Self {
             sources: Vec::new(),
             min_interval_tick: Duration::from_secs(60), // 默认最小间隔60秒
+            last_any_updated: Instant::MIN, // 任何数据源的最后更新时间
         }
     }
 }
@@ -112,6 +115,8 @@ impl DataSourceRegistry {
             let mut source = source_meta.instance.lock().await;
             if source.refresh(system_api).await.is_ok() {
                 source_meta.last_refresh_tick = now;
+                // 更新最后更新时间
+                self.last_any_updated = now;
                 log::debug!("[{}] Refreshed in refresh_all", source_meta.id);
             }
         }
@@ -119,7 +124,7 @@ impl DataSourceRegistry {
         Ok(())
     }
 
-    /// 通过字符串路径获取数据
+    /// 通过字符串路径获取数据（异步版本）
     /// 路径格式：数据源名称.字段名称，例如："config.wifi_ssid"、"datetime.date.year"
     pub async fn get_value_by_path(&self, path: &str) -> Result<DynamicValue> {
         // 解析路径，分离数据源名称和字段名称
@@ -138,6 +143,45 @@ impl DataSourceRegistry {
                 // 从数据源中获取字段值
                 let value = source.get_field_value(&field_name)?;
                 return Ok(value);
+            }
+        }
+
+        // 未找到数据源
+        Err(AppError::DataSourceNotFound)
+    }
+
+    /// 获取任何数据源的最后更新时间
+    pub fn get_last_any_updated(&self) -> Instant {
+        self.last_any_updated
+    }
+
+    /// 通过字符串路径获取数据（同步版本，仅用于渲染等需要快速访问的场景）
+    /// 路径格式：数据源名称.字段名称，例如："config.wifi_ssid"、"datetime.date.year"
+    pub fn get_cached_value(&self, path: &str) -> Result<DynamicValue> {
+        // 解析路径，分离数据源名称和字段名称
+        let parts: Vec<&str, 2> = path.split('.').collect();
+        if parts.len() < 2 {
+            return Err(AppError::InvalidPathFormat);
+        }
+
+        let source_name = parts[0];
+        let field_name = parts[1..].join(".");
+
+        // 查找对应的数据源
+        for source_meta in self.sources.iter() {
+            // 尝试获取锁，如果失败则返回错误（在渲染等时间敏感场景中，不应该阻塞等待）
+            match source_meta.instance.try_lock() {
+                Ok(source_guard) => {
+                    if source_guard.name() == source_name {
+                        // 从数据源中获取字段值
+                        let value = source_guard.get_field_value(&field_name)?;
+                        return Ok(value);
+                    }
+                }
+                Err(_) => {
+                    // 锁被占用，返回错误
+                    return Err(AppError::DataSourceBusy);
+                }
             }
         }
 
@@ -199,6 +243,8 @@ pub async fn generic_scheduler_task(
                 match source.refresh(system_api).await {
                     Ok(_) => {
                         source_meta.last_refresh_tick = now; // 更新上次刷新时间
+                        // 更新最后更新时间
+                        self.last_any_updated = now;
                         log::debug!("[{:?}] Refreshed successfully", source_meta.id);
                     }
                     Err(e) => {

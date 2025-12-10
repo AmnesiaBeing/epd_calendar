@@ -1,71 +1,179 @@
-//! Graphics renderer for rendering basic shapes
+//! 图形渲染器
+//! 负责绘制基本图形元素，如线条、矩形、圆形、边框等
 
-use crate::common::error::{Result, AppError};
-use crate::kernel::render::layout::context::RenderState;
+use crate::kernel::render::layout::nodes::Importance;
+use embedded_graphics::{draw_target::DrawTarget, geometry::Point, prelude::*, primitives::*};
+use epd_waveshare::color::QuadColor;
 
-/// Render a rectangle at the specified position
-pub fn render_rectangle(
-    x: u32,
-    y: u32,
-    width: u32,
-    height: u32,
-    state: &RenderState,
-) -> Result<()> {
-    // TODO: Implement actual rectangle rendering logic
-    // This should use the configured background color and border properties
-    
-    log::info!("Rendering rectangle at ({}, {}) with size {}x{} and background {:?}", 
-               x, y, width, height, state.current_background);
-    
-    Ok(())
+/// 图形渲染错误
+#[derive(Debug, PartialEq, Eq)]
+pub enum GraphicsRenderError {
+    /// 渲染失败
+    RenderFailed,
+    /// 超出边界
+    OutOfBounds,
 }
 
-/// Render a circle at the specified position
-pub fn render_circle(
-    x: u32,
-    y: u32,
-    width: u32,
-    height: u32,
-    state: &RenderState,
-) -> Result<()> {
-    // TODO: Implement actual circle rendering logic
-    // The width and height determine the ellipse, but if they're equal, it's a circle
-    
-    log::info!("Rendering circle/ellipse at ({}, {}) with size {}x{} and color {:?}", 
-               x, y, width, height, state.current_background);
-    
-    Ok(())
+/// 图形渲染器
+pub struct GraphicsRenderer {
+    // 可以添加图形缓存或其他状态
 }
 
-/// Render a line from (x1, y1) to (x2, y2)
-pub fn render_line(
-    x: u32,
-    y: u32,
-    width: u32,
-    height: u32,
-    state: &RenderState,
-) -> Result<()> {
-    // TODO: Implement actual line rendering logic
-    // For simplicity, we're using x, y as start point and width/height as end point offsets
-    let x2 = x + width;
-    let y2 = y + height;
-    
-    log::info!("Rendering line from ({}, {}) to ({}, {}) with color {:?}", 
-               x, y, x2, y2, state.current_background);
-    
-    Ok(())
-}
+impl GraphicsRenderer {
+    /// 创建新的图形渲染器
+    pub const fn new() -> Self {
+        Self {}
+    }
 
-/// Clear a rectangular area
-pub fn clear_area(
-    x: u32,
-    y: u32,
-    width: u32,
-    height: u32,
-) -> Result<()> {
-    // TODO: Implement actual area clearing logic
-    
-    log::info!("Clearing area at ({}, {}) with size {}x{}", x, y, width, height);
-    
-    Ok(())
+    /// 绘制边框
+    pub fn draw_border<D: DrawTarget<Color = QuadColor>>(
+        &self,
+        draw_target: &mut D,
+        rect: [u16; 4],
+        border: &crate::kernel::render::layout::nodes::Border,
+    ) -> Result<(), GraphicsRenderError> {
+        let [x, y, width, height] = rect;
+        let thickness = border
+            .top
+            .max(border.right)
+            .max(border.bottom)
+            .max(border.left);
+
+        // 绘制外边框
+        Rectangle::new(
+            Point::new(x as i32, y as i32),
+            Size::new(width.into(), height.into()),
+        )
+        .into_styled(
+            PrimitiveStyleBuilder::new()
+                .stroke_color(QuadColor::Black)
+                .stroke_width(thickness as u32)
+                .build(),
+        )
+        .draw(draw_target)
+        .map_err(|_| GraphicsRenderError::RenderFailed)?;
+
+        Ok(())
+    }
+
+    /// 绘制线条
+    pub fn draw_line<D: DrawTarget<Color = QuadColor>>(
+        &self,
+        draw_target: &mut D,
+        start: [u16; 2],
+        end: [u16; 2],
+        thickness: u16,
+        importance: Option<Importance>,
+    ) -> Result<(), GraphicsRenderError> {
+        let color = match importance {
+            Some(Importance::Warning) => QuadColor::Yellow,
+            Some(Importance::Critical) => QuadColor::Red,
+            _ => QuadColor::Black,
+        };
+
+        Line::new(
+            Point::new(start[0] as i32, start[1] as i32),
+            Point::new(end[0] as i32, end[1] as i32),
+        )
+        .into_styled(
+            PrimitiveStyleBuilder::new()
+                .stroke_color(color)
+                .stroke_width(thickness as u32)
+                .build(),
+        )
+        .draw(draw_target)
+        .map_err(|_| GraphicsRenderError::RenderFailed)?;
+
+        Ok(())
+    }
+
+    /// 绘制矩形
+    pub fn draw_rectangle<D: DrawTarget<Color = QuadColor>>(
+        &self,
+        draw_target: &mut D,
+        rect: [u16; 4],
+        fill_importance: Option<Importance>,
+        stroke_importance: Option<Importance>,
+        stroke_thickness: u16,
+    ) -> Result<(), GraphicsRenderError> {
+        let [x, y, width, height] = rect;
+        let mut style_builder = PrimitiveStyleBuilder::new();
+
+        // 设置填充颜色
+        if let Some(importance) = fill_importance {
+            let color = match importance {
+                Importance::Warning => QuadColor::Yellow,
+                Importance::Critical => QuadColor::Red,
+                _ => QuadColor::Black,
+            };
+            style_builder = style_builder.fill_color(color);
+        }
+
+        // 设置描边颜色和宽度
+        if let Some(importance) = stroke_importance {
+            let color = match importance {
+                Importance::Warning => QuadColor::Yellow,
+                Importance::Critical => QuadColor::Red,
+                _ => QuadColor::Black,
+            };
+            style_builder = style_builder
+                .stroke_color(color)
+                .stroke_width(stroke_thickness as u32);
+        }
+
+        Rectangle::new(
+            Point::new(x as i32, y as i32),
+            Size::new(width.into(), height.into()),
+        )
+        .into_styled(style_builder.build())
+        .draw(draw_target)
+        .map_err(|_| GraphicsRenderError::RenderFailed)?;
+
+        Ok(())
+    }
+
+    /// 绘制圆形
+    pub fn draw_circle<D: DrawTarget<Color = QuadColor>>(
+        &self,
+        draw_target: &mut D,
+        center: [u16; 2],
+        radius: u16,
+        fill_importance: Option<Importance>,
+        stroke_importance: Option<Importance>,
+        stroke_thickness: u16,
+    ) -> Result<(), GraphicsRenderError> {
+        let mut style_builder = PrimitiveStyleBuilder::new();
+
+        // 设置填充颜色
+        if let Some(importance) = fill_importance {
+            let color = match importance {
+                Importance::Warning => QuadColor::Yellow,
+                Importance::Critical => QuadColor::Red,
+                _ => QuadColor::Black,
+            };
+            style_builder = style_builder.fill_color(color);
+        }
+
+        // 设置描边颜色和宽度
+        if let Some(importance) = stroke_importance {
+            let color = match importance {
+                Importance::Warning => QuadColor::Yellow,
+                Importance::Critical => QuadColor::Red,
+                _ => QuadColor::Black,
+            };
+            style_builder = style_builder
+                .stroke_color(color)
+                .stroke_width(stroke_thickness as u32);
+        }
+
+        Circle::new(
+            Point::new(center[0] as i32, center[1] as i32),
+            radius as u32,
+        )
+        .into_styled(style_builder.build())
+        .draw(draw_target)
+        .map_err(|_| GraphicsRenderError::RenderFailed)?;
+
+        Ok(())
+    }
 }

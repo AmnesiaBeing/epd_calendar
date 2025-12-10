@@ -1,145 +1,95 @@
-//! Rendering context for maintaining rendering state
+//! 渲染上下文
+//! 定义渲染过程中使用的上下文结构，包含渲染状态、资源引用等
 
-use crate::kernel::render::layout::{nodes::LayoutNode, evaluator::ConditionEvaluator};
-use crate::kernel::render::{text, image, graphics};
-use crate::common::error::{Result, AppError};
+use crate::kernel::data::DataSourceRegistry;
+use crate::kernel::render::layout::nodes::*;
+use embedded_graphics::draw_target::DrawTarget;
+use epd_waveshare::color::QuadColor;
 
-/// Render context containing rendering state and utilities
-pub struct RenderContext {
-    /// Condition evaluator for evaluating visibility conditions
-    evaluator: ConditionEvaluator,
-    /// Current drawing offset
-    offset: (i32, i32),
-    /// Current dimensions
-    dimensions: (u32, u32),
-    /// Rendering state
-    state: RenderState,
+/// 渲染上下文
+pub struct RenderContext<'a, D: DrawTarget<Color = QuadColor>> {
+    /// 绘图目标
+    pub draw_target: &'a mut D,
+    /// 数据源注册表引用
+    pub data_source_registry: &'a DataSourceRegistry,
+    /// 当前渲染深度（用于调试和嵌套渲染）
+    pub depth: u8,
+    /// 是否需要重绘
+    pub needs_redraw: bool,
 }
 
-/// Rendering state
-pub struct RenderState {
-    /// Current background color
-    current_background: Option<String>,
-    /// Current text color
-    current_text_color: Option<String>,
-    /// Current font family
-    current_font_family: Option<String>,
-    /// Current font size
-    current_font_size: Option<u32>,
+impl<'a, D: DrawTarget<Color = QuadColor>> RenderContext<'a, D> {
+    /// 创建新的渲染上下文
+    pub fn new(draw_target: &'a mut D, data_source_registry: &'a DataSourceRegistry) -> Self {
+        Self {
+            draw_target,
+            data_source_registry,
+            depth: 0,
+            needs_redraw: false,
+        }
+    }
+
+    /// 增加渲染深度
+    pub fn push_depth(&mut self) {
+        self.depth = self.depth.saturating_add(1);
+    }
+
+    /// 减少渲染深度
+    pub fn pop_depth(&mut self) {
+        self.depth = self.depth.saturating_sub(1);
+    }
+
+    /// 设置重绘标志
+    pub fn set_needs_redraw(&mut self) {
+        self.needs_redraw = true;
+    }
 }
 
-impl Default for RenderState {
+/// 布局测量结果
+pub struct LayoutMeasurement {
+    /// 实际宽度
+    pub width: u16,
+    /// 实际高度
+    pub height: u16,
+    /// 基线位置（相对于顶部）
+    pub baseline: u16,
+}
+
+impl Default for LayoutMeasurement {
     fn default() -> Self {
         Self {
-            current_background: None,
-            current_text_color: None,
-            current_font_family: None,
-            current_font_size: None,
+            width: 0,
+            height: 0,
+            baseline: 0,
         }
     }
 }
 
-impl RenderContext {
-    /// Create a new RenderContext instance
-    pub fn new() -> Result<Self> {
-        Ok(Self {
-            evaluator: ConditionEvaluator::new()?,
-            offset: (0, 0),
-            dimensions: (800, 480), // Default dimensions
-            state: RenderState::default(),
-        })
-    }
+/// 渲染结果
+pub enum RenderResult {
+    /// 成功渲染
+    Ok,
+    /// 条件不满足，未渲染
+    ConditionNotMet,
+    /// 资源未找到
+    ResourceNotFound,
+    /// 渲染错误
+    Error,
+}
 
-    /// Evaluate visibility condition for a node
-    pub fn evaluate_visibility(&mut self, node: &LayoutNode) -> Result<bool> {
-        if let Some(condition) = &node.style.visible {
-            self.evaluator.evaluate(condition)
-        } else {
-            Ok(true) // Default to visible if no condition
-        }
-    }
+/// 渲染器 trait
+pub trait Renderer {
+    /// 渲染节点
+    fn render_node<D: DrawTarget<Color = QuadColor>>(
+        &self,
+        node: &LayoutNode,
+        context: &mut RenderContext<'_, D>,
+    ) -> RenderResult;
 
-    /// Render a single node
-    pub fn render_node(&mut self, node: &LayoutNode) -> Result<()> {
-        // Save current state
-        let saved_state = self.state.clone();
-
-        // Update state with node style
-        self.update_state(&node.style);
-
-        // Calculate absolute position
-        let abs_x = self.calculate_absolute_position(&node.geometry.x, true)?;
-        let abs_y = self.calculate_absolute_position(&node.geometry.y, false)?;
-        let width = self.calculate_dimension(&node.geometry.width, true)?;
-        let height = self.calculate_dimension(&node.geometry.height, false)?;
-
-        // Render based on node type
-        match &node.node_type {
-            nodes::NodeType::Container => {
-                // Container nodes just update context for children
-                self.offset = (abs_x as i32, abs_y as i32);
-            }
-            nodes::NodeType::Text => {
-                if let Some(content) = &node.content {
-                    text::render_text(content, abs_x, abs_y, width, height, &self.state)?;
-                }
-            }
-            nodes::NodeType::Image => {
-                if let Some(image_path) = &node.content {
-                    image::render_image(image_path, abs_x, abs_y, width, height)?;
-                }
-            }
-            nodes::NodeType::Rectangle => {
-                graphics::render_rectangle(abs_x, abs_y, width, height, &self.state)?;
-            }
-            nodes::NodeType::Circle => {
-                graphics::render_circle(abs_x, abs_y, width, height, &self.state)?;
-            }
-            nodes::NodeType::Line => {
-                graphics::render_line(abs_x, abs_y, width, height, &self.state)?;
-            }
-        }
-
-        // Restore saved state
-        self.state = saved_state;
-
-        Ok(())
-    }
-
-    // Style-related methods will be added as needed
-    // Currently, we're using individual style properties in each node type
-
-    /// Calculate absolute position from relative/absolute value
-    fn calculate_absolute_position(&self, value: &str, is_x: bool) -> Result<u32> {
-        if value.ends_with('%') {
-            // Percentage based position
-            let percentage = value.trim_end_matches('%').parse::<f32>()? / 100.0;
-            let dimension = if is_x {
-                self.dimensions.0 as f32
-            } else {
-                self.dimensions.1 as f32
-            };
-            Ok((dimension * percentage) as u32 + self.offset.0 as u32)
-        } else {
-            // Absolute pixel position
-            Ok(value.parse::<u32>()? + self.offset.0 as u32)
-        }
-    }
-
-    /// Calculate dimension from relative/absolute value
-    fn calculate_dimension(&self, value: &str, is_width: bool) -> Result<u32> {
-        if value.ends_with('%') {
-            // Percentage based dimension
-            let percentage = value.trim_end_matches('%').parse::<f32>()? / 100.0;
-            let dimension = if is_width {
-                self.dimensions.0 as f32
-            } else {
-                self.dimensions.1 as f32
-            };
-            Ok((dimension * percentage) as u32)
-        } else {
-            // Absolute pixel dimension
-            Ok(value.parse::<u32>()?)
-        }
-    }
+    /// 测量节点尺寸
+    fn measure_node(
+        &self,
+        node: &LayoutNode,
+        context: &RenderContext<'_, impl DrawTarget<Color = QuadColor>>,
+    ) -> LayoutMeasurement;
 }

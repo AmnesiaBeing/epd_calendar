@@ -1,41 +1,40 @@
-//! Layout loader for loading and deserializing layout definitions
+//! 布局加载器
+//! 负责从生成的二进制数据中加载和反序列化布局
 
+use crate::assets::generated_layouts::get_layout_data;
 use crate::kernel::render::layout::nodes::LayoutNode;
-use crate::common::error::{Result, AppError};
 use postcard::from_bytes;
 
-/// Layout loader for loading layout definitions from embedded binary data
+/// 布局加载错误
+#[derive(Debug, PartialEq, Eq)]
+pub enum LayoutLoadError {
+    /// 反序列化失败
+    DeserializationError,
+    /// 数据为空
+    EmptyData,
+    /// 数据格式错误
+    FormatError,
+}
+
+/// 布局加载器
 pub struct LayoutLoader {
-    // No fields needed - we load from embedded data
+    // 可以添加缓存或其他状态
 }
 
 impl LayoutLoader {
-    /// Create a new LayoutLoader instance
-    pub fn new() -> Self {
+    /// 创建新的布局加载器
+    pub const fn new() -> Self {
         Self {}
     }
 
-    /// Load layout from embedded binary data
-    pub fn load_layout(&self) -> Result<LayoutNode> {
-        // Import the embedded layout binary data
-        // This data is generated at compile time by the builder
-        extern "C" {
-            static __LAYOUT_BIN_START: u8;
-            static __LAYOUT_BIN_END: u8;
-        }
+    /// 从生成的二进制数据加载布局
+    pub fn load_layout(&self) -> Result<LayoutNode, LayoutLoadError> {
+        let layout_data = get_layout_data();
 
-        // Get the layout binary data as a slice
-        let layout_data = unsafe {
-            let start_ptr = &__LAYOUT_BIN_START as *const u8;
-            let end_ptr = &__LAYOUT_BIN_END as *const u8;
-            let len = end_ptr.offset_from(start_ptr) as usize;
-            core::slice::from_raw_parts(start_ptr, len)
-        };
-
-        // Deserialize the binary data to LayoutNode using postcard
-        let layout_node = from_bytes(layout_data)
-            .map_err(|_| AppError::LayoutDeserialize)?;
-
-        Ok(layout_node)
+        // 使用postcard反序列化布局数据
+        from_bytes::<LayoutNode>(layout_data).map_err(|_| LayoutLoadError::DeserializationError)
     }
 }
+
+/// 默认布局加载器
+pub const DEFAULT_LOADER: LayoutLoader = LayoutLoader::new();

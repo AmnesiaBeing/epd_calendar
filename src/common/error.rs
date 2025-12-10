@@ -201,6 +201,9 @@ pub enum AppError {
 
     #[error("Data source registry full")]
     DataSourceRegistryFull,
+
+    #[error("Data source busy")]
+    DataSourceBusy,
 }
 
 /// 应用程序结果类型别名

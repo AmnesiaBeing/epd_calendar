@@ -4,5 +4,5 @@
 
 pub mod data;
 pub mod driver;
-// pub mod render;
+pub mod render;
 pub mod system;
