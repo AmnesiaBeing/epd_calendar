@@ -1,26 +1,16 @@
 //! 图像/图标渲染器
 //! 负责将图像和图标绘制到屏幕上
 
-use crate::assets::generated_icons::{IconId, BatteryIcon, NetworkIcon, TimeDigitIcon, WeatherIcon};
+use crate::assets::generated_icons::{
+    BatteryIcon, IconId, NetworkIcon, TimeDigitIcon, WeatherIcon,
+};
+use crate::common::error::{AppError, Result};
 use crate::kernel::render::layout::nodes::Importance;
 use embedded_graphics::{draw_target::DrawTarget, prelude::*};
 use epd_waveshare::color::QuadColor;
 
-/// 图像渲染错误
-#[derive(Debug, PartialEq, Eq)]
-pub enum ImageRenderError {
-    /// 图标未找到
-    IconNotFound,
-    /// 渲染失败
-    RenderFailed,
-    /// 超出边界
-    OutOfBounds,
-}
-
 /// 图像渲染器
-pub struct ImageRenderer {
-    // 可以添加图标缓存或其他状态
-}
+pub struct ImageRenderer;
 
 impl ImageRenderer {
     /// 创建新的图像渲染器
@@ -35,11 +25,9 @@ impl ImageRenderer {
         rect: [u16; 4],
         icon_id: &str,
         importance: Option<Importance>,
-    ) -> Result<(), ImageRenderError> {
+    ) -> Result<()> {
         // 获取图标数据
-        let icon_id = self
-            .get_icon_data(icon_id)
-            .ok_or(ImageRenderError::IconNotFound)?;
+        let icon_id = self.get_icon_data(icon_id).ok_or(AppError::IconNotFound)?;
 
         // 计算图标位置（居中）
         let [x, y, width, height] = rect;
@@ -51,7 +39,7 @@ impl ImageRenderer {
         let y_pos = y + (height - icon_height) / 2;
 
         // 绘制图标
-        self.draw_icon(draw_target, x_pos, y_pos, icon_id)
+        self.draw_icon(draw_target, x_pos, y_pos, icon_id, importance)
     }
 
     /// 获取图标数据
@@ -82,8 +70,10 @@ impl ImageRenderer {
             // 天气图标支持，如 "100", "101", etc.
             _ if icon_id.starts_with("icon_") => {
                 let weather_code = &icon_id[5..];
-                WeatherIcon::from_api_str(weather_code).ok().map(IconId::Weather)
-            },
+                WeatherIcon::from_api_str(weather_code)
+                    .ok()
+                    .map(IconId::Weather)
+            }
             _ => WeatherIcon::from_api_str(icon_id).ok().map(IconId::Weather),
         }
     }
@@ -95,7 +85,8 @@ impl ImageRenderer {
         x: u16,
         y: u16,
         icon_id: IconId,
-    ) -> Result<(), ImageRenderError> {
+        importance: Option<Importance>,
+    ) -> Result<()> {
         let icon_size = icon_id.size();
         let bitmap_data = icon_id.data();
         let width = icon_size.width;

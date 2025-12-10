@@ -6,6 +6,7 @@ use crate::common::GlobalMutex;
 use crate::common::error::{AppError, Result};
 use crate::kernel::data::{DataSource, DataSourceId, DynamicValue};
 use crate::kernel::system::api::DefaultSystemApi;
+use crate::tasks::{DISPLAY_EVENTS, DisplayEvent};
 
 use embassy_time::{Duration, Instant, Ticker};
 use heapless::Vec;
@@ -45,7 +46,7 @@ impl Default for DataSourceRegistry {
         Self {
             sources: Vec::new(),
             min_interval_tick: Duration::from_secs(60), // 默认最小间隔60秒
-            last_any_updated: Instant::MIN, // 任何数据源的最后更新时间
+            last_any_updated: Instant::MIN,             // 任何数据源的最后更新时间
         }
     }
 }
@@ -230,8 +231,7 @@ pub async fn generic_scheduler_task(
             if now - source_meta.last_refresh_tick >= source_meta.interval_tick {
                 // 转换为毫秒
                 log::debug!(
-                    "[{:?}] Ready for refresh (now: {}, last: {}, interval: {})
-",
+                    "[{:?}] Ready for refresh (now: {}, last: {}, interval: {})",
                     source_meta.id,
                     now,
                     source_meta.last_refresh_tick,
@@ -244,7 +244,6 @@ pub async fn generic_scheduler_task(
                     Ok(_) => {
                         source_meta.last_refresh_tick = now; // 更新上次刷新时间
                         // 更新最后更新时间
-                        self.last_any_updated = now;
                         log::debug!("[{:?}] Refreshed successfully", source_meta.id);
                     }
                     Err(e) => {
@@ -255,5 +254,8 @@ pub async fn generic_scheduler_task(
         }
 
         drop(guard); // 释放锁
+
+        // 所有数据源都更新完了，通知系统更新屏幕
+        DISPLAY_EVENTS.send(DisplayEvent::FullRefresh).await;
     }
 }

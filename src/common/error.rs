@@ -18,6 +18,12 @@ pub enum AppError {
     #[error("Sensor error")]
     SensorError,
 
+    #[error("Layout load failed")]
+    LayoutLoadFailed,
+
+    #[error("Condition evaluation failed")]
+    ConditionEvaluationFailed,
+
     // ===== 网络相关错误 =====
     #[error("Network stack initialization failed")]
     NetworkStackInitFailed,
@@ -204,6 +210,12 @@ pub enum AppError {
 
     #[error("Data source busy")]
     DataSourceBusy,
+
+    #[error("Icon not found")]
+    IconNotFound,
+
+    #[error("Render failed")]
+    RenderFailed,
 }
 
 /// 应用程序结果类型别名

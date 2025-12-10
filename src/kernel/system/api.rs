@@ -5,6 +5,7 @@
 use crate::common::GlobalMutex;
 use crate::common::error::{AppError, Result};
 use crate::kernel::data::{DataSourceRegistry, DynamicValue};
+use crate::kernel::driver::display::DefaultDisplayDriver;
 use crate::kernel::driver::network::{DefaultNetworkDriver, NetworkDriver};
 use crate::kernel::driver::power::{DefaultPowerDriver, PowerDriver};
 use crate::kernel::driver::sensor::{DefaultSensorDriver, SensorDriver};
@@ -42,6 +43,9 @@ pub trait HardwareApi {
 
     /// 断开WiFi连接
     async fn disconnect_wifi(&self) -> Result<()>;
+
+    /// 刷新屏幕显示
+    async fn update_screen(&self) -> Result<()>;
 }
 
 /// 网络客户端API接口
@@ -100,6 +104,8 @@ pub struct DefaultSystemApi {
     sensor_driver: GlobalMutex<DefaultSensorDriver>,
     /// 数据源注册表（全局互斥锁保护）
     data_source_registry: Option<&'static GlobalMutex<DataSourceRegistry>>,
+    /// 屏幕驱动实例
+    display_driver: &'static GlobalMutex<DefaultDisplayDriver>,
 }
 
 impl DefaultSystemApi {
@@ -109,6 +115,7 @@ impl DefaultSystemApi {
         network_driver: &'static GlobalMutex<DefaultNetworkDriver>,
         storage_driver: DefaultConfigStorageDriver,
         sensor_driver: DefaultSensorDriver,
+        display_driver: &'static GlobalMutex<DefaultDisplayDriver>,
     ) -> Self {
         Self {
             power_driver: GlobalMutex::new(power_driver),
@@ -116,6 +123,7 @@ impl DefaultSystemApi {
             config_storage_driver: GlobalMutex::new(storage_driver),
             sensor_driver: GlobalMutex::new(sensor_driver),
             data_source_registry: None,
+            display_driver,
         }
     }
 
@@ -219,6 +227,11 @@ impl HardwareApi for DefaultSystemApi {
 
     async fn disconnect_wifi(&self) -> Result<()> {
         // 断开WiFi连接
+        unimplemented!()
+    }
+
+    /// 刷新屏幕显示
+    async fn update_screen(&self) -> Result<()> {
         unimplemented!()
     }
 }

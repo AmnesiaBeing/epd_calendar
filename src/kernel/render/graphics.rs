@@ -1,23 +1,13 @@
 //! 图形渲染器
 //! 负责绘制基本图形元素，如线条、矩形、圆形、边框等
 
-use crate::kernel::render::layout::nodes::Importance;
+use crate::common::error::{AppError, Result};
+use crate::kernel::render::layout::nodes::{Border, Importance};
 use embedded_graphics::{draw_target::DrawTarget, geometry::Point, prelude::*, primitives::*};
 use epd_waveshare::color::QuadColor;
 
-/// 图形渲染错误
-#[derive(Debug, PartialEq, Eq)]
-pub enum GraphicsRenderError {
-    /// 渲染失败
-    RenderFailed,
-    /// 超出边界
-    OutOfBounds,
-}
-
 /// 图形渲染器
-pub struct GraphicsRenderer {
-    // 可以添加图形缓存或其他状态
-}
+pub struct GraphicsRenderer;
 
 impl GraphicsRenderer {
     /// 创建新的图形渲染器
@@ -30,8 +20,8 @@ impl GraphicsRenderer {
         &self,
         draw_target: &mut D,
         rect: [u16; 4],
-        border: &crate::kernel::render::layout::nodes::Border,
-    ) -> Result<(), GraphicsRenderError> {
+        border: &Border,
+    ) -> Result<()> {
         let [x, y, width, height] = rect;
         let thickness = border
             .top
@@ -51,7 +41,7 @@ impl GraphicsRenderer {
                 .build(),
         )
         .draw(draw_target)
-        .map_err(|_| GraphicsRenderError::RenderFailed)?;
+        .map_err(|_| AppError::RenderFailed)?;
 
         Ok(())
     }
@@ -64,7 +54,7 @@ impl GraphicsRenderer {
         end: [u16; 2],
         thickness: u16,
         importance: Option<Importance>,
-    ) -> Result<(), GraphicsRenderError> {
+    ) -> Result<()> {
         let color = match importance {
             Some(Importance::Warning) => QuadColor::Yellow,
             Some(Importance::Critical) => QuadColor::Red,
@@ -82,7 +72,7 @@ impl GraphicsRenderer {
                 .build(),
         )
         .draw(draw_target)
-        .map_err(|_| GraphicsRenderError::RenderFailed)?;
+        .map_err(|_| AppError::RenderFailed)?;
 
         Ok(())
     }
@@ -95,7 +85,7 @@ impl GraphicsRenderer {
         fill_importance: Option<Importance>,
         stroke_importance: Option<Importance>,
         stroke_thickness: u16,
-    ) -> Result<(), GraphicsRenderError> {
+    ) -> Result<()> {
         let [x, y, width, height] = rect;
         let mut style_builder = PrimitiveStyleBuilder::new();
 
@@ -127,7 +117,7 @@ impl GraphicsRenderer {
         )
         .into_styled(style_builder.build())
         .draw(draw_target)
-        .map_err(|_| GraphicsRenderError::RenderFailed)?;
+        .map_err(|_| AppError::RenderFailed)?;
 
         Ok(())
     }
@@ -141,7 +131,7 @@ impl GraphicsRenderer {
         fill_importance: Option<Importance>,
         stroke_importance: Option<Importance>,
         stroke_thickness: u16,
-    ) -> Result<(), GraphicsRenderError> {
+    ) -> Result<()> {
         let mut style_builder = PrimitiveStyleBuilder::new();
 
         // 设置填充颜色
@@ -172,7 +162,7 @@ impl GraphicsRenderer {
         )
         .into_styled(style_builder.build())
         .draw(draw_target)
-        .map_err(|_| GraphicsRenderError::RenderFailed)?;
+        .map_err(|_| AppError::RenderFailed)?;
 
         Ok(())
     }

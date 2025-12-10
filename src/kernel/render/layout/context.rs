@@ -1,6 +1,7 @@
 //! 渲染上下文
 //! 定义渲染过程中使用的上下文结构，包含渲染状态、资源引用等
 
+use crate::common::error::{AppError, Result};
 use crate::kernel::data::DataSourceRegistry;
 use crate::kernel::render::layout::nodes::*;
 use embedded_graphics::draw_target::DrawTarget;
@@ -65,18 +66,6 @@ impl Default for LayoutMeasurement {
     }
 }
 
-/// 渲染结果
-pub enum RenderResult {
-    /// 成功渲染
-    Ok,
-    /// 条件不满足，未渲染
-    ConditionNotMet,
-    /// 资源未找到
-    ResourceNotFound,
-    /// 渲染错误
-    Error,
-}
-
 /// 渲染器 trait
 pub trait Renderer {
     /// 渲染节点
@@ -84,7 +73,7 @@ pub trait Renderer {
         &self,
         node: &LayoutNode,
         context: &mut RenderContext<'_, D>,
-    ) -> RenderResult;
+    ) -> Result<()>;
 
     /// 测量节点尺寸
     fn measure_node(

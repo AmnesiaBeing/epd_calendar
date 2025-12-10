@@ -1,62 +1,17 @@
 //! 布局渲染引擎
 //! 负责协调布局的测量、计算和渲染过程
 
-use crate::common::error::AppError;
+use crate::common::error::{AppError, Result};
 use crate::kernel::data::DataSourceRegistry;
-use crate::kernel::render::graphics::{GraphicsRenderError, GraphicsRenderer};
-use crate::kernel::render::image::{ImageRenderError, ImageRenderer};
+use crate::kernel::render::graphics::GraphicsRenderer;
+use crate::kernel::render::image::ImageRenderer;
 use crate::kernel::render::layout::context::RenderContext;
-use crate::kernel::render::layout::evaluator::{
-    DEFAULT_EVALUATOR, EvaluationError, ExpressionEvaluator,
-};
-use crate::kernel::render::layout::loader::{DEFAULT_LOADER, LayoutLoadError, LayoutLoader};
+use crate::kernel::render::layout::evaluator::{DEFAULT_EVALUATOR, ExpressionEvaluator};
+use crate::kernel::render::layout::loader::{DEFAULT_LOADER, LayoutLoader};
 use crate::kernel::render::layout::nodes::*;
 use crate::kernel::render::text::TextRenderer;
 use embedded_graphics::draw_target::DrawTarget;
 use epd_waveshare::color::QuadColor;
-
-/// 渲染引擎错误
-#[derive(Debug, PartialEq, Eq)]
-pub enum RenderEngineError {
-    /// 布局加载失败
-    LayoutLoadFailed,
-    /// 条件评估失败
-    ConditionEvaluationFailed,
-    /// 渲染失败
-    RenderFailed,
-    /// 资源未找到
-    ResourceNotFound,
-}
-
-impl From<LayoutLoadError> for RenderEngineError {
-    fn from(_: LayoutLoadError) -> Self {
-        RenderEngineError::LayoutLoadFailed
-    }
-}
-
-impl From<EvaluationError> for RenderEngineError {
-    fn from(_: EvaluationError) -> Self {
-        RenderEngineError::ConditionEvaluationFailed
-    }
-}
-
-impl From<ImageRenderError> for RenderEngineError {
-    fn from(_: ImageRenderError) -> Self {
-        RenderEngineError::RenderFailed
-    }
-}
-
-impl From<GraphicsRenderError> for RenderEngineError {
-    fn from(_: GraphicsRenderError) -> Self {
-        RenderEngineError::RenderFailed
-    }
-}
-
-impl From<AppError> for RenderEngineError {
-    fn from(_: AppError) -> Self {
-        RenderEngineError::RenderFailed
-    }
-}
 
 /// 渲染引擎
 pub struct RenderEngine {
@@ -84,12 +39,12 @@ impl RenderEngine {
         &self,
         draw_target: &mut D,
         data_source_registry: &DataSourceRegistry,
-    ) -> Result<bool, RenderEngineError> {
+    ) -> Result<bool> {
         // 加载布局
         let layout = self
             .layout_loader
             .load_layout()
-            .map_err(|_| RenderEngineError::LayoutLoadFailed)?;
+            .map_err(|_| AppError::LayoutLoadFailed)?;
 
         // 创建渲染上下文
         let mut context = RenderContext::new(draw_target, data_source_registry);
@@ -105,7 +60,7 @@ impl RenderEngine {
         &self,
         node: &LayoutNode,
         context: &mut RenderContext<'_, D>,
-    ) -> Result<(), RenderEngineError> {
+    ) -> Result<()> {
         // 检查节点是否应该渲染
         if !self.should_render(node, &context.data_source_registry)? {
             return Ok(());
@@ -123,11 +78,7 @@ impl RenderEngine {
     }
 
     /// 检查节点是否应该渲染（评估条件）
-    fn should_render(
-        &self,
-        node: &LayoutNode,
-        data: &DataSourceRegistry,
-    ) -> Result<bool, RenderEngineError> {
+    fn should_render(&self, node: &LayoutNode, data: &DataSourceRegistry) -> Result<bool> {
         let condition = match node {
             LayoutNode::Container(container) => &container.condition,
             LayoutNode::Text(_) => &None,
@@ -140,7 +91,7 @@ impl RenderEngine {
         if let Some(condition) = condition {
             self.expression_evaluator
                 .evaluate_condition(condition.as_str(), data)
-                .map_err(|_| RenderEngineError::ConditionEvaluationFailed)
+                .map_err(|_| AppError::ConditionEvaluationFailed)
         } else {
             Ok(true)
         }
@@ -151,7 +102,7 @@ impl RenderEngine {
         &self,
         container: &Container,
         context: &mut RenderContext<'_, D>,
-    ) -> Result<(), RenderEngineError> {
+    ) -> Result<()> {
         // 渲染边框
         self.graphics_renderer.draw_border(
             context.draw_target,
@@ -178,12 +129,12 @@ impl RenderEngine {
         &self,
         text: &Text,
         context: &mut RenderContext<'_, D>,
-    ) -> Result<(), RenderEngineError> {
+    ) -> Result<()> {
         // 替换占位符
         let content = self
             .expression_evaluator
             .replace_placeholders(text.content.as_str(), &context.data_source_registry)
-            .map_err(|_| RenderEngineError::RenderFailed)?;
+            .map_err(|_| AppError::RenderFailed)?;
 
         // 渲染文本
         self.text_renderer.render(
@@ -205,12 +156,12 @@ impl RenderEngine {
         &self,
         icon: &Icon,
         context: &mut RenderContext<'_, D>,
-    ) -> Result<(), RenderEngineError> {
+    ) -> Result<()> {
         // 替换占位符
         let icon_id = self
             .expression_evaluator
             .replace_placeholders(icon.icon_id.as_str(), &context.data_source_registry)
-            .map_err(|_| RenderEngineError::RenderFailed)?;
+            .map_err(|_| AppError::RenderFailed)?;
 
         // 渲染图标
         self.image_renderer.render(
@@ -228,7 +179,7 @@ impl RenderEngine {
         &self,
         line: &Line,
         context: &mut RenderContext<'_, D>,
-    ) -> Result<(), RenderEngineError> {
+    ) -> Result<()> {
         self.graphics_renderer.draw_line(
             context.draw_target,
             line.start,
@@ -245,7 +196,7 @@ impl RenderEngine {
         &self,
         rect: &Rectangle,
         context: &mut RenderContext<'_, D>,
-    ) -> Result<(), RenderEngineError> {
+    ) -> Result<()> {
         self.graphics_renderer.draw_rectangle(
             context.draw_target,
             rect.rect,
@@ -262,7 +213,7 @@ impl RenderEngine {
         &self,
         circle: &Circle,
         context: &mut RenderContext<'_, D>,
-    ) -> Result<(), RenderEngineError> {
+    ) -> Result<()> {
         self.graphics_renderer.draw_circle(
             context.draw_target,
             circle.center,
