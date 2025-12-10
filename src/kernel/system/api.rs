@@ -2,6 +2,8 @@
 //! 系统API接口模块
 //! 定义系统级别的模块化API接口，包含硬件、网络和配置存储子接口
 
+#![allow(unused)]
+
 use crate::common::GlobalMutex;
 use crate::common::error::{AppError, Result};
 use crate::kernel::data::{DataSourceRegistry, DynamicValue};

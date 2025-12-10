@@ -61,27 +61,30 @@ async fn render_layout(
     buffer_guard.clear(QuadColor::White).unwrap();
 
     // 使用默认渲染引擎渲染布局到缓冲区
-    if let Ok(needs_redraw) = DEFAULT_ENGINE.render_layout(&mut *buffer_guard, &data_source_guard) {
-        if needs_redraw {
-            log::info!("Layout rendered successfully, updating display");
+    match DEFAULT_ENGINE.render_layout(&mut *buffer_guard, &data_source_guard) {
+        Ok(needs_redraw) => {
+            if needs_redraw {
+                log::info!("Layout rendered successfully, updating display");
 
-            // 将缓冲区内容更新到显示驱动并刷新屏幕
-            let mut display_guard = display_driver.lock().await;
+                // 将缓冲区内容更新到显示驱动并刷新屏幕
+                let mut display_guard = display_driver.lock().await;
 
-            // 将缓冲区传递给显示驱动的update_frame方法
-            if let Err(e) = display_guard.update_frame(buffer_guard.buffer()) {
-                log::error!("Failed to update frame: {:?}", e);
-                return;
+                // 将缓冲区传递给显示驱动的update_frame方法
+                if let Err(e) = display_guard.update_frame(buffer_guard.buffer()) {
+                    log::error!("Failed to update frame: {:?}", e);
+                    return;
+                }
+
+                // 调用display_frame在屏幕上实际渲染
+                if let Err(e) = display_guard.display_frame() {
+                    log::error!("Failed to display frame: {:?}", e);
+                }
+            } else {
+                log::info!("No redraw needed");
             }
-
-            // 调用display_frame在屏幕上实际渲染
-            if let Err(e) = display_guard.display_frame() {
-                log::error!("Failed to display frame: {:?}", e);
-            }
-        } else {
-            log::info!("No redraw needed");
         }
-    } else {
-        log::error!("Failed to render layout");
+        Err(err) => {
+            log::error!("Failed to render layout: {:?}", err);
+        }
     }
 }

@@ -10,6 +10,7 @@ use crate::kernel::render::layout::evaluator::{DEFAULT_EVALUATOR, ExpressionEval
 use crate::kernel::render::layout::loader::{DEFAULT_LOADER, LayoutLoader};
 use crate::kernel::render::layout::nodes::*;
 use crate::kernel::render::text::TextRenderer;
+
 use embedded_graphics::draw_target::DrawTarget;
 use epd_waveshare::color::QuadColor;
 
@@ -40,11 +41,13 @@ impl RenderEngine {
         draw_target: &mut D,
         data_source_registry: &DataSourceRegistry,
     ) -> Result<bool> {
+        log::info!("Starting layout rendering");
         // 加载布局
         let layout = self
             .layout_loader
             .load_layout()
             .map_err(|_| AppError::LayoutLoadFailed)?;
+        log::debug!("Layout loaded successfully");
 
         // 创建渲染上下文
         let mut context = RenderContext::new(draw_target, data_source_registry);
@@ -63,17 +66,61 @@ impl RenderEngine {
     ) -> Result<()> {
         // 检查节点是否应该渲染
         if !self.should_render(node, &context.data_source_registry)? {
+            log::debug!("Node should not be rendered, skipping");
             return Ok(());
         }
+        log::debug!("Rendering node: {} of type: {:?}", node.id(), node);
 
         // 根据节点类型进行渲染
         match node {
-            LayoutNode::Container(container) => self.render_container(&*container, context),
-            LayoutNode::Text(text) => self.render_text(text, context),
-            LayoutNode::Icon(icon) => self.render_icon(icon, context),
-            LayoutNode::Line(line) => self.render_line(line, context),
-            LayoutNode::Rectangle(rect) => self.render_rectangle(rect, context),
-            LayoutNode::Circle(circle) => self.render_circle(circle, context),
+            LayoutNode::Container(container) => {
+                log::debug!("Rendering container node: {}", container.id);
+                let result = self.render_container(&*container, context);
+                if result.is_err() {
+                    log::error!("Failed to render container node: {}", container.id);
+                }
+                result
+            }
+            LayoutNode::Text(text) => {
+                log::debug!("Rendering text node: {}", text.id);
+                let result = self.render_text(text, context);
+                if result.is_err() {
+                    log::error!("Failed to render text node: {}", text.id);
+                }
+                result
+            }
+            LayoutNode::Icon(icon) => {
+                log::debug!("Rendering icon node: {}", icon.id);
+                let result = self.render_icon(icon, context);
+                if result.is_err() {
+                    log::error!("Failed to render icon node: {}", icon.id);
+                }
+                result
+            }
+            LayoutNode::Line(line) => {
+                log::debug!("Rendering line node: {}", line.id);
+                let result = self.render_line(line, context);
+                if result.is_err() {
+                    log::error!("Failed to render line node: {}", line.id);
+                }
+                result
+            }
+            LayoutNode::Rectangle(rect) => {
+                log::debug!("Rendering rectangle node: {}", rect.id);
+                let result = self.render_rectangle(rect, context);
+                if result.is_err() {
+                    log::error!("Failed to render rectangle node: {}", rect.id);
+                }
+                result
+            }
+            LayoutNode::Circle(circle) => {
+                log::debug!("Rendering circle node: {}", circle.id);
+                let result = self.render_circle(circle, context);
+                if result.is_err() {
+                    log::error!("Failed to render circle node: {}", circle.id);
+                }
+                result
+            }
         }
     }
 
@@ -103,6 +150,13 @@ impl RenderEngine {
         container: &Container,
         context: &mut RenderContext<'_, D>,
     ) -> Result<()> {
+        log::debug!(
+            "Rendering container: {} at {:?}, border: {:?}, direction: {:?}",
+            container.id,
+            container.rect,
+            container.border,
+            container.direction
+        );
         // 渲染边框
         self.graphics_renderer.draw_border(
             context.draw_target,
@@ -130,11 +184,18 @@ impl RenderEngine {
         text: &Text,
         context: &mut RenderContext<'_, D>,
     ) -> Result<()> {
+        log::debug!(
+            "Rendering text node: {} with content: '{}' at {:?}",
+            text.id,
+            text.content,
+            text.rect
+        );
         // 替换占位符
         let content = self
             .expression_evaluator
             .replace_placeholders(text.content.as_str(), &context.data_source_registry)
             .map_err(|_| AppError::RenderFailed)?;
+        log::debug!("Text content after placeholder replacement: '{}'", content);
 
         // 渲染文本
         self.text_renderer.render(
@@ -157,11 +218,18 @@ impl RenderEngine {
         icon: &Icon,
         context: &mut RenderContext<'_, D>,
     ) -> Result<()> {
+        log::debug!(
+            "Rendering icon node: {} with icon_id: '{}' at {:?}",
+            icon.id,
+            icon.icon_id,
+            icon.rect
+        );
         // 替换占位符
         let icon_id = self
             .expression_evaluator
             .replace_placeholders(icon.icon_id.as_str(), &context.data_source_registry)
             .map_err(|_| AppError::RenderFailed)?;
+        log::debug!("Icon ID after placeholder replacement: '{}'", icon_id);
 
         // 渲染图标
         self.image_renderer.render(

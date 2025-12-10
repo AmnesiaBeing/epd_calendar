@@ -17,10 +17,15 @@ impl LayoutLoader {
 
     /// 从生成的二进制数据加载布局
     pub fn load_layout(&self) -> Result<LayoutNode> {
+        log::debug!("Loading layout data from binary");
         let layout_data = get_layout_data();
+        log::debug!("Layout data size: {} bytes", layout_data.len());
 
         // 使用postcard反序列化布局数据
-        from_bytes::<LayoutNode>(layout_data).map_err(|_| AppError::LayoutLoadFailed)
+        let layout =
+            from_bytes::<LayoutNode>(layout_data).map_err(|_| AppError::LayoutLoadFailed)?;
+        log::info!("Layout loaded successfully");
+        Ok(layout)
     }
 }
 

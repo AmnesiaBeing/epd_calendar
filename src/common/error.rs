@@ -24,6 +24,9 @@ pub enum AppError {
     #[error("Condition evaluation failed")]
     ConditionEvaluationFailed,
 
+    #[error("Layout placeholder error")]
+    LayoutPlaceholder,
+
     // ===== 网络相关错误 =====
     #[error("Network stack initialization failed")]
     NetworkStackInitFailed,

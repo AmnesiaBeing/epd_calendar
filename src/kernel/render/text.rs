@@ -33,7 +33,18 @@ impl TextRenderer {
         max_lines: Option<u8>,
         font_size: FontSize,
     ) -> AppResult<()> {
+        log::debug!(
+            "Rendering text: '{}' at {:?}, alignment: {:?}, vertical_alignment: {:?}, max_width: {:?}, max_lines: {:?}, font_size: {:?}",
+            content,
+            rect,
+            alignment,
+            vertical_alignment,
+            max_width,
+            max_lines,
+            font_size
+        );
         if content.is_empty() {
+            log::debug!("Empty text, skipping rendering");
             return Ok(());
         }
 

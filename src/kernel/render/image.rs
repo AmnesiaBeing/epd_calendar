@@ -26,6 +26,12 @@ impl ImageRenderer {
         icon_id: &str,
         importance: Option<Importance>,
     ) -> Result<()> {
+        log::debug!(
+            "Rendering icon '{}' at {:?}, importance: {:?}",
+            icon_id,
+            rect,
+            importance
+        );
         // 获取图标数据
         let icon_id = self.get_icon_data(icon_id).ok_or(AppError::IconNotFound)?;
 
@@ -44,6 +50,7 @@ impl ImageRenderer {
 
     /// 获取图标数据
     fn get_icon_data(&self, icon_id: &str) -> Option<IconId> {
+        log::debug!("Looking up icon data for '{}'", icon_id);
         // 将字符串ID转换为IconId
         // 这里实现简单的映射，根据实际情况可能需要更复杂的解析
         match icon_id {

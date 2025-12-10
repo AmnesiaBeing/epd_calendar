@@ -12,10 +12,6 @@ extern crate alloc;
 use embassy_executor::Spawner;
 use embassy_sync::mutex::Mutex;
 use embassy_time::{Duration, Instant, Timer};
-use embedded_graphics::draw_target::DrawTarget;
-
-use epd_waveshare::color::QuadColor;
-use epd_waveshare::epd7in5_yrd0750ryf665f60::Display7in5;
 use static_cell::StaticCell;
 
 mod assets;
@@ -31,14 +27,12 @@ use crate::kernel::data::sources::config::ConfigDataSource;
 use crate::kernel::data::sources::time::TimeDataSource;
 use crate::kernel::data::sources::weather::WeatherDataSource;
 use crate::kernel::driver::display::DefaultDisplayDriver;
-use crate::kernel::driver::display::DisplayDriver;
 use crate::kernel::driver::network::{DefaultNetworkDriver, NetworkDriver};
 use crate::kernel::driver::ntp_source::SntpService;
 use crate::kernel::driver::power::DefaultPowerDriver;
 use crate::kernel::driver::sensor::DefaultSensorDriver;
 use crate::kernel::driver::storage::DefaultConfigStorageDriver;
 use crate::kernel::driver::time_driver::DefaultTimeDriver;
-use crate::kernel::render::layout::engine::{DEFAULT_ENGINE, RenderEngine};
 use crate::kernel::system::api::DefaultSystemApi;
 use crate::tasks::display_task;
 

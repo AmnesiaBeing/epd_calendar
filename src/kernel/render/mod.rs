@@ -5,8 +5,3 @@ pub mod graphics;
 pub mod image;
 pub mod layout;
 pub mod text;
-
-pub use graphics::GraphicsRenderer;
-pub use image::ImageRenderer;
-pub use layout::engine::RenderEngine;
-pub use text::TextRenderer;

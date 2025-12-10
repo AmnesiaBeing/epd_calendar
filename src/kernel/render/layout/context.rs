@@ -22,6 +22,7 @@ pub struct RenderContext<'a, D: DrawTarget<Color = QuadColor>> {
 impl<'a, D: DrawTarget<Color = QuadColor>> RenderContext<'a, D> {
     /// 创建新的渲染上下文
     pub fn new(draw_target: &'a mut D, data_source_registry: &'a DataSourceRegistry) -> Self {
+        log::debug!("Creating new render context");
         Self {
             draw_target,
             data_source_registry,

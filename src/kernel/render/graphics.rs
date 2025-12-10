@@ -22,6 +22,7 @@ impl GraphicsRenderer {
         rect: [u16; 4],
         border: &Border,
     ) -> Result<()> {
+        log::debug!("Drawing border at [{:?}] with thickness {:?}", rect, border);
         let [x, y, width, height] = rect;
         let thickness = border
             .top
@@ -55,6 +56,13 @@ impl GraphicsRenderer {
         thickness: u16,
         importance: Option<Importance>,
     ) -> Result<()> {
+        log::debug!(
+            "Drawing line from {:?} to {:?}, thickness: {}, importance: {:?}",
+            start,
+            end,
+            thickness,
+            importance
+        );
         let color = match importance {
             Some(Importance::Warning) => QuadColor::Yellow,
             Some(Importance::Critical) => QuadColor::Red,
@@ -86,6 +94,13 @@ impl GraphicsRenderer {
         stroke_importance: Option<Importance>,
         stroke_thickness: u16,
     ) -> Result<()> {
+        log::debug!(
+            "Drawing rectangle at {:?}, fill: {:?}, stroke: {:?}, thickness: {}",
+            rect,
+            fill_importance,
+            stroke_importance,
+            stroke_thickness
+        );
         let [x, y, width, height] = rect;
         let mut style_builder = PrimitiveStyleBuilder::new();
 
@@ -132,6 +147,14 @@ impl GraphicsRenderer {
         stroke_importance: Option<Importance>,
         stroke_thickness: u16,
     ) -> Result<()> {
+        log::debug!(
+            "Drawing circle at center {:?}, radius: {}, fill: {:?}, stroke: {:?}, thickness: {}",
+            center,
+            radius,
+            fill_importance,
+            stroke_importance,
+            stroke_thickness
+        );
         let mut style_builder = PrimitiveStyleBuilder::new();
 
         // 设置填充颜色
