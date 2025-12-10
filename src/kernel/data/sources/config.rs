@@ -11,7 +11,7 @@ use crate::kernel::system::api::{ConfigApi, DefaultSystemApi, SystemApi};
 use alloc::boxed::Box;
 use async_trait::async_trait;
 use core::str::FromStr;
-use embassy_time::Instant;
+use embassy_time::{Duration, Instant};
 use heapless::{String, Vec};
 
 type String32 = String<32>;
@@ -23,8 +23,6 @@ pub struct DefaultConfigItem {
     field: String32,
     /// 默认值
     value: DynamicValue,
-    /// 字段描述
-    description: &'static str,
 }
 
 /// 配置数据源
@@ -43,7 +41,7 @@ pub struct ConfigDataSource {
 
 impl ConfigDataSource {
     /// 创建新的配置数据源
-    pub async fn new(system_api: &'static GlobalMutex<DefaultSystemApi>) -> Self {
+    pub async fn new(system_api: &'static GlobalMutex<DefaultSystemApi>) -> Result<Self> {
         let mut instance = Self {
             cache: DataSourceCache::default(),
             fields: Vec::new(),
@@ -55,7 +53,7 @@ impl ConfigDataSource {
         // 初始化默认配置项
         instance.init_defaults();
 
-        instance
+        Ok(instance)
     }
 
     /// 初始化默认配置项
@@ -65,7 +63,6 @@ impl ConfigDataSource {
             .push(DefaultConfigItem {
                 field: String::from_str("wifi_ssid").unwrap(),
                 value: DynamicValue::String(String::try_from("").unwrap()),
-                description: "WiFi SSID",
             })
             .unwrap();
 
@@ -73,7 +70,6 @@ impl ConfigDataSource {
             .push(DefaultConfigItem {
                 field: String::from_str("wifi_password").unwrap(),
                 value: DynamicValue::String(String::try_from("").unwrap()),
-                description: "WiFi Password",
             })
             .unwrap();
 
@@ -82,7 +78,6 @@ impl ConfigDataSource {
             .push(DefaultConfigItem {
                 field: String::from_str("timezone").unwrap(),
                 value: DynamicValue::Integer(-8),
-                description: "Timezone offset in hours",
             })
             .unwrap();
 
@@ -90,7 +85,6 @@ impl ConfigDataSource {
             .push(DefaultConfigItem {
                 field: String::from_str("ntp_server").unwrap(),
                 value: DynamicValue::String(String::try_from("pool.ntp.org").unwrap()),
-                description: "NTP server address",
             })
             .unwrap();
 
@@ -99,7 +93,6 @@ impl ConfigDataSource {
             .push(DefaultConfigItem {
                 field: String::from_str("weather_api_key").unwrap(),
                 value: DynamicValue::String(String::try_from("").unwrap()),
-                description: "Weather API key",
             })
             .unwrap();
 
@@ -107,7 +100,6 @@ impl ConfigDataSource {
             .push(DefaultConfigItem {
                 field: String::from_str("weather_location").unwrap(),
                 value: DynamicValue::String(String::try_from("").unwrap()),
-                description: "Weather location",
             })
             .unwrap();
 
@@ -116,7 +108,6 @@ impl ConfigDataSource {
             .push(DefaultConfigItem {
                 field: String::from_str("display_brightness").unwrap(),
                 value: DynamicValue::Integer(100),
-                description: "Display brightness (0-100)",
             })
             .unwrap();
 
@@ -151,7 +142,9 @@ impl ConfigDataSource {
                 let mut config = Vec::new();
 
                 for default in self.defaults.iter() {
-                    config.push((default.field.clone(), default.value.clone()));
+                    config
+                        .push((default.field.clone(), default.value.clone()))
+                        .map_err(|_| AppError::InvalidConfigData)?;
                 }
 
                 Ok(config)
@@ -213,7 +206,9 @@ impl ConfigDataSource {
 
         for (cache_field_name, _) in &self.cache.fields {
             if let Some(value) = self.cache.get_field(&cache_field_name) {
-                config.push((cache_field_name.clone(), value.clone()));
+                config
+                    .push((cache_field_name.clone(), value.clone()))
+                    .map_err(|_| AppError::InvalidConfigData)?;
             }
         }
 
@@ -277,8 +272,8 @@ impl DataSource for ConfigDataSource {
     }
 
     /// 获取刷新间隔（秒）
-    fn refresh_interval(&self) -> u32 {
+    fn refresh_interval(&self) -> Duration {
         // 配置数据源不需要频繁刷新，每小时刷新一次
-        3600
+        Duration::from_secs(3600)
     }
 }

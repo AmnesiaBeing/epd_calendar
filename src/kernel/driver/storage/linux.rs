@@ -90,7 +90,3 @@ impl ConfigStorage for FileConfigStorage {
         Ok(())
     }
 }
-
-/// Linux平台默认配置存储类型别名
-#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
-pub type DefaultConfigStorage = FileConfigStorage;

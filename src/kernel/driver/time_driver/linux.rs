@@ -7,13 +7,10 @@
 use core::sync::atomic::AtomicU64;
 use core::sync::atomic::Ordering;
 
-use embassy_sync::mutex::Mutex;
-use embassy_time::Instant;
-
-use jiff::{Timestamp, Zoned, tz::TimeZone};
+use jiff::Timestamp;
 
 use crate::common::error::{AppError, Result};
-use crate::kernel::driver::time_source::TimeSource;
+use crate::kernel::driver::time_driver::TimeDriver;
 
 /// 模拟器RTC时间源结构体
 ///
@@ -43,7 +40,7 @@ impl SimulatedRtc {
 }
 
 #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
-impl TimeSource for SimulatedRtc {
+impl TimeDriver for SimulatedRtc {
     /// 获取当前时间
     ///
     /// # 返回值

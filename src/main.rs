@@ -18,12 +18,13 @@ use static_cell::StaticCell;
 mod assets;
 mod common;
 mod kernel;
-mod tasks;
+// mod tasks;
 
 use crate::common::GlobalMutex;
 use crate::common::error::Result;
 use crate::kernel::data::DataSourceRegistry;
 use crate::kernel::data::generic_scheduler_task;
+use crate::kernel::data::sources::config::ConfigDataSource;
 use crate::kernel::data::sources::time::TimeDataSource;
 use crate::kernel::data::sources::weather::WeatherDataSource;
 use crate::kernel::driver::display::DefaultDisplayDriver;
@@ -31,9 +32,9 @@ use crate::kernel::driver::network::{DefaultNetworkDriver, NetworkDriver};
 use crate::kernel::driver::ntp_source::SntpService;
 use crate::kernel::driver::power::DefaultPowerDriver;
 use crate::kernel::driver::sensor::DefaultSensorDriver;
-use crate::kernel::driver::storage::DefaultConfigStorage;
+use crate::kernel::driver::storage::DefaultConfigStorageDriver;
 use crate::kernel::driver::time_driver::DefaultTimeDriver;
-use crate::kernel::render::engine::RenderEngine;
+// use crate::kernel::render::engine::RenderEngine;
 use crate::kernel::system::api::DefaultSystemApi;
 
 /// 全局驱动状态管理
@@ -42,6 +43,7 @@ static TIME_DRIVER: StaticCell<GlobalMutex<DefaultTimeDriver>> = StaticCell::new
 static SYSTEM_API: StaticCell<GlobalMutex<DefaultSystemApi>> = StaticCell::new();
 
 /// 全局数据源管理
+static CONFIG_SOURCE: StaticCell<GlobalMutex<ConfigDataSource>> = StaticCell::new();
 static TIME_SOURCE: StaticCell<GlobalMutex<TimeDataSource>> = StaticCell::new();
 static WEATHER_SOURCE: StaticCell<GlobalMutex<WeatherDataSource>> = StaticCell::new();
 
@@ -66,7 +68,7 @@ use esp_rtos::main as platform_main;
 #[platform_main]
 async fn main(spawner: Spawner) {
     // 冷启动初始化
-    cold_start(&spawner).await;
+    let _ = cold_start(&spawner).await;
 
     // 主循环
     let mut last_system_check = Instant::now();
@@ -110,9 +112,9 @@ async fn cold_start(spawner: &Spawner) -> Result<()> {
 
     // 初始化存储驱动与配置服务
     #[cfg(feature = "embedded_esp")]
-    let storage_driver = DefaultConfigStorage::new(&peripherals).unwrap();
+    let storage_driver = DefaultConfigStorageDriver::new(&peripherals).unwrap();
     #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
-    let storage_driver = DefaultConfigStorage::new("flash.bin", 4096).unwrap();
+    let storage_driver = DefaultConfigStorageDriver::new("flash.bin", 4096).unwrap();
 
     #[cfg(feature = "embedded_esp")]
     let mut network_driver = DefaultNetworkDriver::new(&peripherals).unwrap();
@@ -156,6 +158,7 @@ async fn cold_start(spawner: &Spawner) -> Result<()> {
         power_driver,
         network_driver_mutex,
         storage_driver,
+        DefaultSensorDriver::new(),
     )));
 
     let data_source_registry = DataSourceRegistry::new();
@@ -165,28 +168,30 @@ async fn cold_start(spawner: &Spawner) -> Result<()> {
     system_api_guard.set_data_source_registry(data_source_registry);
     drop(system_api_guard);
 
+    // 注册配置数据源
+    let config_source_mutex =
+        CONFIG_SOURCE.init(Mutex::new(ConfigDataSource::new(system_api).await?));
+    data_source_registry
+        .lock()
+        .await
+        .register_source(config_source_mutex)
+        .await?;
+
     // 注册时间数据源
     let time_source_mutex = TIME_SOURCE.init(Mutex::new(TimeDataSource::new(time_driver_mutex)?));
     data_source_registry
         .lock()
         .await
-        .register_source(
-            time_source_mutex,
-            60, // 每分钟刷新一次
-        )
+        .register_source(time_source_mutex)
         .await?;
 
     // 注册天气数据源
-    let weather_source_mutex = WEATHER_SOURCE.init(Mutex::new(
-        WeatherDataSource::new(system_api, DefaultSensorDriver::new()).await?,
-    ));
+    let weather_source_mutex =
+        WEATHER_SOURCE.init(Mutex::new(WeatherDataSource::new(system_api).await?));
     data_source_registry
         .lock()
         .await
-        .register_source(
-            weather_source_mutex,
-            2 * 60 * 60, // 每2小时刷新一次
-        )
+        .register_source(weather_source_mutex)
         .await?;
 
     spawner

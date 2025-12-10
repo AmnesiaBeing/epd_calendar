@@ -33,9 +33,9 @@ struct SourceMeta {
 /// 管理所有数据源的定时刷新，适配embassy静态任务特性
 pub struct DataSourceRegistry {
     /// 数据源元数据列表
-    pub sources: Vec<SourceMeta, 8>,
+    sources: Vec<SourceMeta, 8>,
     /// 最小刷新间隔
-    pub min_interval_tick: Duration,
+    min_interval_tick: Duration,
 }
 
 impl Default for DataSourceRegistry {
@@ -57,26 +57,29 @@ impl DataSourceRegistry {
     pub async fn register_source(
         &mut self,
         instance: &'static GlobalMutex<dyn DataSource>,
-        interval_secs: u64,
     ) -> Result<()> {
         // 获取下一个可用ID
         let id = *NEXT_ID.lock().await;
         *NEXT_ID.lock().await += 1;
 
+        let interval = instance.lock().await.refresh_interval();
+
         // 添加数据源元数据
-        self.sources.push(SourceMeta {
-            id,
-            instance,
-            interval_tick: Duration::from_secs(interval_secs),
-            last_refresh_tick: Instant::MIN,
-        });
+        self.sources
+            .push(SourceMeta {
+                id,
+                instance,
+                interval_tick: interval,
+                last_refresh_tick: Instant::MIN,
+            })
+            .map_err(|_| AppError::DataSourceRegistryFull)?;
 
         // 重新计算最小刷新间隔
         self.min_interval_tick = self.get_min_interval();
         log::info!(
             "Registered DataSource {:?}, interval: {}s, new min interval: {}s",
             id,
-            interval_secs,
+            interval / 1000,
             self.min_interval_tick / 1000
         );
 

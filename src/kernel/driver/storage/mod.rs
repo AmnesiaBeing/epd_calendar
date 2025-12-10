@@ -43,9 +43,9 @@ pub trait ConfigStorage {
 #[cfg(feature = "embedded_esp")]
 mod esp;
 #[cfg(feature = "embedded_esp")]
-pub use esp::EspConfigStorage as DefaultConfigStorage;
+pub use esp::EspConfigStorageDriver as DefaultConfigStorageDriver;
 
 #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
 mod linux;
 #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
-pub use linux::FileConfigStorage as DefaultConfigStorage;
+pub use linux::FileConfigStorage as DefaultConfigStorageDriver;

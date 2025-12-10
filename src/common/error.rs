@@ -11,13 +11,12 @@ use thiserror::Error;
 /// 定义了EPD日历系统中所有可能出现的错误类型，按功能模块分类
 #[derive(Error, Debug, Clone)]
 pub enum AppError {
-    // ===== 初始化错误 =====
-    #[error("Main initialization failed")]
-    MainInit,
-
     // ===== 资源相关错误 =====
     #[error("Invalid weather icon code")]
     InvalidWeatherIconCode,
+
+    #[error("Sensor error")]
+    SensorError,
 
     // ===== 网络相关错误 =====
     #[error("Network stack initialization failed")]
@@ -199,6 +198,9 @@ pub enum AppError {
 
     #[error("Invalid date")]
     InvalidDate,
+
+    #[error("Data source registry full")]
+    DataSourceRegistryFull,
 }
 
 /// 应用程序结果类型别名

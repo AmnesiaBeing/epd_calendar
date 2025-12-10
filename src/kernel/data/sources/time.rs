@@ -5,8 +5,8 @@ use alloc::boxed::Box;
 use alloc::string::ToString;
 use async_trait::async_trait;
 use core::str::FromStr;
-use embassy_time::Instant;
-use heapless::{String, Vec};
+use embassy_time::{Duration, Instant};
+use heapless::String;
 use jiff::civil::DateTime;
 use jiff::tz::{Offset, TimeZone};
 use sxtwl_rs::lunar::LunarDay;
@@ -15,7 +15,7 @@ use sxtwl_rs::types::{Culture, Tyme};
 
 use crate::common::GlobalMutex;
 use crate::common::error::{AppError, Result};
-use crate::kernel::data::types::{DynamicValue, FieldMeta};
+use crate::kernel::data::types::DynamicValue;
 use crate::kernel::data::{DataSource, DataSourceCache};
 use crate::kernel::driver::time_driver::{DefaultTimeDriver, TimeDriver};
 use crate::kernel::system::api::DefaultSystemApi;
@@ -26,8 +26,6 @@ pub struct TimeDataSource {
     time_source: &'static GlobalMutex<DefaultTimeDriver>,
     /// 数据源缓存
     cache: DataSourceCache,
-    /// 字段元数据列表
-    fields: Vec<FieldMeta, 15>,
     /// sxtwl 公历日期结构体
     sxtwl_solar_day: Option<SolarDay>,
     /// sxtwl 农历日期结构体
@@ -41,74 +39,14 @@ pub struct TimeDataSource {
 impl TimeDataSource {
     /// 创建新的时间数据源实例
     pub fn new(time_source: &'static GlobalMutex<DefaultTimeDriver>) -> Result<Self> {
-        // 初始化字段元数据（仅定义结构，值在 refresh 中更新）
-        let mut fields = Vec::new();
-
-        // 时间相关字段
-        Self::push_field(&mut fields, "time.hour", DynamicValue::Integer(0))?;
-        Self::push_field(&mut fields, "time.minute", DynamicValue::Integer(0))?;
-        Self::push_field(&mut fields, "time.am_pm", DynamicValue::Boolean(false))?;
-
-        // 日期相关字段
-        Self::push_field(&mut fields, "date.year", DynamicValue::Integer(0))?;
-        Self::push_field(&mut fields, "date.month", DynamicValue::Integer(0))?;
-        Self::push_field(&mut fields, "date.day", DynamicValue::Integer(0))?;
-        Self::push_field(&mut fields, "date.week", DynamicValue::Integer(0))?;
-
-        // 农历相关字段
-        Self::push_field(&mut fields, "lunar.month", DynamicValue::Integer(0))?;
-        Self::push_field(&mut fields, "lunar.day", DynamicValue::Integer(0))?;
-        Self::push_field(
-            &mut fields,
-            "lunar.ganzhi",
-            DynamicValue::String(String::new()),
-        )?;
-        Self::push_field(
-            &mut fields,
-            "lunar.zodiac",
-            DynamicValue::String(String::new()),
-        )?;
-        Self::push_field(
-            &mut fields,
-            "lunar.jieqi",
-            DynamicValue::String(String::new()),
-        )?;
-        Self::push_field(
-            &mut fields,
-            "lunar.festival",
-            DynamicValue::String(String::new()),
-        )?;
-
         Ok(Self {
             time_source,
             cache: DataSourceCache::default(),
-            fields,
             sxtwl_solar_day: None,
             sxtwl_lunar_day: None,
             last_update_lunar: 0,
             current_date: None, // 初始化为 None，首次刷新时初始化
         })
-    }
-
-    /// 辅助函数：安全添加字段元数据，避免 unwrap panic
-    fn push_field(
-        fields: &mut Vec<FieldMeta, 15>,
-        name: &str,
-        default: DynamicValue,
-    ) -> Result<()> {
-        let field_name = String::from_str(name).map_err(|_| {
-            log::error!("Invalid field name: {}", name);
-            AppError::InvalidFieldName
-        })?;
-
-        fields
-            .push(FieldMeta {
-                name: field_name,
-                content: default,
-            })
-            .map_err(|_| AppError::FieldLimitExceeded)?;
-
-        Ok(())
     }
 
     /// 初始化/刷新公历&农历数据（基于实际时间）
@@ -342,7 +280,7 @@ impl DataSource for TimeDataSource {
     }
 
     /// 获取刷新间隔（秒）
-    fn refresh_interval(&self) -> u32 {
-        60 // 每分钟刷新一次
+    fn refresh_interval(&self) -> Duration {
+        Duration::from_secs(60) // 每分钟刷新一次
     }
 }

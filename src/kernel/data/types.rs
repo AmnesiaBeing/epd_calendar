@@ -4,7 +4,7 @@
 
 use alloc::boxed::Box;
 use async_trait::async_trait;
-use embassy_time::Instant;
+use embassy_time::{Duration, Instant};
 use heapless::{String, Vec};
 use serde::{Deserialize, Serialize};
 
@@ -97,8 +97,8 @@ pub trait DataSource {
     /// 刷新数据源
     async fn refresh(&mut self, system_api: &'static GlobalMutex<DefaultSystemApi>) -> Result<()>;
 
-    /// 获取刷新间隔（秒）
-    fn refresh_interval(&self) -> u32;
+    /// 获取刷新间隔（ticks）
+    fn refresh_interval(&self) -> Duration;
 }
 
 /// 动态值枚举

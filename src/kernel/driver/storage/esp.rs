@@ -26,14 +26,14 @@ const CONFIG_SIZE: usize = 4096;
 /// ESP32配置存储结构体
 ///
 /// 管理ESP32平台的Flash存储，使用NVS分区进行配置数据持久化
-pub struct EspConfigStorage {
+pub struct EspConfigStorageDriver {
     /// Flash存储区域
     flash_storage: FlashRegion<'static, FlashStorage<'static>>,
     /// 配置数据起始地址
     config_address: u32,
 }
 
-impl EspConfigStorage {
+impl EspConfigStorageDriver {
     /// 创建新的ESP32配置存储实例
     ///
     /// # 参数
@@ -68,7 +68,7 @@ impl EspConfigStorage {
     }
 }
 
-impl ConfigStorage for EspConfigStorage {
+impl ConfigStorage for EspConfigStorageDriver {
     /// 读取配置数据块
     ///
     /// # 返回值
@@ -138,7 +138,3 @@ impl ConfigStorage for EspConfigStorage {
         Ok(())
     }
 }
-
-/// ESP32平台默认配置存储类型别名
-#[cfg(feature = "embedded_esp")]
-pub type DefaultConfigStorage = EspConfigStorage;

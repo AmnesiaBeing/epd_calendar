@@ -7,7 +7,8 @@ use crate::common::error::{AppError, Result};
 use crate::kernel::data::{DataSourceRegistry, DynamicValue};
 use crate::kernel::driver::network::{DefaultNetworkDriver, NetworkDriver};
 use crate::kernel::driver::power::{DefaultPowerDriver, PowerDriver};
-use crate::kernel::driver::storage::{ConfigStorage, DefaultConfigStorage};
+use crate::kernel::driver::sensor::{DefaultSensorDriver, SensorDriver};
+use crate::kernel::driver::storage::{ConfigStorage, DefaultConfigStorageDriver};
 
 use alloc::boxed::Box;
 use async_trait::async_trait;
@@ -26,6 +27,12 @@ pub trait HardwareApi {
 
     /// 获取充电状态
     async fn is_charging(&self) -> Result<bool>;
+
+    /// 获取湿度
+    async fn get_humidity(&self) -> Result<u8>;
+
+    /// 获取温度
+    async fn get_temperature(&self) -> Result<u8>;
 
     /// 检查WiFi连接状态
     async fn is_wifi_connected(&self) -> Result<bool>;
@@ -88,7 +95,9 @@ pub struct DefaultSystemApi {
     /// 网络驱动实例（全局互斥锁保护）
     network_driver: &'static GlobalMutex<DefaultNetworkDriver>,
     /// 配置存储驱动实例
-    config_storage: GlobalMutex<DefaultConfigStorage>,
+    config_storage_driver: GlobalMutex<DefaultConfigStorageDriver>,
+    /// 传感器驱动实例
+    sensor_driver: GlobalMutex<DefaultSensorDriver>,
     /// 数据源注册表（全局互斥锁保护）
     data_source_registry: Option<&'static GlobalMutex<DataSourceRegistry>>,
 }
@@ -98,12 +107,14 @@ impl DefaultSystemApi {
     pub fn new(
         power_driver: DefaultPowerDriver,
         network_driver: &'static GlobalMutex<DefaultNetworkDriver>,
-        config_storage: DefaultConfigStorage,
+        storage_driver: DefaultConfigStorageDriver,
+        sensor_driver: DefaultSensorDriver,
     ) -> Self {
         Self {
             power_driver: GlobalMutex::new(power_driver),
             network_driver,
-            config_storage: GlobalMutex::new(config_storage),
+            config_storage_driver: GlobalMutex::new(storage_driver),
+            sensor_driver: GlobalMutex::new(sensor_driver),
             data_source_registry: None,
         }
     }
@@ -176,12 +187,32 @@ impl HardwareApi for DefaultSystemApi {
             .map_err(|_| AppError::PowerError)
     }
 
+    /// 获取湿度
+    async fn get_humidity(&self) -> Result<u8> {
+        self.sensor_driver
+            .lock()
+            .await
+            .get_humidity()
+            .await
+            .map_err(|_| AppError::SensorError)
+    }
+
+    /// 获取温度
+    async fn get_temperature(&self) -> Result<u8> {
+        self.sensor_driver
+            .lock()
+            .await
+            .get_temperature()
+            .await
+            .map_err(|_| AppError::SensorError)
+    }
+
     async fn is_wifi_connected(&self) -> Result<bool> {
         // 检查WiFi连接状态
         Ok(self.network_driver.lock().await.is_connected())
     }
 
-    async fn connect_wifi(&self, ssid: &str, password: &str) -> Result<()> {
+    async fn connect_wifi(&self, _ssid: &str, _password: &str) -> Result<()> {
         // 连接到WiFi
         unimplemented!()
     }
@@ -359,7 +390,12 @@ fn extract_host(url: &str) -> &str {
 impl ConfigApi for DefaultSystemApi {
     async fn read_config(&self) -> Result<Option<heapless::Vec<u8, 1024>>> {
         // 读取配置数据
-        match self.config_storage.lock().await.read_config_block()? {
+        match self
+            .config_storage_driver
+            .lock()
+            .await
+            .read_config_block()?
+        {
             Some(data) => {
                 let mut result = heapless::Vec::new();
                 result
@@ -373,6 +409,9 @@ impl ConfigApi for DefaultSystemApi {
 
     async fn write_config(&self, data: &[u8]) -> Result<()> {
         // 写入配置数据
-        self.config_storage.lock().await.write_config_block(data)
+        self.config_storage_driver
+            .lock()
+            .await
+            .write_config_block(data)
     }
 }

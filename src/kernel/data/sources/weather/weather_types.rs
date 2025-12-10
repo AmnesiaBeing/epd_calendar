@@ -62,8 +62,8 @@ pub struct QWeatherResponse {
     /// 状态码
     pub code: QWeatherStatusCode,
     /// API更新时间（yyyy-MM-ddTHH:mm+08:00）
-    #[serde(rename = "updateTime")]
-    pub update_time: heapless::String<20>,
+    // #[serde(rename = "updateTime")]
+    // pub update_time: heapless::String<20>,
     /// 3天预报数据
     pub daily: heapless::Vec<DailyWeather, 3>,
 }

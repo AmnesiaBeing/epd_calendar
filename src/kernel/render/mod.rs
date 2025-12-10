@@ -1,12 +1,14 @@
-// src/render/mod.rs
+//! Render module for the EPD Calendar application
+//! This module provides all rendering functionality including layout processing, text, image, and graphics rendering
 
-pub mod engine;
+pub mod layout;
+pub mod text;
+pub mod image;
+pub mod graphics;
 
-mod image_renderer;
-pub use image_renderer::draw_binary_image;
-
-mod text_renderer;
-pub use text_renderer::TextRenderer;
-
-mod graphics_renderer;
-pub use graphics_renderer::GraphicsRenderer;
+// Re-export key types and functions for easier access
+pub use layout::engine::LayoutEngine;
+pub use layout::nodes::LayoutNode;
+pub use layout::context::LayoutContext;
+pub use layout::loader::LayoutLoader;
+pub use layout::evaluator::LayoutEvaluator;
