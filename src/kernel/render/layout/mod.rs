@@ -4,5 +4,4 @@
 pub mod context;
 pub mod engine;
 pub mod evaluator;
-pub mod loader;
 pub mod nodes;

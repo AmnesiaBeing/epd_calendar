@@ -32,7 +32,7 @@ impl ExpressionEvaluator {
     }
 
     /// 替换占位符并计算最终内容
-    pub fn replace_placeholders(&self, content: &str, data: &DataSourceRegistry) -> Result<String> {
+    pub async fn replace_placeholders(&self, content: &str, data: &DataSourceRegistry) -> Result<String> {
         log::debug!("Replacing placeholders in content: '{}'", content);
         let mut result = String::new();
         let mut chars = content.chars().peekable();
@@ -56,7 +56,7 @@ impl ExpressionEvaluator {
 
                     if depth == 0 {
                         // 占位符解析完成
-                        let evaluated = self.evaluate_placeholder(&placeholder, data)?;
+                        let evaluated = self.evaluate_placeholder(&placeholder, data).await?;
                         result.push_str(&evaluated);
                         break;
                     }
@@ -76,18 +76,18 @@ impl ExpressionEvaluator {
     }
 
     /// 评估单个占位符
-    fn evaluate_placeholder(&self, placeholder: &str, data: &DataSourceRegistry) -> Result<String> {
+    async fn evaluate_placeholder(&self, placeholder: &str, data: &DataSourceRegistry) -> Result<String> {
         log::debug!("Evaluating placeholder: '{}'", placeholder);
         // 简单实现：仅支持直接变量引用
         // TODO: 实现完整的表达式解析，包括运算符、函数等
-        self.get_variable_value(placeholder.trim(), data)
+        self.get_variable_value(placeholder.trim(), data).await
     }
 
     /// 获取变量值
-    fn get_variable_value(&self, path: &str, data: &DataSourceRegistry) -> Result<String> {
+    async fn get_variable_value(&self, path: &str, data: &DataSourceRegistry) -> Result<String> {
         // 使用数据源注册表获取变量值
         // 这里我们假设注册表支持同步访问缓存的数据
-        match data.get_cached_value(path) {
+        match data.get_value_by_path(path).await {
             Ok(dynamic_value) => {
                 let mut s = String::new();
                 match dynamic_value {

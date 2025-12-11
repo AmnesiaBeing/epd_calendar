@@ -2,7 +2,7 @@
 //! 负责绘制基本图形元素，如线条、矩形、圆形、边框等
 
 use crate::common::error::{AppError, Result};
-use crate::kernel::render::layout::nodes::{Border, Importance};
+use crate::kernel::render::layout::nodes::Importance;
 use embedded_graphics::{draw_target::DrawTarget, geometry::Point, prelude::*, primitives::*};
 use epd_waveshare::color::QuadColor;
 
@@ -13,38 +13,6 @@ impl GraphicsRenderer {
     /// 创建新的图形渲染器
     pub const fn new() -> Self {
         Self {}
-    }
-
-    /// 绘制边框
-    pub fn draw_border<D: DrawTarget<Color = QuadColor>>(
-        &self,
-        draw_target: &mut D,
-        rect: [u16; 4],
-        border: &Border,
-    ) -> Result<()> {
-        log::debug!("Drawing border at [{:?}] with thickness {:?}", rect, border);
-        let [x, y, width, height] = rect;
-        let thickness = border
-            .top
-            .max(border.right)
-            .max(border.bottom)
-            .max(border.left);
-
-        // 绘制外边框
-        Rectangle::new(
-            Point::new(x as i32, y as i32),
-            Size::new(width.into(), height.into()),
-        )
-        .into_styled(
-            PrimitiveStyleBuilder::new()
-                .stroke_color(QuadColor::Black)
-                .stroke_width(thickness as u32)
-                .build(),
-        )
-        .draw(draw_target)
-        .map_err(|_| AppError::RenderFailed)?;
-
-        Ok(())
     }
 
     /// 绘制线条

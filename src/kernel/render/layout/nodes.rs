@@ -8,7 +8,6 @@ use alloc::vec::Vec;
 use core::fmt::Debug;
 use serde::{Deserialize, Serialize};
 
-/// 字体大小
 pub use crate::assets::generated_fonts::FontSize;
 
-pub use crate::shared::layout_types::*;
+include!("../../../../shared/layout_types.rs");

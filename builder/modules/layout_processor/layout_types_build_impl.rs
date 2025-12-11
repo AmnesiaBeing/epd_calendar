@@ -1,4 +1,4 @@
-use crate::shared::layout_types::*;
+use super::*;
 
 impl IdString {
     /// 编译期创建ID字符串（带长度校验）

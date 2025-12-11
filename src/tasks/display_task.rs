@@ -61,7 +61,10 @@ async fn render_layout(
     buffer_guard.clear(QuadColor::White).unwrap();
 
     // 使用默认渲染引擎渲染布局到缓冲区
-    match DEFAULT_ENGINE.render_layout(&mut *buffer_guard, &data_source_guard) {
+    match DEFAULT_ENGINE
+        .render_layout(&mut *buffer_guard, &data_source_guard)
+        .await
+    {
         Ok(needs_redraw) => {
             if needs_redraw {
                 log::info!("Layout rendered successfully, updating display");

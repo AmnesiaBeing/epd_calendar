@@ -18,7 +18,6 @@ mod assets;
 mod common;
 mod kernel;
 mod tasks;
-mod shared;
 
 use crate::common::GlobalMutex;
 use crate::common::error::Result;

@@ -1,10 +1,6 @@
-//! 编译期+运行时共用的布局类型定义
-//! 包含所有布局节点的基础结构、常量约束、核心trait
-//! 适配嵌入式环境：移除HashMap，改用顺序表实现ID映射
-
-use serde::{Deserialize, Serialize};
-
-use crate::shared::generated_font_size::FontSize;
+// 编译期+运行时共用的布局类型定义
+// 包含所有布局节点的基础结构、常量约束、核心trait
+// 适配嵌入式环境：移除HashMap，改用顺序表实现ID映射
 
 // ==================== 核心常量（对齐规则） ====================
 pub const SCREEN_WIDTH: u16 = 800;

@@ -155,40 +155,6 @@ impl DataSourceRegistry {
     pub fn get_last_any_updated(&self) -> Instant {
         self.last_any_updated
     }
-
-    /// 通过字符串路径获取数据（同步版本，仅用于渲染等需要快速访问的场景）
-    /// 路径格式：数据源名称.字段名称，例如："config.wifi_ssid"、"datetime.date.year"
-    pub fn get_cached_value(&self, path: &str) -> Result<DynamicValue> {
-        // 解析路径，分离数据源名称和字段名称
-        let parts: Vec<&str, 2> = path.split('.').collect();
-        if parts.len() < 2 {
-            return Err(AppError::InvalidPathFormat);
-        }
-
-        let source_name = parts[0];
-        let field_name = parts[1..].join(".");
-
-        // 查找对应的数据源
-        for source_meta in self.sources.iter() {
-            // 尝试获取锁，如果失败则返回错误（在渲染等时间敏感场景中，不应该阻塞等待）
-            match source_meta.instance.try_lock() {
-                Ok(source_guard) => {
-                    if source_guard.name() == source_name {
-                        // 从数据源中获取字段值
-                        let value = source_guard.get_field_value(&field_name)?;
-                        return Ok(value);
-                    }
-                }
-                Err(_) => {
-                    // 锁被占用，返回错误
-                    return Err(AppError::DataSourceBusy);
-                }
-            }
-        }
-
-        // 未找到数据源
-        Err(AppError::DataSourceNotFound)
-    }
 }
 
 /// 单静态任务：统一轮询所有数据源

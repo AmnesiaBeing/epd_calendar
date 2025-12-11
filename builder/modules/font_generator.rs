@@ -436,8 +436,6 @@ fn generate_fonts_rs(
     let output_path = config.shared_output_dir.join("generated_font_size.rs");
     let mut content = String::new();
 
-    content.push_str("use serde::{Deserialize, Serialize};\n\n");
-
     content.push_str("// ==================== 字体尺寸枚举 ====================\n");
     content.push_str("/// 字体尺寸选项\n");
     content.push_str("#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]\n");
@@ -450,6 +448,9 @@ fn generate_fonts_rs(
         content.push_str(&format!("    {},\n", font_config.name));
     }
     content.push_str("}\n\n");
+
+    let output_path = config.shared_output_dir.join("generated_font_size_impl.rs");
+    let mut content = String::new();
 
     content.push_str("impl TryFrom<&str> for FontSize {\n");
     content.push_str("    type Error = String;\n");

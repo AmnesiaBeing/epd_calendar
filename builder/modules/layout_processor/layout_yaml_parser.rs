@@ -1,7 +1,7 @@
 //! 编译期YAML布局文件解析结构体
 //! 仅用于编译期解析，不进入运行时
 
-use crate::shared::layout_types::*;
+use super::*;
 use serde::Deserialize;
 
 /// YAML布局节点（仅编译期解析用）

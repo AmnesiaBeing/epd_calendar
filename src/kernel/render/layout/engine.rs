@@ -1,13 +1,13 @@
 //! 布局渲染引擎
 //! 负责协调布局的测量、计算和渲染过程
 
+use crate::assets::generated_layouts::load_layout_pool;
 use crate::common::error::{AppError, Result};
 use crate::kernel::data::DataSourceRegistry;
 use crate::kernel::render::graphics::GraphicsRenderer;
 use crate::kernel::render::image::ImageRenderer;
 use crate::kernel::render::layout::context::RenderContext;
 use crate::kernel::render::layout::evaluator::{DEFAULT_EVALUATOR, ExpressionEvaluator};
-use crate::kernel::render::layout::loader::{DEFAULT_LOADER, LayoutLoader};
 use crate::kernel::render::layout::nodes::*;
 
 use crate::kernel::render::text::TextRenderer;
@@ -17,7 +17,6 @@ use epd_waveshare::color::QuadColor;
 
 /// 渲染引擎
 pub struct RenderEngine {
-    layout_loader: LayoutLoader,
     expression_evaluator: ExpressionEvaluator,
     text_renderer: TextRenderer,
     image_renderer: ImageRenderer,
@@ -28,7 +27,6 @@ impl RenderEngine {
     /// 创建新的渲染引擎
     pub const fn new() -> Self {
         Self {
-            layout_loader: DEFAULT_LOADER,
             expression_evaluator: DEFAULT_EVALUATOR,
             text_renderer: TextRenderer::new(),
             image_renderer: ImageRenderer::new(),
@@ -37,30 +35,28 @@ impl RenderEngine {
     }
 
     /// 渲染布局到绘图目标
-    pub fn render_layout<D: DrawTarget<Color = QuadColor>>(
+    pub async fn render_layout<D: DrawTarget<Color = QuadColor>>(
         &self,
         draw_target: &mut D,
         data_source_registry: &DataSourceRegistry,
     ) -> Result<bool> {
         log::info!("Starting layout rendering");
         // 加载布局
-        let layout = self
-            .layout_loader
-            .load_layout()
-            .map_err(|_| AppError::LayoutLoadFailed)?;
+        let layout = load_layout_pool().map_err(|_| AppError::LayoutLoadFailed)?;
         log::debug!("Layout loaded successfully");
 
         // 创建渲染上下文
         let mut context = RenderContext::new(draw_target, data_source_registry);
 
         // 渲染根节点
-        self.render_node(&layout, &layout.root_node_id, &mut context)?;
+        self.render_node(&layout, &layout.root_node_id, &mut context)
+            .await?;
 
         Ok(context.needs_redraw)
     }
 
     /// 渲染节点
-    fn render_node<D: DrawTarget<Color = QuadColor>>(
+    async fn render_node<D: DrawTarget<Color = QuadColor>>(
         &self,
         layout_pool: &LayoutPool,
         node_id: &NodeId,
@@ -76,38 +72,38 @@ impl RenderEngine {
             log::debug!("Node should not be rendered, skipping");
             return Ok(());
         }
-        log::debug!("Rendering node: {} of type: {:?}", node.id(), node);
+        log::debug!("Rendering node: {:?} of type: {:?}", node.id(), node);
 
         // 根据节点类型进行渲染
         let node_rect = match node {
             LayoutNode::Container(container) => {
-                log::debug!("Rendering container node: {}", container.id);
-                self.render_container(layout_pool, container, context)?;
+                log::debug!("Rendering container node: {:?}", container.id);
+                self.render_container(layout_pool, container, context).await?;
                 container.rect
             }
             LayoutNode::Text(text) => {
-                log::debug!("Rendering text node: {}", text.id);
-                self.render_text(&text, context)?;
+                log::debug!("Rendering text node: {:?}", text.id);
+                self.render_text(&text, context).await?;
                 text.rect
             }
             LayoutNode::Icon(icon) => {
-                log::debug!("Rendering icon node: {}", icon.id);
-                self.render_icon(&icon, context)?;
+                log::debug!("Rendering icon node: {:?}", icon.id);
+                self.render_icon(&icon, context).await?;
                 icon.rect
             }
             LayoutNode::Line(line) => {
-                log::debug!("Rendering line node: {}", line.id);
+                log::debug!("Rendering line node: {:?}", line.id);
                 self.render_line(&line, context)?;
                 // 线条没有明确的矩形区域，使用一个默认值
                 [0, 0, 0, 0]
             }
             LayoutNode::Rectangle(rect) => {
-                log::debug!("Rendering rectangle node: {}", rect.id);
+                log::debug!("Rendering rectangle node: {:?}", rect.id);
                 self.render_rectangle(&rect, context)?;
                 rect.rect
             }
             LayoutNode::Circle(circle) => {
-                log::debug!("Rendering circle node: {}", circle.id);
+                log::debug!("Rendering circle node: {:?}", circle.id);
                 self.render_circle(&circle, context)?;
                 // 圆形使用它的边界矩形
                 [0, 0, 0, 0] // 使用默认值
@@ -118,17 +114,8 @@ impl RenderEngine {
         match node {
             LayoutNode::Container(container) => {
                 for child in &container.children {
-                    // 条件渲染
-                    if let Some(condition) = &child.condition {
-                        if !self
-                            .expression_evaluator
-                            .evaluate_condition(condition.as_str(), &context.data_source_registry)?
-                        {
-                            continue;
-                        }
-                    }
-
-                    self.render_node(layout_pool, &child.node_id, context)?;
+                    self.render_node(layout_pool, &child.node_id, context)
+                        .await?;
                 }
             }
             _ => {
@@ -160,32 +147,26 @@ impl RenderEngine {
     }
 
     /// 渲染容器节点
-    fn render_container<D: DrawTarget<Color = QuadColor>>(
+    async fn render_container<D: DrawTarget<Color = QuadColor>>(
         &self,
         layout_pool: &LayoutPool,
         container: &Container,
         context: &mut RenderContext<'_, D>,
     ) -> Result<()> {
         log::debug!(
-            "Rendering container: {} at {:?}, border: {:?}, direction: {:?}",
+            "Rendering container: {:?} at {:?}, direction: {:?}",
             container.id,
             container.rect,
-            container.border,
             container.direction
         );
-        // 渲染边框
-        self.graphics_renderer.draw_border(
-            context.draw_target,
-            container.rect,
-            &container.border,
-        )?;
 
         // 增加渲染深度
         context.push_depth();
 
         // 渲染子节点
         for child in &container.children {
-            self.render_node(layout_pool, &child.node_id, context)?;
+            self.render_node(layout_pool, &child.node_id, context)
+                .await?;
         }
 
         // 减少渲染深度
@@ -195,13 +176,13 @@ impl RenderEngine {
     }
 
     /// 渲染文本节点
-    fn render_text<D: DrawTarget<Color = QuadColor>>(
+    async fn render_text<D: DrawTarget<Color = QuadColor>>(
         &self,
         text: &Text,
         context: &mut RenderContext<'_, D>,
     ) -> Result<()> {
         log::debug!(
-            "Rendering text node: {} with content: '{}' at {:?}",
+            "Rendering text node: {:?} with content: '{:?}' at {:?}",
             text.id,
             text.content,
             text.rect
@@ -210,6 +191,7 @@ impl RenderEngine {
         let content = self
             .expression_evaluator
             .replace_placeholders(text.content.as_str(), &context.data_source_registry)
+            .await
             .map_err(|_| AppError::RenderFailed)?;
         log::debug!("Text content after placeholder replacement: '{}'", content);
 
@@ -229,13 +211,13 @@ impl RenderEngine {
     }
 
     /// 渲染图标节点
-    fn render_icon<D: DrawTarget<Color = QuadColor>>(
+    async fn render_icon<D: DrawTarget<Color = QuadColor>>(
         &self,
         icon: &Icon,
         context: &mut RenderContext<'_, D>,
     ) -> Result<()> {
         log::debug!(
-            "Rendering icon node: {} with icon_id: '{}' at {:?}",
+            "Rendering icon node: {:?} with icon_id: '{:?}' at {:?}",
             icon.id,
             icon.icon_id,
             icon.rect
@@ -244,6 +226,7 @@ impl RenderEngine {
         let icon_id = self
             .expression_evaluator
             .replace_placeholders(icon.icon_id.as_str(), &context.data_source_registry)
+            .await
             .map_err(|_| AppError::RenderFailed)?;
         log::debug!("Icon ID after placeholder replacement: '{}'", icon_id);
 

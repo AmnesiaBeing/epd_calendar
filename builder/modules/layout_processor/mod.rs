@@ -2,20 +2,24 @@
 //! 包含YAML解析、严格校验、池化、序列化全流程
 
 use anyhow::{Context, Result};
+use serde::{Deserialize, Serialize};
 use serde_yaml;
 use std::collections::HashSet;
 use std::fs;
 
-use crate::builder::utils::layout_validate::*;
-use crate::builder::utils::layout_yaml_parser::*;
-use crate::shared::generated_font_size::FontSize;
-use crate::shared::layout_types::*;
-
 // 引入外部依赖（根据项目实际路径调整）
 use crate::builder::config::BuildConfig;
+use crate::builder::modules::layout_processor::layout_validate::*;
+use crate::builder::modules::layout_processor::layout_yaml_parser::*;
 use crate::builder::utils::progress::ProgressTracker;
 
 mod layout_types_build_impl;
+mod layout_validate;
+mod layout_yaml_parser;
+
+include!("../../../shared/layout_types.rs");
+include!("../../../shared/generated_font_size.rs");
+include!("../../../shared/generated_font_size_impl.rs");
 
 /// 布局构建器（仅编译期使用）
 pub struct LayoutBuilder;
@@ -475,7 +479,7 @@ impl LayoutBuilder {
             r#"//! 自动生成的布局数据（编译期生成，运行时只读）
 //! 不要手动修改此文件
 
-use crate::shared::layout_types::LayoutPool;
+use crate::kernel::render::layout::nodes::LayoutPool;
 use postcard::from_bytes;
 
 /// 主布局二进制数据
@@ -486,7 +490,7 @@ pub const LAYOUT_DATA_SIZE: usize = {};
 
 /// 运行时加载布局池（极简校验）
 pub fn load_layout_pool() -> Result<LayoutPool, &'static str> {{
-    let pool = from_bytes(MAIN_LAYOUT_BIN)
+    let pool: LayoutPool = from_bytes(MAIN_LAYOUT_BIN)
         .map_err(|_| "布局数据反序列化失败")?;
     
     // 运行时仅校验根节点存在

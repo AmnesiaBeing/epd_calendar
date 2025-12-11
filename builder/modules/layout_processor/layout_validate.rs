@@ -1,7 +1,7 @@
 //! 编译期+运行时共用的极简校验函数
 //! 仅包含运行时必须的基础校验（复杂校验放编译期）
 
-use crate::shared::layout_types::*;
+use super::*;
 
 /// 运行时校验坐标是否在屏幕内（绝对定位）
 pub fn validate_absolute_coord(coord: &[u16], is_2d: bool) -> Result<(), String> {
