@@ -9,6 +9,7 @@ use crate::kernel::render::layout::context::RenderContext;
 use crate::kernel::render::layout::evaluator::{DEFAULT_EVALUATOR, ExpressionEvaluator};
 use crate::kernel::render::layout::loader::{DEFAULT_LOADER, LayoutLoader};
 use crate::kernel::render::layout::nodes::*;
+
 use crate::kernel::render::text::TextRenderer;
 
 use embedded_graphics::draw_target::DrawTarget;
@@ -53,7 +54,7 @@ impl RenderEngine {
         let mut context = RenderContext::new(draw_target, data_source_registry);
 
         // 渲染根节点
-        self.render_node(&layout, &mut context)?;
+        self.render_node(&layout, &layout.root_node_id, &mut context)?;
 
         Ok(context.needs_redraw)
     }
@@ -61,9 +62,15 @@ impl RenderEngine {
     /// 渲染节点
     fn render_node<D: DrawTarget<Color = QuadColor>>(
         &self,
-        node: &LayoutNode,
+        layout_pool: &LayoutPool,
+        node_id: &NodeId,
         context: &mut RenderContext<'_, D>,
     ) -> Result<()> {
+        // 从布局池获取节点
+        let node = layout_pool
+            .get_node(*node_id)
+            .ok_or(AppError::LayoutLoadFailed)?;
+
         // 检查节点是否应该渲染
         if !self.should_render(node, &context.data_source_registry)? {
             log::debug!("Node should not be rendered, skipping");
@@ -72,56 +79,64 @@ impl RenderEngine {
         log::debug!("Rendering node: {} of type: {:?}", node.id(), node);
 
         // 根据节点类型进行渲染
-        match node {
+        let node_rect = match node {
             LayoutNode::Container(container) => {
                 log::debug!("Rendering container node: {}", container.id);
-                let result = self.render_container(&*container, context);
-                if result.is_err() {
-                    log::error!("Failed to render container node: {}", container.id);
-                }
-                result
+                self.render_container(layout_pool, container, context)?;
+                container.rect
             }
             LayoutNode::Text(text) => {
                 log::debug!("Rendering text node: {}", text.id);
-                let result = self.render_text(text, context);
-                if result.is_err() {
-                    log::error!("Failed to render text node: {}", text.id);
-                }
-                result
+                self.render_text(&text, context)?;
+                text.rect
             }
             LayoutNode::Icon(icon) => {
                 log::debug!("Rendering icon node: {}", icon.id);
-                let result = self.render_icon(icon, context);
-                if result.is_err() {
-                    log::error!("Failed to render icon node: {}", icon.id);
-                }
-                result
+                self.render_icon(&icon, context)?;
+                icon.rect
             }
             LayoutNode::Line(line) => {
                 log::debug!("Rendering line node: {}", line.id);
-                let result = self.render_line(line, context);
-                if result.is_err() {
-                    log::error!("Failed to render line node: {}", line.id);
-                }
-                result
+                self.render_line(&line, context)?;
+                // 线条没有明确的矩形区域，使用一个默认值
+                [0, 0, 0, 0]
             }
             LayoutNode::Rectangle(rect) => {
                 log::debug!("Rendering rectangle node: {}", rect.id);
-                let result = self.render_rectangle(rect, context);
-                if result.is_err() {
-                    log::error!("Failed to render rectangle node: {}", rect.id);
-                }
-                result
+                self.render_rectangle(&rect, context)?;
+                rect.rect
             }
             LayoutNode::Circle(circle) => {
                 log::debug!("Rendering circle node: {}", circle.id);
-                let result = self.render_circle(circle, context);
-                if result.is_err() {
-                    log::error!("Failed to render circle node: {}", circle.id);
+                self.render_circle(&circle, context)?;
+                // 圆形使用它的边界矩形
+                [0, 0, 0, 0] // 使用默认值
+            }
+        };
+
+        // 渲染子节点
+        match node {
+            LayoutNode::Container(container) => {
+                for child in &container.children {
+                    // 条件渲染
+                    if let Some(condition) = &child.condition {
+                        if !self
+                            .expression_evaluator
+                            .evaluate_condition(condition.as_str(), &context.data_source_registry)?
+                        {
+                            continue;
+                        }
+                    }
+
+                    self.render_node(layout_pool, &child.node_id, context)?;
                 }
-                result
+            }
+            _ => {
+                // 其他类型节点没有子节点
             }
         }
+
+        Ok(())
     }
 
     /// 检查节点是否应该渲染（评估条件）
@@ -147,6 +162,7 @@ impl RenderEngine {
     /// 渲染容器节点
     fn render_container<D: DrawTarget<Color = QuadColor>>(
         &self,
+        layout_pool: &LayoutPool,
         container: &Container,
         context: &mut RenderContext<'_, D>,
     ) -> Result<()> {
@@ -169,7 +185,7 @@ impl RenderEngine {
 
         // 渲染子节点
         for child in &container.children {
-            self.render_node(&child.node, context)?;
+            self.render_node(layout_pool, &child.node_id, context)?;
         }
 
         // 减少渲染深度

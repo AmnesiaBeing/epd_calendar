@@ -40,6 +40,8 @@ pub struct WeatherIconConfig {
 pub struct BuildConfig {
     /// 输出目录
     pub output_dir: PathBuf,
+    /// shared输出目录
+    pub shared_output_dir: PathBuf,
     /// 句子目录
     pub sentences_dir: PathBuf,
     /// 分类配置路径
@@ -61,6 +63,7 @@ impl BuildConfig {
     pub fn load() -> Result<Self> {
         Ok(Self {
             output_dir: PathBuf::from("src/assets"),
+            shared_output_dir: PathBuf::from("shared"),
             sentences_dir: PathBuf::from("../sentences-bundle/sentences"),
             categories_path: PathBuf::from("../sentences-bundle/categories.json"),
             font_path: PathBuf::from("assets/fonts/MapleMono-NF-CN-Regular.ttf"),

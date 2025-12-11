@@ -24,35 +24,35 @@ children:
                   type: icon
                   id: hour_tens
                   rect: [0, 0, 100, 120]
-                  icon_id: "{time_digit_icon:digit_{{datetime.hour}/10}}"
+                  icon_id: "{digit_icon:digit_{datetime.hour_tens}}"
                 weight: 1.0
 
               - node:
                   type: icon
                   id: hour_ones
                   rect: [0, 0, 100, 120]
-                  icon_id: "{time_digit_icon:digit_{{datetime.hour}%10}}"
+                  icon_id: "{digit_icon:digit_{datetime.hour_ones}}"
                 weight: 1.0
 
               - node:
                   type: icon
                   id: time_colon
                   rect: [0, 0, 40, 120]
-                  icon_id: "{time_digit_icon:digit_colon}"
+                  icon_id: "digit_icon:digit_colon"
                 weight: 0.4
 
               - node:
                   type: icon
                   id: minute_tens
                   rect: [0, 0, 100, 120]
-                  icon_id: "{time_digit_icon:digit_{{datetime.minute}/10}}"
+                  icon_id: "{digit_icon:digit_{datetime.minute_tens}}"
                 weight: 1.0
 
               - node:
                   type: icon
                   id: minute_ones
                   rect: [0, 0, 100, 120]
-                  icon_id: "{time_digit_icon:digit_{{datetime.minute}%10}}"
+                  icon_id: "{digit_icon:digit_{datetime.minute_ones}}"
                 weight: 1.0
 
   # ==================== 日期显示部分 ====================
@@ -70,7 +70,7 @@ children:
             id: date_text
             rect: [0, 0, 800, 40]
             content: "{datetime.year}-{datetime.month}-{datetime.day} 星期{datetime.weekday}"
-            font_size: medium
+            font_size: Medium
             alignment: center
 
   # ==================== 农历与天气容器 ====================
@@ -94,7 +94,7 @@ children:
                   id: lunar_year
                   rect: [0, 10, 400, 30]
                   content: "农历{datetime.lunar.ganzhi}{datetime.lunar.zodiac}年"
-                  font_size: small
+                  font_size: Small
                   alignment: center
 
               - node:
@@ -109,7 +109,7 @@ children:
                         id: lunar_festival
                         rect: [0, 0, 400, 50]
                         content: "{datetime.lunar.festival}"
-                        font_size: medium
+                        font_size: Medium
                         alignment: center
                       condition: "{datetime.lunar.festival} != ''"
 
@@ -118,7 +118,7 @@ children:
                         id: lunar_term
                         rect: [0, 0, 400, 50]
                         content: "{datetime.lunar.term}"
-                        font_size: medium
+                        font_size: Medium
                         alignment: center
                       condition: "{datetime.lunar.festival} == '' && {datetime.lunar.term} != ''"
 
@@ -127,7 +127,7 @@ children:
                         id: lunar_date
                         rect: [0, 0, 400, 50]
                         content: "{datetime.lunar.month}月{datetime.lunar.day}"
-                        font_size: medium
+                        font_size: Medium
                         alignment: center
                       condition: "{datetime.lunar.festival} == '' && {datetime.lunar.term} == ''"
 
@@ -142,7 +142,7 @@ children:
                         id: lunar_recommends
                         rect: [20, 0, 360, 35]
                         content: "宜：{datetime.lunar.recommends}"
-                        font_size: small
+                        font_size: Small
                         alignment: left
                         max_width: 360
                         max_lines: 2
@@ -153,7 +153,7 @@ children:
                         id: lunar_avoids
                         rect: [20, 35, 360, 35]
                         content: "忌：{datetime.lunar.avoids}"
-                        font_size: small
+                        font_size: Small
                         alignment: left
                         max_width: 360
                         max_lines: 2
@@ -187,7 +187,7 @@ children:
                               id: weather_location
                               rect: [20, 0, 200, 50]
                               content: "{weather.location}"
-                              font_size: small
+                              font_size: Small
                               alignment: left
                             weight: 1.0
 
@@ -203,7 +203,7 @@ children:
                                     id: temperature
                                     rect: [0, 5, 160, 20]
                                     content: "{sensor.temperature}℃"
-                                    font_size: small
+                                    font_size: Small
                                     alignment: right
 
                                 - node:
@@ -211,7 +211,7 @@ children:
                                     id: humidity
                                     rect: [0, 25, 160, 20]
                                     content: "{sensor.humidity}%"
-                                    font_size: small
+                                    font_size: Small
                                     alignment: right
 
                     - node:
@@ -233,7 +233,7 @@ children:
                                     id: today_label
                                     rect: [20, 0, 40, 43]
                                     content: "今"
-                                    font_size: small
+                                    font_size: Small
                                     alignment: center
 
                                 - node:
@@ -247,7 +247,7 @@ children:
                                     id: today_temp
                                     rect: [120, 0, 260, 43]
                                     content: "{weather.daily_weather[0].temp_low}~{weather.daily_weather[0].temp_high}℃"
-                                    font_size: small
+                                    font_size: Small
                                     alignment: center
                                   weight: 1.0
 
@@ -264,7 +264,7 @@ children:
                                     id: tomorrow_label
                                     rect: [20, 0, 40, 43]
                                     content: "明"
-                                    font_size: small
+                                    font_size: Small
                                     alignment: center
 
                                 - node:
@@ -278,7 +278,7 @@ children:
                                     id: tomorrow_temp
                                     rect: [120, 0, 260, 43]
                                     content: "{weather.daily_weather[1].temp_low}~{weather.daily_weather[1].temp_high}℃"
-                                    font_size: small
+                                    font_size: Small
                                     alignment: center
                                   weight: 1.0
 
@@ -293,7 +293,7 @@ children:
                                     id: after_tomorrow_label
                                     rect: [20, 0, 40, 44]
                                     content: "后"
-                                    font_size: small
+                                    font_size: Small
                                     alignment: center
 
                                 - node:
@@ -307,7 +307,7 @@ children:
                                     id: after_tomorrow_temp
                                     rect: [120, 0, 260, 44]
                                     content: "{weather.daily_weather[2].temp_low}~{weather.daily_weather[2].temp_high}℃"
-                                    font_size: small
+                                    font_size: Small
                                     alignment: center
                                   weight: 1.0
                   condition: "{weather.valid} == true"
@@ -332,7 +332,7 @@ children:
                               id: sensor_temperature
                               rect: [0, 50, 200, 80]
                               content: "{sensor.temperature}℃"
-                              font_size: large
+                              font_size: Large
                               alignment: center
                             weight: 1.0
                       weight: 1.0
@@ -356,7 +356,7 @@ children:
                               id: sensor_humidity
                               rect: [0, 50, 200, 80]
                               content: "{sensor.humidity}%"
-                              font_size: large
+                              font_size: Large
                               alignment: center
                             weight: 1.0
                       weight: 1.0
@@ -376,7 +376,7 @@ children:
             id: quote_content
             rect: [0, 0, 800, 40]
             content: "{hitokoto.content}"
-            font_size: medium
+            font_size: Medium
             alignment: center
             max_width: 780
             max_lines: 2
@@ -387,7 +387,7 @@ children:
             id: quote_author
             rect: [0, 40, 800, 30]
             content: "——{hitokoto.from_who}《{hitokoto.from}》"
-            font_size: small
+            font_size: Small
             alignment: right
 
   # ==================== 绝对定位元素 ====================
@@ -395,8 +395,8 @@ children:
       type: text
       id: ampm_indicator
       rect: [650, 60, 40, 40]
-      content: "{{system.config.is_am} ? 'AM' : 'PM'}}"
-      font_size: small
+      content: "{time.ampm}"
+      font_size: Small
       alignment: center
       condition: "{system.config.is_12_hour}"
     is_absolute: true
@@ -406,7 +406,7 @@ children:
       id: holiday_display
       rect: [20, 20, 200, 30]
       content: "{datetime.holiday}"
-      font_size: small
+      font_size: Small
       alignment: left
       condition: "{datetime.holiday} != ''"
     is_absolute: true
@@ -422,7 +422,8 @@ children:
       type: icon
       id: charging_status
       rect: [730, 20, 20, 20]
-      icon_id: "{system_icon:{{system.is_charging} ? 'charging' : 'battery_{{system.battery_level}/20}}}"
+      icon_id: "system_icon:charging"
+      condition: "{system.config.is_charging}"
     is_absolute: true
 
   - node:
@@ -430,6 +431,6 @@ children:
       id: battery_level
       rect: [690, 20, 30, 20]
       content: "{system.battery_level}%"
-      font_size: small
+      font_size: Small
       alignment: center
     is_absolute: true

@@ -433,6 +433,43 @@ fn generate_fonts_rs(
     utils::file_utils::write_string_file(&output_path, &content)
         .with_context(|| format!("写入Rust字体文件失败: {}", output_path.display()))?;
 
+    let output_path = config.shared_output_dir.join("generated_font_size.rs");
+    let mut content = String::new();
+
+    content.push_str("use serde::{Deserialize, Serialize};\n\n");
+
+    content.push_str("// ==================== 字体尺寸枚举 ====================\n");
+    content.push_str("/// 字体尺寸选项\n");
+    content.push_str("#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]\n");
+    content.push_str("pub enum FontSize {\n");
+    for font_config in font_configs {
+        content.push_str(&format!(
+            "    /// {}字体 ({}px)\n",
+            font_config.name, font_config.size
+        ));
+        content.push_str(&format!("    {},\n", font_config.name));
+    }
+    content.push_str("}\n\n");
+
+    content.push_str("impl TryFrom<&str> for FontSize {\n");
+    content.push_str("    type Error = String;\n");
+    content.push_str("    fn try_from(s: &str) -> Result<Self, Self::Error> {\n");
+    content.push_str("        match s.to_lowercase().as_str() {\n");
+    for font_config in font_configs {
+        content.push_str(&format!(
+            "            \"{}\" => Ok(Self::{}),\n",
+            font_config.name, font_config.name
+        ));
+    }
+    content.push_str("            _ => Err(format!(\"无效的字体尺寸: {}\", s)),\n");
+    content.push_str("        }\n");
+    content.push_str("    }\n");
+    content.push_str("}\n\n");
+
+    // 写入文件
+    utils::file_utils::write_string_file(&output_path, &content)
+        .with_context(|| format!("写入Rust字体文件失败: {}", output_path.display()))?;
+
     // println!(
     //     "cargo:warning=  生成Rust字体描述文件: {}",
     //     output_path.display()

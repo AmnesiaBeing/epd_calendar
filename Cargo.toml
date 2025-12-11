@@ -62,6 +62,8 @@ embedded_esp = [
 embedded_graphics_simulator = ["epd-waveshare/simulator"]
 spi_bitbang = ["bitbang-hal"]
 
+std = []
+
 [profile.release]
 opt-level = 'z'
 lto = true

@@ -1,7 +1,7 @@
 //! 渲染上下文
 //! 定义渲染过程中使用的上下文结构，包含渲染状态、资源引用等
 
-use crate::common::error::{AppError, Result};
+use crate::common::error::Result;
 use crate::kernel::data::DataSourceRegistry;
 use crate::kernel::render::layout::nodes::*;
 use embedded_graphics::draw_target::DrawTarget;
