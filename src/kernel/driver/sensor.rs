@@ -41,6 +41,7 @@ impl SensorDriver for MockSensorDriver {
 
 /// ESP32传感器驱动（读取系统传感器）
 #[cfg(feature = "embedded_esp")]
+#[derive(Debug)]
 pub struct EspSensorDriver;
 
 #[cfg(feature = "embedded_esp")]

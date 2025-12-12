@@ -15,8 +15,20 @@ pub enum AppError {
     #[error("Invalid weather icon code")]
     InvalidWeatherIconCode,
 
+    #[error("Configuration initialization failed")]
+    ConfigInitFailed,
+
+    #[error("Invalid weather date format")]
+    InvalidWeatherDate,
+
+    #[error("Invalid sensor value")]
+    InvalidSensorValue,
+
     #[error("Sensor error")]
     SensorError,
+
+    #[error("String conversion error")]
+    ConvertError,
 
     #[error("Layout load failed")]
     LayoutLoadFailed,
@@ -151,6 +163,9 @@ pub enum AppError {
     #[error("Data source not found")]
     DataSourceNotFound,
 
+    #[error("Data source refresh failed")]
+    DataSourceRefreshFailed,
+
     #[error("Invalid field name")]
     InvalidFieldName,
 
@@ -171,6 +186,9 @@ pub enum AppError {
 
     #[error("Cache set failed")]
     CacheSetFailed,
+
+    #[error("Cache miss")]
+    CacheMiss,
 
     #[error("Time driver error")]
     TimeDriverError,

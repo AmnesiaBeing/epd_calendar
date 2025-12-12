@@ -2,8 +2,9 @@
 //! 定义渲染过程中使用的上下文结构，包含渲染状态、资源引用等
 
 use crate::common::error::Result;
-use crate::kernel::data::DataSourceRegistry;
+use crate::kernel::data::{DataSourceRegistry, types::CacheKeyValueMap};
 use crate::kernel::render::layout::nodes::*;
+
 use embedded_graphics::draw_target::DrawTarget;
 use epd_waveshare::color::QuadColor;
 
@@ -13,6 +14,8 @@ pub struct RenderContext<'a, D: DrawTarget<Color = QuadColor>> {
     pub draw_target: &'a mut D,
     /// 数据源注册表引用
     pub data_source_registry: &'a DataSourceRegistry,
+    /// 缓存引用
+    pub cache: &'a CacheKeyValueMap,
     /// 当前渲染深度（用于调试和嵌套渲染）
     pub depth: u8,
     /// 是否需要重绘
@@ -21,11 +24,16 @@ pub struct RenderContext<'a, D: DrawTarget<Color = QuadColor>> {
 
 impl<'a, D: DrawTarget<Color = QuadColor>> RenderContext<'a, D> {
     /// 创建新的渲染上下文
-    pub fn new(draw_target: &'a mut D, data_source_registry: &'a DataSourceRegistry) -> Self {
+    pub fn new(
+        draw_target: &'a mut D,
+        data_source_registry: &'a DataSourceRegistry,
+        cache: &'a CacheKeyValueMap,
+    ) -> Self {
         log::debug!("Creating new render context");
         Self {
             draw_target,
             data_source_registry,
+            cache,
             depth: 0,
             needs_redraw: false,
         }

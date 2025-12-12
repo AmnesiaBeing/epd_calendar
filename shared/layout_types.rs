@@ -2,6 +2,18 @@
 // 包含所有布局节点的基础结构、常量约束、核心trait
 // 适配嵌入式环境：移除HashMap，改用顺序表实现ID映射
 
+use core::fmt::Display;
+use core::hash::{Hash, Hasher};
+use core::ops::Deref;
+use core::str;
+use core::str::FromStr;
+use heapless::String as HeaplessStringRaw;
+use heapless::Vec as HeaplessVecRaw;
+
+// 为heapless类型创建统一的类型别名
+pub type HeaplessString<const N: usize> = HeaplessStringRaw<N>;
+pub type HeaplessVec<T, const N: usize> = HeaplessVecRaw<T, N>;
+
 // ==================== 核心常量（对齐规则） ====================
 pub const SCREEN_WIDTH: u16 = 800;
 pub const SCREEN_HEIGHT: u16 = 480;
@@ -25,36 +37,10 @@ pub const MAX_WEIGHT: f32 = 10.0; // 权重最大值
 /// 布局节点ID类型（池化后用u16索引，节省内存）
 pub type NodeId = u16;
 
-/// 带长度约束的ID字符串（编译期校验，运行时只读）
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct IdString(pub String);
-
-impl IdString {
-    /// 运行时获取字符串（无校验）
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-/// 带长度约束的内容字符串
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ContentString(pub String);
-
-impl ContentString {
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-/// 带长度约束的条件字符串
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ConditionString(pub String);
-
-impl ConditionString {
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
+// 常用固定长度的heapless字符串类型别名
+pub type IdHeaplessString = HeaplessString<MAX_ID_LENGTH>;
+pub type ContentHeaplessString = HeaplessString<MAX_CONTENT_LENGTH>;
+pub type ConditionHeaplessString = HeaplessString<MAX_CONDITION_LENGTH>;
 
 // ==================== 枚举定义 ====================
 /// 重要程度（用于颜色映射）
@@ -115,13 +101,13 @@ pub enum LayoutNode {
 /// 容器节点（无border属性，符合新规则）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Container {
-    pub id: IdString,
+    pub id: IdHeaplessString,
     /// 相对/绝对坐标 [x, y, width, height]
     pub rect: [u16; 4],
     /// 子节点ID列表（池化后无嵌套）
     pub children: Vec<ChildLayout>,
     /// 显示条件（可选）
-    pub condition: Option<ConditionString>,
+    pub condition: Option<ConditionHeaplessString>,
     /// 布局方向
     pub direction: ContainerDirection,
     /// 子节点水平对齐
@@ -133,9 +119,9 @@ pub struct Container {
 /// 文本节点
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Text {
-    pub id: IdString,
+    pub id: IdHeaplessString,
     pub rect: [u16; 4],
-    pub content: ContentString,
+    pub content: ContentHeaplessString,
     pub font_size: FontSize,
     pub alignment: TextAlignment,
     pub vertical_alignment: VerticalAlignment,
@@ -148,17 +134,17 @@ pub struct Text {
 /// 图标节点
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Icon {
-    pub id: IdString,
+    pub id: IdHeaplessString,
     pub rect: [u16; 4],
     /// 图标资源ID（支持格式化字符串）
-    pub icon_id: IdString,
+    pub icon_id: IdHeaplessString,
     pub importance: Option<Importance>,
 }
 
 /// 线条节点（符合CSS规范，start/end/thickness）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Line {
-    pub id: IdString,
+    pub id: IdHeaplessString,
     /// 起点 [x, y]
     pub start: [u16; 2],
     /// 终点 [x, y]
@@ -171,7 +157,7 @@ pub struct Line {
 /// 矩形节点
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Rectangle {
-    pub id: IdString,
+    pub id: IdHeaplessString,
     pub rect: [u16; 4],
     pub fill_importance: Option<Importance>,
     pub stroke_importance: Option<Importance>,
@@ -182,7 +168,7 @@ pub struct Rectangle {
 /// 圆形节点
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Circle {
-    pub id: IdString,
+    pub id: IdHeaplessString,
     /// 圆心 [x, y]
     pub center: [u16; 2],
     pub radius: u16,
@@ -202,7 +188,7 @@ pub struct LayoutPool {
     pub root_node_id: NodeId,
     /// ID到NodeId的映射
     /// 格式：(节点ID字符串, 节点索引ID)
-    pub id_map: Vec<(IdString, NodeId)>,
+    pub id_map: Vec<(IdHeaplessString, NodeId)>,
 }
 
 impl LayoutPool {
@@ -225,14 +211,14 @@ impl LayoutPool {
 /// 所有布局元素的通用行为
 pub trait Element {
     /// 获取元素ID
-    fn id(&self) -> &IdString;
+    fn id(&self) -> &IdHeaplessString;
     /// 获取元素的边界矩形（用于碰撞/渲染）
     fn rect(&self) -> [u16; 4];
 }
 
 // 实现Element Trait（编译期/运行时共用）
 impl Element for LayoutNode {
-    fn id(&self) -> &IdString {
+    fn id(&self) -> &IdHeaplessString {
         match self {
             LayoutNode::Container(c) => &c.id,
             LayoutNode::Text(t) => &t.id,
@@ -277,7 +263,7 @@ pub fn circle_to_rect(circle: &Circle) -> [u16; 4] {
 
 // 为各节点单独实现Element（可选）
 impl Element for Container {
-    fn id(&self) -> &IdString {
+    fn id(&self) -> &IdHeaplessString {
         &self.id
     }
     fn rect(&self) -> [u16; 4] {
@@ -286,7 +272,7 @@ impl Element for Container {
 }
 
 impl Element for Text {
-    fn id(&self) -> &IdString {
+    fn id(&self) -> &IdHeaplessString {
         &self.id
     }
     fn rect(&self) -> [u16; 4] {
@@ -295,7 +281,7 @@ impl Element for Text {
 }
 
 impl Element for Icon {
-    fn id(&self) -> &IdString {
+    fn id(&self) -> &IdHeaplessString {
         &self.id
     }
     fn rect(&self) -> [u16; 4] {
@@ -304,7 +290,7 @@ impl Element for Icon {
 }
 
 impl Element for Line {
-    fn id(&self) -> &IdString {
+    fn id(&self) -> &IdHeaplessString {
         &self.id
     }
     fn rect(&self) -> [u16; 4] {
@@ -313,7 +299,7 @@ impl Element for Line {
 }
 
 impl Element for Rectangle {
-    fn id(&self) -> &IdString {
+    fn id(&self) -> &IdHeaplessString {
         &self.id
     }
     fn rect(&self) -> [u16; 4] {
@@ -322,7 +308,7 @@ impl Element for Rectangle {
 }
 
 impl Element for Circle {
-    fn id(&self) -> &IdString {
+    fn id(&self) -> &IdHeaplessString {
         &self.id
     }
     fn rect(&self) -> [u16; 4] {

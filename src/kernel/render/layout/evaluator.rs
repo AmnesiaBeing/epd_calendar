@@ -3,9 +3,11 @@
 
 use alloc::string::String;
 
+// 导入类型别名
+use crate::kernel::data::types::{CacheKeyValueMap, DynamicValue};
+
 use crate::common::error::{AppError, Result};
 use crate::kernel::data::DataSourceRegistry;
-use crate::kernel::data::types::DynamicValue;
 
 use core::fmt::Write;
 
@@ -32,7 +34,12 @@ impl ExpressionEvaluator {
     }
 
     /// 替换占位符并计算最终内容
-    pub async fn replace_placeholders(&self, content: &str, data: &DataSourceRegistry) -> Result<String> {
+    pub fn replace_placeholders(
+        &self,
+        data: &DataSourceRegistry,
+        cache: &CacheKeyValueMap,
+        content: &str,
+    ) -> Result<String> {
         log::debug!("Replacing placeholders in content: '{}'", content);
         let mut result = String::new();
         let mut chars = content.chars().peekable();
@@ -56,7 +63,7 @@ impl ExpressionEvaluator {
 
                     if depth == 0 {
                         // 占位符解析完成
-                        let evaluated = self.evaluate_placeholder(&placeholder, data).await?;
+                        let evaluated = self.evaluate_placeholder(data, cache, &placeholder)?;
                         result.push_str(&evaluated);
                         break;
                     }
@@ -76,18 +83,26 @@ impl ExpressionEvaluator {
     }
 
     /// 评估单个占位符
-    async fn evaluate_placeholder(&self, placeholder: &str, data: &DataSourceRegistry) -> Result<String> {
+    fn evaluate_placeholder(
+        &self,
+        data: &DataSourceRegistry,
+        cache: &CacheKeyValueMap,
+        placeholder: &str,
+    ) -> Result<String> {
         log::debug!("Evaluating placeholder: '{}'", placeholder);
-        // 简单实现：仅支持直接变量引用
-        // TODO: 实现完整的表达式解析，包括运算符、函数等
-        self.get_variable_value(placeholder.trim(), data).await
+        self.get_variable_value(data, cache, placeholder.trim())
     }
 
     /// 获取变量值
-    async fn get_variable_value(&self, path: &str, data: &DataSourceRegistry) -> Result<String> {
+    fn get_variable_value(
+        &self,
+        data: &DataSourceRegistry,
+        cache: &CacheKeyValueMap,
+        path: &str,
+    ) -> Result<String> {
         // 使用数据源注册表获取变量值
         // 这里我们假设注册表支持同步访问缓存的数据
-        match data.get_value_by_path(path).await {
+        match data.get_value_by_path_sync(cache, path) {
             Ok(dynamic_value) => {
                 let mut s = String::new();
                 match dynamic_value {

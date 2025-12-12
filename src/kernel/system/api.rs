@@ -169,7 +169,7 @@ impl SystemApi for DefaultSystemApi {
         match &self.data_source_registry {
             Some(registry) => {
                 let registry_guard = registry.lock().await;
-                registry_guard.get_value_by_path(path).await
+                registry_guard.get_value_by_path_async(path).await
             }
             None => Err(AppError::DataSourceNotFound),
         }

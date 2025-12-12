@@ -5,8 +5,8 @@
 pub mod sources;
 pub mod types;
 
-pub use types::{DataSource, DataSourceCache};
-pub use types::{DataSourceId, DynamicValue};
+pub use types::DataSource;
+pub use types::DynamicValue;
 
 pub mod scheduler;
 pub use scheduler::{DataSourceRegistry, generic_scheduler_task};

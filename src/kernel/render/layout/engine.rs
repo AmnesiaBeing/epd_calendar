@@ -3,13 +3,12 @@
 
 use crate::assets::generated_layouts::load_layout_pool;
 use crate::common::error::{AppError, Result};
-use crate::kernel::data::DataSourceRegistry;
+use crate::kernel::data::{DataSourceRegistry, types::CacheKeyValueMap};
 use crate::kernel::render::graphics::GraphicsRenderer;
 use crate::kernel::render::image::ImageRenderer;
 use crate::kernel::render::layout::context::RenderContext;
 use crate::kernel::render::layout::evaluator::{DEFAULT_EVALUATOR, ExpressionEvaluator};
 use crate::kernel::render::layout::nodes::*;
-
 use crate::kernel::render::text::TextRenderer;
 
 use embedded_graphics::draw_target::DrawTarget;
@@ -35,10 +34,11 @@ impl RenderEngine {
     }
 
     /// 渲染布局到绘图目标
-    pub async fn render_layout<D: DrawTarget<Color = QuadColor>>(
+    pub fn render_layout<D: DrawTarget<Color = QuadColor>>(
         &self,
         draw_target: &mut D,
         data_source_registry: &DataSourceRegistry,
+        cache: &CacheKeyValueMap,
     ) -> Result<bool> {
         log::info!("Starting layout rendering");
         // 加载布局
@@ -46,17 +46,16 @@ impl RenderEngine {
         log::debug!("Layout loaded successfully");
 
         // 创建渲染上下文
-        let mut context = RenderContext::new(draw_target, data_source_registry);
+        let mut context = RenderContext::new(draw_target, data_source_registry, cache);
 
         // 渲染根节点
-        self.render_node(&layout, &layout.root_node_id, &mut context)
-            .await?;
+        self.render_node(&layout, &layout.root_node_id, &mut context)?;
 
         Ok(context.needs_redraw)
     }
 
     /// 渲染节点
-    async fn render_node<D: DrawTarget<Color = QuadColor>>(
+    fn render_node<D: DrawTarget<Color = QuadColor>>(
         &self,
         layout_pool: &LayoutPool,
         node_id: &NodeId,
@@ -78,17 +77,17 @@ impl RenderEngine {
         let node_rect = match node {
             LayoutNode::Container(container) => {
                 log::debug!("Rendering container node: {:?}", container.id);
-                self.render_container(layout_pool, container, context).await?;
+                self.render_container(layout_pool, container, context)?;
                 container.rect
             }
             LayoutNode::Text(text) => {
                 log::debug!("Rendering text node: {:?}", text.id);
-                self.render_text(&text, context).await?;
+                self.render_text(&text, context)?;
                 text.rect
             }
             LayoutNode::Icon(icon) => {
                 log::debug!("Rendering icon node: {:?}", icon.id);
-                self.render_icon(&icon, context).await?;
+                self.render_icon(&icon, context)?;
                 icon.rect
             }
             LayoutNode::Line(line) => {
@@ -114,8 +113,7 @@ impl RenderEngine {
         match node {
             LayoutNode::Container(container) => {
                 for child in &container.children {
-                    self.render_node(layout_pool, &child.node_id, context)
-                        .await?;
+                    self.render_node(layout_pool, &child.node_id, context)?;
                 }
             }
             _ => {
@@ -147,7 +145,7 @@ impl RenderEngine {
     }
 
     /// 渲染容器节点
-    async fn render_container<D: DrawTarget<Color = QuadColor>>(
+    fn render_container<D: DrawTarget<Color = QuadColor>>(
         &self,
         layout_pool: &LayoutPool,
         container: &Container,
@@ -165,8 +163,7 @@ impl RenderEngine {
 
         // 渲染子节点
         for child in &container.children {
-            self.render_node(layout_pool, &child.node_id, context)
-                .await?;
+            self.render_node(layout_pool, &child.node_id, context)?;
         }
 
         // 减少渲染深度
@@ -176,7 +173,7 @@ impl RenderEngine {
     }
 
     /// 渲染文本节点
-    async fn render_text<D: DrawTarget<Color = QuadColor>>(
+    fn render_text<D: DrawTarget<Color = QuadColor>>(
         &self,
         text: &Text,
         context: &mut RenderContext<'_, D>,
@@ -190,8 +187,11 @@ impl RenderEngine {
         // 替换占位符
         let content = self
             .expression_evaluator
-            .replace_placeholders(text.content.as_str(), &context.data_source_registry)
-            .await
+            .replace_placeholders(
+                &context.data_source_registry,
+                &context.cache,
+                text.content.as_str(),
+            )
             .map_err(|_| AppError::RenderFailed)?;
         log::debug!("Text content after placeholder replacement: '{}'", content);
 
@@ -211,7 +211,7 @@ impl RenderEngine {
     }
 
     /// 渲染图标节点
-    async fn render_icon<D: DrawTarget<Color = QuadColor>>(
+    fn render_icon<D: DrawTarget<Color = QuadColor>>(
         &self,
         icon: &Icon,
         context: &mut RenderContext<'_, D>,
@@ -225,8 +225,11 @@ impl RenderEngine {
         // 替换占位符
         let icon_id = self
             .expression_evaluator
-            .replace_placeholders(icon.icon_id.as_str(), &context.data_source_registry)
-            .await
+            .replace_placeholders(
+                &context.data_source_registry,
+                &context.cache,
+                icon.icon_id.as_str(),
+            )
             .map_err(|_| AppError::RenderFailed)?;
         log::debug!("Icon ID after placeholder replacement: '{}'", icon_id);
 

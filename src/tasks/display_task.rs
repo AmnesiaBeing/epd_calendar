@@ -56,15 +56,13 @@ async fn render_layout(
 
     let mut buffer_guard = display_buffer.lock().await;
     let data_source_guard = data_source_registry.lock().await;
+    let cache_guard = data_source_guard.get_cache_read_guard().await;
 
     // 清除显示缓冲区
     buffer_guard.clear(QuadColor::White).unwrap();
 
     // 使用默认渲染引擎渲染布局到缓冲区
-    match DEFAULT_ENGINE
-        .render_layout(&mut *buffer_guard, &data_source_guard)
-        .await
-    {
+    match DEFAULT_ENGINE.render_layout(&mut *buffer_guard, &data_source_guard, &cache_guard) {
         Ok(needs_redraw) => {
             if needs_redraw {
                 log::info!("Layout rendered successfully, updating display");

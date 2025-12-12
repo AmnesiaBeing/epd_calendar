@@ -150,7 +150,7 @@ async fn cold_start(spawner: &Spawner) -> Result<()> {
 
     let display_driver_mutex = DISPLAY_DRIVER.init(Mutex::new(display_driver));
 
-    let data_source_registry = DataSourceRegistry::new();
+    let data_source_registry = DataSourceRegistry::init();
 
     let system_api = SYSTEM_API.init(Mutex::new(DefaultSystemApi::new(
         power_driver,

@@ -2,88 +2,38 @@
 //! 数据类型定义模块
 //! 定义数据源系统中使用的核心数据类型
 
-use alloc::boxed::Box;
+use alloc::{boxed::Box, collections::btree_map::BTreeMap};
 use async_trait::async_trait;
-use embassy_time::{Duration, Instant};
-use heapless::{String, Vec};
+use core::fmt::Debug;
+use embassy_time::Duration;
 use serde::{Deserialize, Serialize};
+
+// 创建常用的类型别名
+pub type HeaplessString<const N: usize> = heapless::String<N>;
+pub type HeaplessVec<T, const N: usize> = heapless::Vec<T, N>;
+
+pub const KEY_LENGTH: usize = 32;
+pub const VALUE_LENGTH: usize = 32;
+pub type CacheKey = HeaplessString<KEY_LENGTH>;
+pub type CacheStringValue = HeaplessString<VALUE_LENGTH>;
+pub type CacheKeyValueMap = BTreeMap<CacheKey, DynamicValue>;
 
 use crate::{
     common::{
-        GlobalMutex,
+        GlobalMutex, GlobalRwLockWriteGuard,
         error::{AppError, Result},
     },
     kernel::system::api::DefaultSystemApi,
 };
 
-/// 数据源缓存结构
-#[derive(Debug, Clone)]
-pub struct DataSourceCache {
-    /// 字段名称到值的映射
-    pub fields: Vec<(String<32>, DynamicValue), 32>,
-    /// 上次更新时间戳
-    pub last_updated: Instant,
-    /// 缓存是否有效
-    pub valid: bool,
+#[inline]
+pub fn alloc_string_to_heapless<const N: usize>(s: &str) -> Result<HeaplessString<N>> {
+    Ok(unsafe {
+        HeaplessString::from_utf8_unchecked(
+            HeaplessVec::from_slice(s.as_bytes()).map_err(|_| AppError::ConvertError)?,
+        )
+    })
 }
-
-impl Default for DataSourceCache {
-    fn default() -> Self {
-        Self {
-            fields: Vec::new(),
-            last_updated: Instant::MIN,
-            valid: false,
-        }
-    }
-}
-
-impl DataSourceCache {
-    /// 获取字段值
-    pub fn get_field(&self, name: &str) -> Option<&DynamicValue> {
-        self.fields
-            .iter()
-            .find(|(field_name, _)| field_name.as_str() == name)
-            .map(|(_, value)| value)
-    }
-
-    /// 设置字段值
-    pub fn set_field(&mut self, name: String<32>, value: DynamicValue) -> Result<()> {
-        // 查找字段是否已存在
-        if let Some(index) = self
-            .fields
-            .iter()
-            .position(|(field_name, _)| field_name.as_str() == name.as_str())
-        {
-            // 更新现有字段
-            self.fields[index] = (name, value);
-        } else {
-            // 添加新字段
-            self.fields
-                .push((name, value))
-                .map_err(|_| AppError::DataCapacityExceeded)?;
-        }
-        Ok(())
-    }
-
-    /// 清除所有字段
-    pub fn clear(&mut self) {
-        self.fields.clear();
-        self.valid = false;
-    }
-
-    /// 标记缓存为有效
-    pub fn mark_valid(&mut self, timestamp: Instant) {
-        self.last_updated = timestamp;
-        self.valid = true;
-    }
-
-    /// 标记缓存为无效
-    pub fn mark_invalid(&mut self) {
-        self.valid = false;
-    }
-}
-
-pub type DataSourceId = u8;
 
 /// 数据源接口定义
 #[async_trait(?Send)]
@@ -91,11 +41,15 @@ pub trait DataSource {
     /// 获取数据源名称
     fn name(&self) -> &'static str;
 
-    /// 获取字段值
-    fn get_field_value(&self, name: &str) -> Result<DynamicValue>;
-
-    /// 刷新数据源
-    async fn refresh(&mut self, system_api: &'static GlobalMutex<DefaultSystemApi>) -> Result<()>;
+    /// 刷新数据并直接写入缓存（核心修改：替代原 refresh + get_all_fields）
+    /// 参数说明：
+    /// - system_api: 系统API
+    /// 核心变更：刷新数据并直接写入全局缓存（替代原 refresh 方法）
+    async fn refresh_with_cache(
+        &mut self,
+        system_api: &'static GlobalMutex<DefaultSystemApi>,
+        cache_guard: &mut GlobalRwLockWriteGuard<CacheKeyValueMap>,
+    ) -> Result<()>;
 
     /// 获取刷新间隔（ticks）
     fn refresh_interval(&self) -> Duration;
@@ -111,16 +65,5 @@ pub enum DynamicValue {
     /// 浮点数
     Float(f32),
     /// 字符串
-    String(String<64>),
-    // 数组
-    // Array(Vec<&'a DynamicValue<'a>, 16>),
-}
-
-/// 字段元数据结构体
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FieldMeta {
-    /// 字段名称
-    pub name: String<32>,
-    /// 字段类型
-    pub content: DynamicValue,
+    String(CacheStringValue),
 }
