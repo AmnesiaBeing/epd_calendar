@@ -74,7 +74,7 @@ impl RenderEngine {
         log::debug!("Rendering node: {:?} of type: {:?}", node.id(), node);
 
         // 根据节点类型进行渲染
-        let node_rect = match node {
+        let _node_rect = match node {
             LayoutNode::Container(container) => {
                 log::debug!("Rendering container node: {:?}", container.id);
                 self.render_container(layout_pool, container, context)?;

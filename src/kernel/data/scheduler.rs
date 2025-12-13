@@ -238,7 +238,7 @@ pub async fn generic_scheduler_task(
             let now = Instant::now();
             for meta in scheduler_guard.sources.iter() {
                 if now - meta.last_refreshed >= meta.refresh_interval {
-                    pending_refresh.push((meta.id, meta.instance, meta.source_name));
+                    let _ = pending_refresh.push((meta.id, meta.instance, meta.source_name));
                     log::debug!(
                         "[{}] ready for refresh (idle: {}ms)",
                         meta.id,

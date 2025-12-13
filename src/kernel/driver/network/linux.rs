@@ -57,7 +57,7 @@ impl NetworkDriver for LinuxNetworkDriver {
 
         let config = Config::ipv4_static(StaticConfigV4 {
             address: Ipv4Cidr::new(Ipv4Address::new(192, 168, 69, 2), 24),
-            dns_servers: heapless::Vec::from_slice(&[Ipv4Address::new(223, 5, 5, 5)]).unwrap(),
+            dns_servers: heapless_08::Vec::from_slice(&[Ipv4Address::new(223, 5, 5, 5)]).unwrap(),
             gateway: Some(Ipv4Address::new(192, 168, 69, 100)),
         });
 

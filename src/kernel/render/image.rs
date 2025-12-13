@@ -92,7 +92,7 @@ impl ImageRenderer {
         x: u16,
         y: u16,
         icon_id: IconId,
-        importance: Option<Importance>,
+        _importance: Option<Importance>,
     ) -> Result<()> {
         let icon_size = icon_id.size();
         let bitmap_data = icon_id.data();

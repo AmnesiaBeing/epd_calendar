@@ -11,7 +11,7 @@ doctest = false
 bench = false
 
 [features]
-default = ["embedded_esp"]
+default = ["simulator"]
 simulator = [
     "critical-section/std",
     "embedded-hal-mock",
@@ -115,6 +115,7 @@ embedded-svc = { version = "0.28", default-features = false }
 static_cell = "2.1"
 critical-section = "1.2"
 heapless = { version = "0.9", default-features = false, features = ["serde"] }
+heapless_08 = { package = "heapless", version = "0.8" }
 
 # Embassy框架
 embassy-sync = { version = "0.7", default-features = false }
@@ -129,7 +130,7 @@ embassy-net = { version = "0.7", default-features = false, features = [
     "dhcpv4",
 ] }
 embassy-embedded-hal = { version = "0.5.0", default-features = false }
-embassy-net-tuntap = { version = "0.1", optional = true }
+embassy-net-tuntap = { version = "0.1.0", optional = true }
 
 # 序列化/反序列化
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }

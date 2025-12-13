@@ -2,7 +2,6 @@
 
 pub mod error;
 
-#[cfg(feature = "embedded_esp")]
 use embassy_sync::rwlock::RwLockWriteGuard;
 use embassy_sync::rwlock::{RwLock, RwLockReadGuard};
 use embassy_sync::{channel::Channel, mutex::Mutex};
