@@ -190,7 +190,7 @@ impl NetworkDriver for EspNetworkDriver {
     ///
     /// # 返回值
     /// - `Option<&Stack>`: 网络栈引用
-    fn get_stack(&self) -> Option<&Stack> {
+    fn get_stack(&self) -> Option<&Stack<'_>> {
         self.stack.as_ref()
     }
 }

@@ -24,14 +24,14 @@ children:
                   type: icon
                   id: hour_tens
                   rect: [0, 0, 100, 120]
-                  icon_id: "{digit_icon:digit_{datetime.hour_tens}}"
+                  icon_id: "digit_icon:digit_{datetime.hour_tens}"
                 weight: 1.0
 
               - node:
                   type: icon
                   id: hour_ones
                   rect: [0, 0, 100, 120]
-                  icon_id: "{digit_icon:digit_{datetime.hour_ones}}"
+                  icon_id: "digit_icon:digit_{datetime.hour_ones}"
                 weight: 1.0
 
               - node:
@@ -45,14 +45,14 @@ children:
                   type: icon
                   id: minute_tens
                   rect: [0, 0, 100, 120]
-                  icon_id: "{digit_icon:digit_{datetime.minute_tens}}"
+                  icon_id: "digit_icon:digit_{datetime.minute_tens}"
                 weight: 1.0
 
               - node:
                   type: icon
                   id: minute_ones
                   rect: [0, 0, 100, 120]
-                  icon_id: "{digit_icon:digit_{datetime.minute_ones}}"
+                  icon_id: "digit_icon:digit_{datetime.minute_ones}"
                 weight: 1.0
 
   # ==================== 日期显示部分 ====================
@@ -240,7 +240,7 @@ children:
                                     type: icon
                                     id: today_icon
                                     rect: [70, 5, 40, 40]
-                                    icon_id: "{weather_icon:{weather.daily_weather[0].weather_icon}}"
+                                    icon_id: "weather_icon:{weather.daily_weather[0].weather_icon}"
 
                                 - node:
                                     type: text
@@ -271,7 +271,7 @@ children:
                                     type: icon
                                     id: tomorrow_icon
                                     rect: [70, 5, 40, 40]
-                                    icon_id: "{weather_icon:{weather.daily_weather[1].weather_icon}}"
+                                    icon_id: "weather_icon:{weather.daily_weather[1].weather_icon}"
 
                                 - node:
                                     type: text
@@ -300,7 +300,7 @@ children:
                                     type: icon
                                     id: after_tomorrow_icon
                                     rect: [70, 2, 40, 40]
-                                    icon_id: "{weather_icon:{weather.daily_weather[2].weather_icon}}"
+                                    icon_id: "weather_icon:{weather.daily_weather[2].weather_icon}"
 
                                 - node:
                                     type: text
@@ -415,7 +415,7 @@ children:
       type: icon
       id: network_status
       rect: [760, 20, 20, 20]
-      icon_id: "{system_icon:network_{system.network_status}}"
+      icon_id: "system_icon:network_{system.network_status}"
     is_absolute: true
 
   - node:

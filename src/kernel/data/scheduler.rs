@@ -138,7 +138,7 @@ impl DataSourceRegistry {
 
     // ========== 缓存接口（供DataSource直写） ==========
     /// 获取缓存写守卫（数据源刷新时调用）
-    pub async fn get_cache_write_guard(&self) -> GlobalRwLockWriteGuard<CacheKeyValueMap> {
+    pub async fn get_cache_write_guard(&self) -> GlobalRwLockWriteGuard<'_, CacheKeyValueMap> {
         self.cache.write().await
     }
 
