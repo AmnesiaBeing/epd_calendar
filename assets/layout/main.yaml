@@ -1,65 +1,63 @@
 type: container
 id: root_container
-rect: [0, 0, 800, 480]
+width: 800
+height: 480
 direction: vertical
 alignment: center
 vertical_alignment: center
 children:
-  # ==================== 时间显示部分 ====================
+  # 时间显示部分
   - node:
       type: container
       id: time_display_container
-      rect: [0, 20, 800, 120]
+      position: [0, 20]
+      width: 800
+      height: 120
       direction: horizontal
       alignment: center
       children:
         - node:
             type: container
             id: time_digits_container
-            rect: [0, 0, 600, 120]
+            width: 600
+            height: 120
             direction: horizontal
             alignment: center
             children:
               - node:
                   type: icon
                   id: hour_tens
-                  rect: [0, 0, 100, 120]
+                  anchor: center
                   icon_id: "time_digit:digit_{datetime.hour_tens}"
-                weight: 1.0
-
               - node:
                   type: icon
                   id: hour_ones
-                  rect: [0, 0, 100, 120]
+                  anchor: center
                   icon_id: "time_digit:digit_{datetime.hour_ones}"
-                weight: 1.0
-
               - node:
                   type: icon
                   id: time_colon
-                  rect: [0, 0, 40, 120]
+                  anchor: center
                   icon_id: "time_digit:digit_colon"
                 weight: 0.4
-
               - node:
                   type: icon
                   id: minute_tens
-                  rect: [0, 0, 100, 120]
+                  anchor: center
                   icon_id: "time_digit:digit_{datetime.minute_tens}"
-                weight: 1.0
-
               - node:
                   type: icon
                   id: minute_ones
-                  rect: [0, 0, 100, 120]
+                  anchor: center
                   icon_id: "time_digit:digit_{datetime.minute_ones}"
-                weight: 1.0
 
-  # ==================== 日期显示部分 ====================
+  # 日期显示部分
   - node:
       type: container
       id: date_display_container
-      rect: [0, 150, 800, 50]
+      position: [0, 150]
+      width: 800
+      height: 50
       direction: vertical
       alignment: center
       border:
@@ -68,23 +66,28 @@ children:
         - node:
             type: text
             id: date_text
-            rect: [0, 0, 800, 40]
+            anchor: center
+            width: 800
+            height: 40
             content: "{datetime.year}-{datetime.month}-{datetime.day} 星期{datetime.weekday}"
             font_size: Medium
             alignment: center
 
-  # ==================== 农历与天气容器 ====================
+  # 农历与天气容器
   - node:
       type: container
       id: lunar_weather_container
-      rect: [0, 210, 800, 180]
+      position: [0, 210]
+      width: 800
+      height: 180
       direction: horizontal
       children:
-        # ==================== 农历信息部分 ====================
+        # 农历信息部分
         - node:
             type: container
             id: lunar_container
-            rect: [0, 0, 400, 180]
+            width: 400
+            height: 180
             direction: vertical
             border:
               right: 2
@@ -92,92 +95,105 @@ children:
               - node:
                   type: text
                   id: lunar_year
-                  rect: [0, 10, 400, 30]
+                  position: [0, 10]
+                  anchor: center
+                  width: 400
+                  height: 30
                   content: "农历{datetime.lunar.ganzhi}{datetime.lunar.zodiac}年"
                   font_size: Small
                   alignment: center
-
               - node:
                   type: container
                   id: lunar_priority_container
-                  rect: [0, 40, 400, 50]
+                  position: [0, 40]
+                  width: 400
+                  height: 50
                   direction: vertical
                   alignment: center
                   children:
                     - node:
                         type: text
                         id: lunar_festival
-                        rect: [0, 0, 400, 50]
+                        anchor: center
+                        width: 400
+                        height: 50
                         content: "{datetime.lunar.festival}"
                         font_size: Medium
                         alignment: center
                       condition: "{datetime.lunar.festival} != ''"
-
                     - node:
                         type: text
                         id: lunar_term
-                        rect: [0, 0, 400, 50]
+                        anchor: center
+                        width: 400
+                        height: 50
                         content: "{datetime.lunar.term}"
                         font_size: Medium
                         alignment: center
                       condition: "{datetime.lunar.festival} == '' && {datetime.lunar.term} != ''"
-
                     - node:
                         type: text
                         id: lunar_date
-                        rect: [0, 0, 400, 50]
+                        anchor: center
+                        width: 400
+                        height: 50
                         content: "{datetime.lunar.month}月{datetime.lunar.day}"
                         font_size: Medium
                         alignment: center
                       condition: "{datetime.lunar.festival} == '' && {datetime.lunar.term} == ''"
-
               - node:
                   type: container
                   id: lunar_taboo_container
-                  rect: [0, 90, 400, 80]
+                  position: [0, 90]
+                  width: 400
+                  height: 80
                   direction: vertical
                   children:
                     - node:
                         type: text
                         id: lunar_recommends
-                        rect: [20, 0, 360, 35]
+                        position: [20, 0]
+                        anchor: top-left
+                        width: 360
+                        height: 35
                         content: "宜：{datetime.lunar.recommends}"
                         font_size: Small
                         alignment: left
                         max_width: 360
                         max_lines: 2
-                      weight: 1.0
-
                     - node:
                         type: text
                         id: lunar_avoids
-                        rect: [20, 35, 360, 35]
+                        position: [20, 35]
+                        anchor: top-left
+                        width: 360
+                        height: 35
                         content: "忌：{datetime.lunar.avoids}"
                         font_size: Small
                         alignment: left
                         max_width: 360
                         max_lines: 2
-                      weight: 1.0
-          weight: 1.0
-
-        # ==================== 天气/传感器切换部分 ====================
+        # 天气/传感器切换部分
         - node:
             type: container
             id: weather_sensor_container
-            rect: [0, 0, 400, 180]
+            width: 400
+            height: 180
             direction: vertical
             children:
               # 天气信息（优先级1）
               - node:
                   type: container
                   id: weather_container
-                  rect: [0, 0, 400, 180]
+                  width: 400
+                  height: 180
                   direction: vertical
                   children:
                     - node:
                         type: container
                         id: current_weather_row
-                        rect: [0, 0, 400, 50]
+                        width: 400
+                        height: 50
                         direction: horizontal
                         border:
                           bottom: 1
@@ -185,45 +201,56 @@ children:
                           - node:
                               type: text
                               id: weather_location
-                              rect: [20, 0, 200, 50]
+                              position: [20, 0]
+                              anchor: top-left
+                              width: 200
+                              height: 50
                               content: "{weather.location}"
                               font_size: Small
                               alignment: left
-                            weight: 1.0
-
                           - node:
                               type: container
                               id: temp_humidity_container
-                              rect: [220, 0, 160, 50]
+                              position: [220, 0]
+                              anchor: top-left
+                              width: 160
+                              height: 50
                               direction: vertical
                               alignment: right
                               children:
                                 - node:
                                     type: text
                                     id: temperature
-                                    rect: [0, 5, 160, 20]
+                                    position: [0, 5]
+                                    anchor: top-right
+                                    width: 160
+                                    height: 20
                                     content: "{sensor.temperature}℃"
                                     font_size: Small
                                     alignment: right
-
                                 - node:
                                     type: text
                                     id: humidity
-                                    rect: [0, 25, 160, 20]
+                                    position: [0, 25]
+                                    anchor: top-right
+                                    width: 160
+                                    height: 20
                                     content: "{sensor.humidity}%"
                                     font_size: Small
                                     alignment: right
-
                     - node:
                         type: container
                         id: weather_forecast_container
-                        rect: [0, 50, 400, 130]
+                        position: [0, 50]
+                        width: 400
+                        height: 130
                         direction: vertical
                         children:
                           - node:
                               type: container
                               id: today_forecast
-                              rect: [0, 0, 400, 43]
+                              width: 400
+                              height: 43
                               direction: horizontal
                               border:
                                 bottom: 1
@@ -231,30 +258,35 @@ children:
                                 - node:
                                     type: text
                                     id: today_label
-                                    rect: [20, 0, 40, 43]
+                                    position: [20, 0]
+                                    anchor: center
+                                    width: 40
+                                    height: 43
                                     content: "今"
                                     font_size: Small
                                     alignment: center
-
                                 - node:
                                     type: icon
                                     id: today_icon
-                                    rect: [70, 5, 40, 40]
+                                    position: [70, 5]
+                                    anchor: center
                                     icon_id: "weather_icon:{weather.daily_weather[0].weather_icon}"
-
                                 - node:
                                     type: text
                                     id: today_temp
-                                    rect: [120, 0, 260, 43]
+                                    position: [120, 0]
+                                    anchor: center
+                                    width: 260
+                                    height: 43
                                     content: "{weather.daily_weather[0].temp_low}~{weather.daily_weather[0].temp_high}℃"
                                     font_size: Small
                                     alignment: center
-                                  weight: 1.0
-
                           - node:
                               type: container
                               id: tomorrow_forecast
-                              rect: [0, 43, 400, 43]
+                              position: [0, 43]
+                              width: 400
+                              height: 43
                               direction: horizontal
                               border:
                                 bottom: 1
@@ -262,174 +294,197 @@ children:
                                 - node:
                                     type: text
                                     id: tomorrow_label
-                                    rect: [20, 0, 40, 43]
+                                    position: [20, 0]
+                                    anchor: center
+                                    width: 40
+                                    height: 43
                                     content: "明"
                                     font_size: Small
                                     alignment: center
-
                                 - node:
                                     type: icon
                                     id: tomorrow_icon
-                                    rect: [70, 5, 40, 40]
+                                    position: [70, 5]
+                                    anchor: center
                                     icon_id: "weather_icon:{weather.daily_weather[1].weather_icon}"
-
                                 - node:
                                     type: text
                                     id: tomorrow_temp
-                                    rect: [120, 0, 260, 43]
+                                    position: [120, 0]
+                                    anchor: center
+                                    width: 260
+                                    height: 43
                                     content: "{weather.daily_weather[1].temp_low}~{weather.daily_weather[1].temp_high}℃"
                                     font_size: Small
                                     alignment: center
-                                  weight: 1.0
-
                           - node:
                               type: container
                               id: after_tomorrow_forecast
-                              rect: [0, 86, 400, 44]
+                              position: [0, 86]
+                              width: 400
+                              height: 44
                               direction: horizontal
                               children:
                                 - node:
                                     type: text
                                     id: after_tomorrow_label
-                                    rect: [20, 0, 40, 44]
+                                    position: [20, 0]
+                                    anchor: center
+                                    width: 40
+                                    height: 44
                                     content: "后"
                                     font_size: Small
                                     alignment: center
-
                                 - node:
                                     type: icon
                                     id: after_tomorrow_icon
-                                    rect: [70, 2, 40, 40]
+                                    position: [70, 2]
+                                    anchor: center
                                     icon_id: "weather_icon:{weather.daily_weather[2].weather_icon}"
-
                                 - node:
                                     type: text
                                     id: after_tomorrow_temp
-                                    rect: [120, 0, 260, 44]
+                                    position: [120, 0]
+                                    anchor: center
+                                    width: 260
+                                    height: 44
                                     content: "{weather.daily_weather[2].temp_low}~{weather.daily_weather[2].temp_high}℃"
                                     font_size: Small
                                     alignment: center
-                                  weight: 1.0
                   condition: "{weather.valid} == true"
-
               # 传感器备用面板（优先级2）
               - node:
                   type: container
                   id: sensor_backup_panel
-                  rect: [0, 0, 400, 180]
+                  width: 400
+                  height: 180
                   direction: horizontal
                   alignment: center
                   children:
                     - node:
                         type: container
                         id: temperature_sensor
-                        rect: [0, 0, 200, 180]
+                        width: 200
+                        height: 180
                         direction: vertical
                         alignment: center
                         children:
                           - node:
                               type: text
                               id: sensor_temperature
-                              rect: [0, 50, 200, 80]
+                              position: [0, 50]
+                              anchor: center
+                              width: 200
+                              height: 80
                               content: "{sensor.temperature}℃"
                               font_size: Large
                               alignment: center
-                            weight: 1.0
-                      weight: 1.0
-
                     - node:
                         type: line
                         id: sensor_divider
                         start: [200, 30]
                         end: [200, 150]
                         thickness: 1
-
                     - node:
                         type: container
                         id: humidity_sensor
-                        rect: [200, 0, 200, 180]
+                        position: [200, 0]
+                        width: 200
+                        height: 180
                         direction: vertical
                         alignment: center
                         children:
                           - node:
                               type: text
                               id: sensor_humidity
-                              rect: [0, 50, 200, 80]
+                              position: [0, 50]
+                              anchor: center
+                              width: 200
+                              height: 80
                               content: "{sensor.humidity}%"
                               font_size: Large
                               alignment: center
-                            weight: 1.0
-                      weight: 1.0
                   condition: "{weather.valid} != true"
-          weight: 1.0
 
-  # ==================== 格言显示部分 ====================
+  # 格言显示部分
   - node:
       type: container
       id: quote_container
-      rect: [0, 400, 800, 70]
+      position: [0, 400]
+      width: 800
+      height: 70
       direction: vertical
       alignment: center
       children:
         - node:
             type: text
             id: quote_content
-            rect: [0, 0, 800, 40]
+            anchor: center
+            width: 800
+            height: 40
             content: "{hitokoto.content}"
             font_size: Medium
             alignment: center
             max_width: 780
             max_lines: 2
-          weight: 1.0
-
         - node:
             type: text
             id: quote_author
-            rect: [0, 40, 800, 30]
+            position: [0, 40]
+            anchor: bottom-right
+            width: 800
+            height: 30
             content: "——{hitokoto.from_who}《{hitokoto.from}》"
             font_size: Small
             alignment: right
 
-  # ==================== 绝对定位元素 ====================
+  # 绝对定位元素
   - node:
       type: text
       id: ampm_indicator
-      rect: [650, 60, 40, 40]
+      position: [650, 60]
+      anchor: center
+      width: 40
+      height: 40
       content: "{time.ampm}"
       font_size: Small
       alignment: center
       condition: "{system.config.is_12_hour}"
     is_absolute: true
-
   - node:
       type: text
       id: holiday_display
-      rect: [20, 20, 200, 30]
+      position: [20, 20]
+      anchor: top-left
+      width: 200
+      height: 30
       content: "{datetime.holiday}"
       font_size: Small
       alignment: left
       condition: "{datetime.holiday} != ''"
     is_absolute: true
-
   - node:
       type: icon
       id: network_status
-      rect: [760, 20, 20, 20]
+      position: [760, 20]
+      anchor: center
       icon_id: "system_icon:network_{system.network_status}"
     is_absolute: true
-
   - node:
       type: icon
       id: charging_status
-      rect: [730, 20, 20, 20]
+      position: [730, 20]
+      anchor: center
       icon_id: "system_icon:charging"
       condition: "{system.config.is_charging}"
     is_absolute: true
-
   - node:
       type: text
       id: battery_level
-      rect: [690, 20, 30, 20]
+      position: [690, 20]
+      anchor: center
+      width: 30
+      height: 20
       content: "{system.battery_level}%"
       font_size: Small
       alignment: center
