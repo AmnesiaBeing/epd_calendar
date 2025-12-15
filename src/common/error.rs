@@ -24,6 +24,12 @@ pub enum AppError {
     #[error("Invalid sensor value")]
     InvalidSensorValue,
 
+    #[error("Data source initialization failed")]
+    DataSourceInitFailed,
+
+    #[error("Data source initialization timeout")]
+    DataSourceInitTimeout,
+
     #[error("Sensor error")]
     SensorError,
 

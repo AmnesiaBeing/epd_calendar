@@ -147,19 +147,19 @@ impl SystemApi for DefaultSystemApi {
     /// 获取硬件API实例
     fn get_hardware_api(&self) -> &Self::HardwareApi {
         // 返回硬件API实现
-        &self
+        self
     }
 
     /// 获取网络客户端API实例
     fn get_network_client_api(&self) -> &Self::NetworkClientApi {
         // 返回网络客户端API实现
-        &self
+        self
     }
 
     /// 获取配置存储API实例
     fn get_config_api(&self) -> &Self::ConfigApi {
         // 返回配置存储API实现
-        &self
+        self
     }
 
     async fn get_data_by_path(
@@ -252,7 +252,7 @@ impl NetworkClientApi for DefaultSystemApi {
         let dns_socket = DnsSocket::new(*stack);
 
         // 创建不带TLS的HTTP客户端
-        let mut client = HttpClient::new(&mut tcp_client, &dns_socket);
+        let mut client = HttpClient::new(&tcp_client, &dns_socket);
 
         let mut buffer: [u8; 4096] = [0; 4096];
 
@@ -260,7 +260,7 @@ impl NetworkClientApi for DefaultSystemApi {
         let host = extract_host(url);
 
         // 将headers数组绑定到变量，确保其生命周期足够长
-        let headers = [(("Host", host))];
+        let headers = [("Host", host)];
 
         // 分解请求构建步骤，避免临时值生命周期问题
         let mut request_builder = client
@@ -294,7 +294,7 @@ impl NetworkClientApi for DefaultSystemApi {
             .map_err(|_| AppError::NetworkRequestFailed)?;
 
         // 将body内容转换为字符串并复制到result中
-        if let Ok(body_str) = core::str::from_utf8(&body) {
+        if let Ok(body_str) = core::str::from_utf8(body) {
             result
                 .push_str(body_str)
                 .map_err(|_| AppError::NetworkResponseTooLarge)?;
@@ -327,7 +327,7 @@ impl NetworkClientApi for DefaultSystemApi {
             reqwless::client::TlsVerify::None,
         );
 
-        let mut client = HttpClient::new_with_tls(&mut tcp_client, &dns_socket, config);
+        let mut client = HttpClient::new_with_tls(&tcp_client, &dns_socket, config);
 
         let mut buffer: [u8; 4096] = [0; 4096];
 
@@ -335,7 +335,7 @@ impl NetworkClientApi for DefaultSystemApi {
         let host = extract_host(url);
 
         // 将headers数组绑定到变量，确保其生命周期足够长
-        let headers = [(("Host", host))];
+        let headers = [("Host", host)];
 
         // 分解请求构建步骤，避免临时值生命周期问题
         let mut request_builder = client
@@ -369,7 +369,7 @@ impl NetworkClientApi for DefaultSystemApi {
             .map_err(|_| AppError::NetworkRequestFailed)?;
 
         // 将body内容转换为字符串并复制到result中
-        if let Ok(body_str) = core::str::from_utf8(&body) {
+        if let Ok(body_str) = core::str::from_utf8(body) {
             result
                 .push_str(body_str)
                 .map_err(|_| AppError::NetworkResponseTooLarge)?;
@@ -393,7 +393,7 @@ fn extract_host(url: &str) -> &str {
     };
 
     // 提取主机名（到第一个/或:为止）
-    if let Some(pos) = url.find(|c| c == '/' || c == ':') {
+    if let Some(pos) = url.find(|c| ['/', ':'].contains(&c)) {
         &url[..pos]
     } else {
         url

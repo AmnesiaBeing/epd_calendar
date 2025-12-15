@@ -5,11 +5,7 @@ use super::*;
 
 /// 运行时校验坐标是否在屏幕内（绝对定位）
 pub fn validate_absolute_coord(coord: &[u16], is_2d: bool) -> Result<(), String> {
-    let (x, y) = if is_2d {
-        (coord[0], coord[1])
-    } else {
-        (coord[0], coord[1])
-    };
+    let (x, y) = (coord[0], coord[1]);
 
     if x > SCREEN_WIDTH || y > SCREEN_HEIGHT {
         return Err(format!(

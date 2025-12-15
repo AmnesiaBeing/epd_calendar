@@ -24,35 +24,35 @@ children:
                   type: icon
                   id: hour_tens
                   rect: [0, 0, 100, 120]
-                  icon_id: "digit_icon:digit_{datetime.hour_tens}"
+                  icon_id: "time_digit:digit_{datetime.hour_tens}"
                 weight: 1.0
 
               - node:
                   type: icon
                   id: hour_ones
                   rect: [0, 0, 100, 120]
-                  icon_id: "digit_icon:digit_{datetime.hour_ones}"
+                  icon_id: "time_digit:digit_{datetime.hour_ones}"
                 weight: 1.0
 
               - node:
                   type: icon
                   id: time_colon
                   rect: [0, 0, 40, 120]
-                  icon_id: "digit_icon:digit_colon"
+                  icon_id: "time_digit:digit_colon"
                 weight: 0.4
 
               - node:
                   type: icon
                   id: minute_tens
                   rect: [0, 0, 100, 120]
-                  icon_id: "digit_icon:digit_{datetime.minute_tens}"
+                  icon_id: "time_digit:digit_{datetime.minute_tens}"
                 weight: 1.0
 
               - node:
                   type: icon
                   id: minute_ones
                   rect: [0, 0, 100, 120]
-                  icon_id: "digit_icon:digit_{datetime.minute_ones}"
+                  icon_id: "time_digit:digit_{datetime.minute_ones}"
                 weight: 1.0
 
   # ==================== 日期显示部分 ====================

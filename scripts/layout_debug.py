@@ -1,9 +1,19 @@
 import yaml
 import re
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Union
 import os
 
-# 规则配置（最终版，参考CSS规范）
+# 内置字体大小映射（支持扩展）
+FONT_SIZE_MAPPING = {
+    "Small": 16,
+    "Medium": 24,
+    "Large": 40,
+    # 可扩展新增
+    # "XLarge": 48,
+    # "XSmall": 12
+}
+
+# 规则配置
 RULES = {
     "max_lengths": {
         "id": 32,
@@ -20,37 +30,40 @@ RULES = {
     # 节点属性规则（必选/可选/禁止）
     "node_attributes": {
         "container": {
-            "required": ["id", "type", "rect"],
-            "optional": ["direction", "alignment", "vertical_alignment", "children", "weight", "condition"],
+            "required": ["id", "type", "position", "anchor"],
+            "optional": ["direction", "alignment", "vertical_alignment", "children", "weight", "condition", "width", "height"],
             "forbidden": ["start", "end", "thickness", "is_absolute", "icon_id", "content", "font_size", "max_width", "max_lines"]
         },
         "text": {
-            "required": ["id", "type", "rect", "content"],
-            "optional": ["font_size", "alignment", "vertical_alignment", "max_width", "max_lines", "weight", "is_absolute", "condition"],
+            "required": ["id", "type", "position", "anchor", "content"],
+            "optional": ["font_size", "alignment", "vertical_alignment", "max_width", "max_lines", "weight", "is_absolute", "condition", "width", "height"],
             "forbidden": ["start", "end", "thickness", "icon_id"]
         },
         "icon": {
-            "required": ["id", "type", "rect", "icon_id"],
-            "optional": ["alignment", "vertical_alignment", "weight", "is_absolute", "condition"],
+            "required": ["id", "type", "position", "anchor", "icon_id"],
+            "optional": ["alignment", "vertical_alignment", "weight", "is_absolute", "condition", "width", "height"],
             "forbidden": ["start", "end", "thickness", "content", "font_size", "max_width", "max_lines"]
         },
         "line": {
             "required": ["id", "type", "start", "end", "thickness"],
             "optional": ["is_absolute", "condition"],
-            "forbidden": ["rect", "icon_id", "content", "font_size", "max_width", "max_lines", "weight", "direction", "alignment", "vertical_alignment"]
+            "forbidden": ["position", "anchor", "width", "height", "icon_id", "content", "font_size", "max_width", "max_lines", "weight", "direction", "alignment", "vertical_alignment"]
         }
     },
     # 属性取值约束
     "attribute_constraints": {
-        "font_size": {"allowed_values": ["Small", "Medium", "Large"]},
+        "anchor": {"allowed_values": ["top-left", "top-center", "top-right", "center-left", "center", "center-right", "bottom-left", "bottom-center", "bottom-right"]},
+        "font_size": {"allowed_types": [int, float, str], "min": 8, "max": 64},  # 字体大小范围8-64px
         "alignment": {"allowed_values": ["center", "left", "right"]},
         "vertical_alignment": {"allowed_values": ["center", "top", "bottom"]},
         "direction": {"allowed_values": ["horizontal", "vertical"]},
         "max_width": {"min": 0, "max": 800, "type": int},
         "max_lines": {"min": 1, "max": 5, "type": int},
-        "weight": {"min": 0.0, "max": 10.0, "type": (int, float)},
+        "weight": {"min": 0.0001, "max": 10.0, "type": (int, float)},
         "thickness": {"min": 1, "max": 3, "type": int},
         "is_absolute": {"type": bool},
+        "width": {"min": 0, "type": (int, float)},
+        "height": {"min": 0, "type": (int, float)},
         # 屏幕尺寸800x480
         "coordinate": {"x": (0, 800), "y": (0, 480)}
     },
@@ -61,15 +74,11 @@ RULES = {
 }
 
 def extract_brace_content(text: str) -> List[str]:
-    r"""
-    提取所有花括号 {} 内部的内容（排除转义的花括号）
-    忽略反斜杠转义的字符（如 \- 视为文本，非运算符）
-    """
+    """提取所有花括号 {} 内部的内容（排除转义的花括号）"""
     brace_contents = []
     pattern = re.compile(r'(?<!\\){(.*?)(?<!\\)}', re.DOTALL)
     matches = pattern.findall(text)
     for match in matches:
-        # 移除转义符（如 \- → -）
         cleaned = re.sub(r'\\([\-+\\*/%?])', r'\1', match)
         brace_contents.append(cleaned)
     return brace_contents
@@ -93,38 +102,46 @@ def get_expr_nest_level(expr: str) -> int:
             level -= 1
     return max_level
 
+def parse_font_size(value: Union[int, float, str]) -> Union[int, float, None]:
+    """解析字体大小值（支持数字/字符串）"""
+    if isinstance(value, (int, float)):
+        return value
+    elif isinstance(value, str):
+        # 处理带px的字符串（如"16px"）
+        if value.endswith("px"):
+            try:
+                return int(value.replace("px", ""))
+            except ValueError:
+                return None
+        # 处理内置别名（如"Small"）
+        return FONT_SIZE_MAPPING.get(value, None)
+    return None
+
 def validate_coordinate(coord: list, coord_name: str, is_absolute: bool, path: str) -> List[str]:
-    """校验坐标（start/end/rect）合法性"""
+    """校验坐标（start/end/position）合法性"""
     errors = []
     # 类型校验
     if not isinstance(coord, list):
         errors.append(f"[{path}.{coord_name}] 类型错误：需为数组，实际为{type(coord).__name__}")
         return errors
     # 长度校验
-    if coord_name in ["start", "end"] and len(coord) != 2:
+    if len(coord) != 2:
         errors.append(f"[{path}.{coord_name}] 格式错误：需为二元数组 [x,y]，实际为{coord}")
-    elif coord_name == "rect" and len(coord) != 4:
-        errors.append(f"[{path}.{coord_name}] 格式错误：需为四元数组 [x,y,width,height]，实际为{coord}")
     # 数值校验
-    for idx, (val, dim) in enumerate(zip(coord, ["x", "y", "width", "height"][:len(coord)])):
+    for idx, (val, dim) in enumerate(zip(coord, ["x", "y"])):
         if not isinstance(val, (int, float)):
             errors.append(f"[{path}.{coord_name}.{dim}] 类型错误：需为数字，实际为{type(val).__name__}")
         if val < 0:
             errors.append(f"[{path}.{coord_name}.{dim}] 取值错误：需≥0，实际为{val}")
     # 绝对布局范围校验
-    if is_absolute:
+    if is_absolute and len(coord) == 2:
         x, y = coord[:2]
-        if x < 0 or x > RULES["attribute_constraints"]["coordinate"]["x"][1]:
-            errors.append(f"[{path}.{coord_name}.x] 绝对坐标超限：需0≤x≤800，实际为{x}")
-        if y < 0 or y > RULES["attribute_constraints"]["coordinate"]["y"][1]:
-            errors.append(f"[{path}.{coord_name}.y] 绝对坐标超限：需0≤y≤480，实际为{y}")
-        # rect额外校验宽高
-        if coord_name == "rect":
-            w, h = coord[2:]
-            if x + w > 800:
-                errors.append(f"[{path}.rect] 绝对宽度超限：x+width={x+w} > 800")
-            if y + h > 480:
-                errors.append(f"[{path}.rect] 绝对高度超限：y+height={y+h} > 480")
+        x_range = RULES["attribute_constraints"]["coordinate"]["x"]
+        y_range = RULES["attribute_constraints"]["coordinate"]["y"]
+        if x < x_range[0] or x > x_range[1]:
+            errors.append(f"[{path}.{coord_name}.x] 绝对坐标超限：需{x_range[0]}≤x≤{x_range[1]}，实际为{x}")
+        if y < y_range[0] or y > y_range[1]:
+            errors.append(f"[{path}.{coord_name}.y] 绝对坐标超限：需{y_range[0]}≤y≤{y_range[1]}，实际为{y}")
     return errors
 
 def validate_attribute_constraints(node: Dict[str, Any], node_type: str, path: str) -> List[str]:
@@ -137,11 +154,11 @@ def validate_attribute_constraints(node: Dict[str, Any], node_type: str, path: s
         for coord_attr in ["start", "end"]:
             if coord_attr in node:
                 errors.extend(validate_coordinate(node[coord_attr], coord_attr, is_absolute, path))
-    else:
-        if "rect" in node:
-            errors.extend(validate_coordinate(node["rect"], "rect", is_absolute, path))
+    elif node_type in ["container", "text", "icon"]:
+        if "position" in node:
+            errors.extend(validate_coordinate(node["position"], "position", is_absolute, path))
     
-    # 校验枚举类属性
+    # 校验枚举类属性（anchor/alignment/vertical_alignment/direction）
     for attr, constraints in RULES["attribute_constraints"].items():
         if attr not in node or "allowed_values" not in constraints:
             continue
@@ -149,18 +166,37 @@ def validate_attribute_constraints(node: Dict[str, Any], node_type: str, path: s
         if value not in constraints["allowed_values"]:
             errors.append(f"[{path}.{attr}] 取值错误：需为{','.join(constraints['allowed_values'])}，实际为{value}")
     
-    # 校验数值范围类属性
+    # 校验字体大小
+    if "font_size" in node:
+        fs_value = node["font_size"]
+        parsed_fs = parse_font_size(fs_value)
+        if parsed_fs is None:
+            errors.append(f"[{path}.font_size] 格式错误：不支持的字体大小 '{fs_value}'，支持数字/px后缀/内置别名（{','.join(FONT_SIZE_MAPPING.keys())}）")
+        else:
+            fs_min = RULES["attribute_constraints"]["font_size"]["min"]
+            fs_max = RULES["attribute_constraints"]["font_size"]["max"]
+            if parsed_fs < fs_min or parsed_fs > fs_max:
+                errors.append(f"[{path}.font_size] 取值超限：需在{fs_min}~{fs_max}px之间，实际为{parsed_fs}px")
+    
+    # 校验数值范围类属性（max_width/max_lines/weight/thickness/width/height）
     for attr, constraints in RULES["attribute_constraints"].items():
         if attr not in node or "min" not in constraints:
             continue
+        if attr == "font_size":
+            continue  # 单独处理
+        
         value = node[attr]
         # 类型校验
         if not isinstance(value, constraints["type"]):
-            errors.append(f"[{path}.{attr}] 类型错误：需为{constraints['type'].__name__ if isinstance(constraints['type'], type) else '数字'}，实际为{type(value).__name__}")
+            type_name = constraints["type"].__name__ if isinstance(constraints["type"], type) else "数字"
+            errors.append(f"[{path}.{attr}] 类型错误：需为{type_name}，实际为{type(value).__name__}")
             continue
+        
         # 范围校验
-        if value < constraints["min"] or value > constraints["max"]:
+        if "max" in constraints and (value < constraints["min"] or value > constraints["max"]):
             errors.append(f"[{path}.{attr}] 取值超限：需在{constraints['min']}~{constraints['max']}之间，实际为{value}")
+        elif value < constraints["min"]:
+            errors.append(f"[{path}.{attr}] 取值错误：需≥{constraints['min']}，实际为{value}")
     
     # 校验is_absolute使用场景
     if "is_absolute" in node and node_type not in RULES["is_absolute_allowed"]:

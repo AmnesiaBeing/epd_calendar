@@ -196,11 +196,10 @@ impl TextRenderer {
 
         // 处理剩余单词
         for word in &words[1..] {
-            if let Some(max) = max_lines {
-                if line_count >= max as i32 {
+            if let Some(max) = max_lines
+                && line_count >= max as i32 {
                     break;
                 }
-            }
 
             let word_width = self.calculate_text_width(word, font_size);
             let space_width = self.get_default_char_width(font_size); // 空格宽度
@@ -292,7 +291,7 @@ impl TextRenderer {
         glyph_data: &[u8],
     ) -> AppResult<()> {
         // 计算每行的字节数（向上取整）
-        let bytes_per_row = ((width + 7) / 8) as usize;
+        let bytes_per_row = width.div_ceil(8) as usize;
 
         for row in 0..height as usize {
             for col in 0..width as usize {

@@ -8,6 +8,7 @@ use std::collections::BTreeMap;
 
 /// 单个字符的字形度量参数（存储偏移 + 几何参数）
 #[derive(Debug, Clone, Copy)]
+#[derive(Default)]
 pub struct GlyphMetrics {
     /// 字符在bin文件中的起始偏移（字节）
     pub offset: u32,
@@ -23,18 +24,6 @@ pub struct GlyphMetrics {
     pub advance_x: i32,
 }
 
-impl Default for GlyphMetrics {
-    fn default() -> Self {
-        Self {
-            offset: 0,
-            width: 0,
-            height: 0,
-            bearing_x: 0,
-            bearing_y: 0,
-            advance_x: 0,
-        }
-    }
-}
 
 /// 字体渲染配置
 #[derive(Debug, Clone)]
@@ -123,7 +112,7 @@ impl FontRenderer {
             char_mapping.insert(c, char_start_offset);
 
             // 计算字符位图所需字节数（二值图像：每8像素1字节）
-            let bytes_per_row = (bitmap_width_px + 7) / 8;
+            let bytes_per_row = bitmap_width_px.div_ceil(8);
             let char_data_size = (bytes_per_row * bitmap_height_px) as usize;
 
             // 为当前字符分配空间
@@ -209,7 +198,7 @@ impl FontRenderer {
     fn copy_mono_bitmap(bitmap: &freetype::Bitmap, target: &mut [u8], target_bytes_per_row: u32) {
         let bitmap_width = bitmap.width() as u32;
         let bitmap_height = bitmap.rows() as u32;
-        let bitmap_pitch = bitmap.pitch().abs() as u32;
+        let bitmap_pitch = bitmap.pitch().unsigned_abs();
         let buffer = bitmap.buffer();
 
         for y in 0..bitmap_height {
@@ -243,7 +232,7 @@ impl FontRenderer {
     fn copy_gray_bitmap(bitmap: &freetype::Bitmap, target: &mut [u8], target_bytes_per_row: u32) {
         let bitmap_width = bitmap.width() as u32;
         let bitmap_height = bitmap.rows() as u32;
-        let bitmap_pitch = bitmap.pitch().abs() as u32;
+        let bitmap_pitch = bitmap.pitch().unsigned_abs();
         let buffer = bitmap.buffer();
 
         // 二值化阈值（128/255）
@@ -344,7 +333,7 @@ impl FontRenderer {
         let advance_x = (metrics.horiAdvance >> 6) as i32;
 
         // 生成二值位图
-        let bytes_per_row = (width + 7) / 8;
+        let bytes_per_row = width.div_ceil(8);
         let char_data_size = (bytes_per_row * height) as usize;
         let mut char_data = vec![0u8; char_data_size];
 

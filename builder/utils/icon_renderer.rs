@@ -73,7 +73,7 @@ impl IconRenderer {
         let height = height as usize;
 
         // 计算每行所需的字节数
-        let bytes_per_row = (width + 7) / 8;
+        let bytes_per_row = width.div_ceil(8);
         let mut result = vec![0u8; bytes_per_row * height];
 
         // 使用行主序遍历，提高缓存局部性

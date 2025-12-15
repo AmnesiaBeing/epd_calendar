@@ -50,7 +50,7 @@ impl ExpressionEvaluator {
                 let mut placeholder = String::new(); // 为占位符字符串指定长度32
                 let mut depth = 1;
 
-                while let Some(c) = chars.next() {
+                for c in chars.by_ref() {
                     match c {
                         '{' => depth += 1,
                         '}' => depth -= 1,

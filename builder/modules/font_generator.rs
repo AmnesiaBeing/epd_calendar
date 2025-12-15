@@ -266,7 +266,7 @@ fn generate_fonts_rs(
     for (i, &c) in charset.chars.iter().enumerate() {
         // 每10个字符换行，提高可读性
         if i % 10 == 0 && i > 0 {
-            content.push_str("\n");
+            content.push('\n');
         }
         // 转义特殊字符
         let c_escaped = match c {
@@ -283,12 +283,10 @@ fn generate_fonts_rs(
         charset.chars.len()
     ));
 
-    content.push_str(&format!(
-        "/// 缺失的字符列表\npub const MISSING_CHARS: &[char] = &[\n"
-    ));
+    content.push_str("/// 缺失的字符列表\npub const MISSING_CHARS: &[char] = &[\n");
     for (i, &c) in charset.missing.iter().enumerate() {
         if i % 10 == 0 && i > 0 {
-            content.push_str("\n");
+            content.push('\n');
         }
         let c_escaped = match c {
             '\'' => "\\'".to_string(),
@@ -428,44 +426,6 @@ fn generate_fonts_rs(
     content.push_str("        }\n");
     content.push_str("    }\n");
     content.push_str("}\n");
-
-    // 写入文件
-    utils::file_utils::write_string_file(&output_path, &content)
-        .with_context(|| format!("写入Rust字体文件失败: {}", output_path.display()))?;
-
-    let output_path = config.shared_output_dir.join("generated_font_size.rs");
-    let mut content = String::new();
-
-    content.push_str("// ==================== 字体尺寸枚举 ====================\n");
-    content.push_str("/// 字体尺寸选项\n");
-    content.push_str("#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]\n");
-    content.push_str("pub enum FontSize {\n");
-    for font_config in font_configs {
-        content.push_str(&format!(
-            "    /// {}字体 ({}px)\n",
-            font_config.name, font_config.size
-        ));
-        content.push_str(&format!("    {},\n", font_config.name));
-    }
-    content.push_str("}\n\n");
-
-    let output_path = config.shared_output_dir.join("generated_font_size_impl.rs");
-    let mut content = String::new();
-
-    content.push_str("impl TryFrom<&str> for FontSize {\n");
-    content.push_str("    type Error = String;\n");
-    content.push_str("    fn try_from(s: &str) -> Result<Self, Self::Error> {\n");
-    content.push_str("        match s.to_lowercase().as_str() {\n");
-    for font_config in font_configs {
-        content.push_str(&format!(
-            "            \"{}\" => Ok(Self::{}),\n",
-            font_config.name, font_config.name
-        ));
-    }
-    content.push_str("            _ => Err(format!(\"无效的字体尺寸: {}\", s)),\n");
-    content.push_str("        }\n");
-    content.push_str("    }\n");
-    content.push_str("}\n\n");
 
     // 写入文件
     utils::file_utils::write_string_file(&output_path, &content)

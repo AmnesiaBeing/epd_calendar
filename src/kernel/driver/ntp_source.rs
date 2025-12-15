@@ -1,10 +1,5 @@
 // src/driver/ntp_source.rs
 
-/// NTP时间源模块
-///
-/// 本模块实现了基于SNTP协议的网络时间同步功能
-/// 支持多个NTP服务器轮询，提高时间同步的可靠性
-use alloc::string::ToString;
 use core::net::{IpAddr, SocketAddr};
 use embassy_executor::Spawner;
 use embassy_net::dns::DnsQueryType;
@@ -214,7 +209,7 @@ impl SntpService {
                         // 使用jiff创建Timestamp
                         match Timestamp::from_microsecond(microsecond as i64) {
                             Ok(timestamp) => {
-                                log::info!("NTP time from {server}: {}", timestamp.to_string());
+                                log::info!("NTP time from {server}: {}", timestamp);
                                 return Ok(timestamp);
                             }
                             Err(e) => {

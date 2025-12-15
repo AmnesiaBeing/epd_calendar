@@ -1,93 +1,110 @@
 //! 渲染上下文
-//! 定义渲染过程中使用的上下文结构，包含渲染状态、资源引用等
+//! 封装渲染过程中的状态和通用辅助方法
 
-use crate::common::error::Result;
+use alloc::string::String;
+
+use crate::common::error::{AppError, Result};
 use crate::kernel::data::{DataSourceRegistry, types::CacheKeyValueMap};
-use crate::kernel::render::layout::nodes::*;
+use crate::kernel::render::layout::evaluator::{DEFAULT_EVALUATOR, ExpressionEvaluator};
+use crate::kernel::render::layout::nodes::{LayoutPool, SCREEN_HEIGHT, SCREEN_WIDTH};
 
-use embedded_graphics::draw_target::DrawTarget;
-use epd_waveshare::color::QuadColor;
-
-/// 渲染上下文
-pub struct RenderContext<'a, D: DrawTarget<Color = QuadColor>> {
-    /// 绘图目标
-    pub draw_target: &'a mut D,
-    /// 数据源注册表引用
+/// 渲染上下文（无可变状态，避免借用冲突）
+pub struct RenderContext<'a> {
+    // 数据源注册表（用于占位符替换/条件评估）
     pub data_source_registry: &'a DataSourceRegistry,
-    /// 缓存引用
+    // 缓存键值映射
     pub cache: &'a CacheKeyValueMap,
-    /// 当前渲染深度（用于调试和嵌套渲染）
-    pub depth: u8,
-    /// 是否需要重绘
-    pub needs_redraw: bool,
+    // 布局池引用（全局布局数据）
+    pub layout_pool: &'a LayoutPool,
+    // 表达式评估器（复用避免重复创建）
+    evaluator: &'a ExpressionEvaluator,
+    // 父容器的绝对坐标偏移（用于相对定位计算）
+    parent_offset: [i32; 2],
 }
 
-impl<'a, D: DrawTarget<Color = QuadColor>> RenderContext<'a, D> {
+impl<'a> RenderContext<'a> {
     /// 创建新的渲染上下文
     pub fn new(
-        draw_target: &'a mut D,
         data_source_registry: &'a DataSourceRegistry,
         cache: &'a CacheKeyValueMap,
+        layout_pool: &'a LayoutPool,
     ) -> Self {
-        log::debug!("Creating new render context");
         Self {
-            draw_target,
             data_source_registry,
             cache,
-            depth: 0,
-            needs_redraw: false,
+            layout_pool,
+            evaluator: &DEFAULT_EVALUATOR,
+            parent_offset: [0, 0], // 根节点偏移为0
         }
     }
 
-    /// 增加渲染深度
-    pub fn push_depth(&mut self) {
-        self.depth = self.depth.saturating_add(1);
+    /// 评估节点显示条件
+    pub fn evaluate_condition(&self, condition: &str) -> Result<bool> {
+        self.evaluator
+            .evaluate_condition(condition, self.data_source_registry)
     }
 
-    /// 减少渲染深度
-    pub fn pop_depth(&mut self) {
-        self.depth = self.depth.saturating_sub(1);
+    /// 替换内容中的占位符
+    pub fn replace_placeholders(&self, content: &str) -> Result<String> {
+        self.evaluator
+            .replace_placeholders(self.data_source_registry, self.cache, content)
     }
 
-    /// 设置重绘标志
-    pub fn set_needs_redraw(&mut self) {
-        self.needs_redraw = true;
+    /// 计算相对坐标转绝对坐标（考虑父容器偏移）
+    pub fn to_absolute_coord(&self, coord: [u16; 2]) -> Result<[u16; 2]> {
+        let x = (coord[0] as i32 + self.parent_offset[0]) as u16;
+        let y = (coord[1] as i32 + self.parent_offset[1]) as u16;
+
+        // 边界校验
+        if x > SCREEN_WIDTH || y > SCREEN_HEIGHT {
+            log::error!(
+                "坐标超出屏幕范围: [{}, {}] (屏幕尺寸: {}x{})",
+                x,
+                y,
+                SCREEN_WIDTH,
+                SCREEN_HEIGHT
+            );
+            return Err(AppError::RenderError);
+        }
+
+        Ok([x, y])
     }
-}
 
-/// 布局测量结果
-pub struct LayoutMeasurement {
-    /// 实际宽度
-    pub width: u16,
-    /// 实际高度
-    pub height: u16,
-    /// 基线位置（相对于顶部）
-    pub baseline: u16,
-}
+    /// 计算相对矩形转绝对矩形（考虑父容器偏移）
+    pub fn to_absolute_rect(&self, rect: [u16; 4]) -> Result<[u16; 4]> {
+        let [x, y, w, h] = rect;
+        let [abs_x, abs_y] = self.to_absolute_coord([x, y])?;
 
-impl Default for LayoutMeasurement {
-    fn default() -> Self {
+        // 宽度/高度边界校验
+        if abs_x + w > SCREEN_WIDTH || abs_y + h > SCREEN_HEIGHT {
+            log::error!(
+                "矩形超出屏幕范围: [{}, {}, {}, {}] (绝对坐标: [{}, {}, {}, {}])",
+                x,
+                y,
+                w,
+                h,
+                abs_x,
+                abs_y,
+                w,
+                h
+            );
+            return Err(AppError::RenderError);
+        }
+
+        Ok([abs_x, abs_y, w, h])
+    }
+
+    /// 创建子上下文（用于容器子节点渲染，更新父偏移）
+    pub fn create_child_context(&self, child_offset: [i32; 2]) -> Self {
         Self {
-            width: 0,
-            height: 0,
-            baseline: 0,
+            data_source_registry: self.data_source_registry,
+            cache: self.cache,
+            layout_pool: self.layout_pool,
+            evaluator: self.evaluator,
+            parent_offset: [
+                self.parent_offset[0] + child_offset[0],
+                self.parent_offset[1] + child_offset[1],
+            ],
         }
     }
-}
-
-/// 渲染器 trait
-pub trait Renderer {
-    /// 渲染节点
-    fn render_node<D: DrawTarget<Color = QuadColor>>(
-        &self,
-        node: &LayoutNode,
-        context: &mut RenderContext<'_, D>,
-    ) -> Result<()>;
-
-    /// 测量节点尺寸
-    fn measure_node(
-        &self,
-        node: &LayoutNode,
-        context: &RenderContext<'_, impl DrawTarget<Color = QuadColor>>,
-    ) -> LayoutMeasurement;
 }

@@ -21,16 +21,23 @@ use crate::kernel::driver::time_driver::{DefaultTimeDriver, TimeDriver};
 use crate::kernel::system::api::DefaultSystemApi;
 
 // --------------- 常量定义 ---------------
-const CACHE_KEY_YEAR: &str = "date.year";
-const CACHE_KEY_MONTH: &str = "date.month";
-const CACHE_KEY_DAY: &str = "date.day";
-const CACHE_KEY_WEEK: &str = "date.week";
+const CACHE_KEY_YEAR: &str = "year";
+const CACHE_KEY_MONTH: &str = "month";
+const CACHE_KEY_DAY: &str = "day";
+const CACHE_KEY_WEEKDAY: &str = "weekday";
 const CACHE_KEY_LUNAR_MONTH: &str = "lunar.month";
 const CACHE_KEY_LUNAR_DAY: &str = "lunar.day";
 const CACHE_KEY_LUNAR_GANZHI: &str = "lunar.ganzhi";
 const CACHE_KEY_LUNAR_ZODIAC: &str = "lunar.zodiac";
 const CACHE_KEY_LUNAR_JIEQI: &str = "lunar.jieqi";
 const CACHE_KEY_LUNAR_FESTIVAL: &str = "lunar.festival";
+const CACHE_KEY_HOUR: &str = "hour";
+const CACHE_KEY_MINUTE: &str = "minute";
+const CACHE_KEY_AM_PM: &str = "am_pm";
+const CACHE_KEY_HOUR_TENS: &str = "hour_tens";
+const CACHE_KEY_HOUR_ONES: &str = "hour_ones";
+const CACHE_KEY_MINUTE_TENS: &str = "minute_tens";
+const CACHE_KEY_MINUTE_ONES: &str = "minute_ones";
 
 // --------------- 魔法数字常量 ---------------
 /// 节气日期索引为0表示当天是节气日
@@ -206,7 +213,7 @@ impl TimeDataSource {
             CACHE_KEY_DAY,
             DynamicValue::Integer(day as i32),
         )?;
-        self.write_global_cache(cache_guard, CACHE_KEY_WEEK, DynamicValue::Integer(weekday))?;
+        self.write_global_cache(cache_guard, CACHE_KEY_WEEKDAY, DynamicValue::Integer(weekday))?;
 
         Ok(())
     }
@@ -282,7 +289,7 @@ impl TimeDataSource {
         let solar_term_day = solar_day.get_term_day();
         if solar_term_day.get_day_index() == SOLAR_TERM_DAY_INDEX_ACTIVE {
             self.get_heapless_string(solar_term_day.get_name().as_str())
-                .unwrap_or(HeaplessString::new())
+                .unwrap_or_default()
         } else {
             HeaplessString::new()
         }
@@ -292,7 +299,7 @@ impl TimeDataSource {
     fn get_lunar_festival_name(&self, lunar_day: &LunarDay) -> CacheStringValue {
         lunar_day.get_festival().map_or(HeaplessString::new(), |f| {
             self.get_heapless_string(f.get_name().as_str())
-                .unwrap_or(HeaplessString::new())
+                .unwrap_or_default()
         })
     }
 }
@@ -335,9 +342,40 @@ impl DataSource for TimeDataSource {
         let weekday = datetime.weekday() as i32; // jiff: 0=周一, 6=周日
 
         // 3. 写入时间字段到全局缓存（每次刷新都更新）
-        self.write_global_cache(cache_guard, "time.hour", DynamicValue::Integer(hour))?;
-        self.write_global_cache(cache_guard, "time.minute", DynamicValue::Integer(minute))?;
-        self.write_global_cache(cache_guard, "time.am_pm", DynamicValue::Boolean(hour < 12))?;
+        self.write_global_cache(cache_guard, CACHE_KEY_HOUR, DynamicValue::Integer(hour))?;
+        self.write_global_cache(cache_guard, CACHE_KEY_MINUTE, DynamicValue::Integer(minute))?;
+        self.write_global_cache(
+            cache_guard,
+            CACHE_KEY_AM_PM,
+            DynamicValue::Boolean(hour < 12),
+        )?;
+
+        // 4. 写入时间拆分项到全局缓存
+        let hour_tens = (hour / 10) as i32;
+        let hour_ones = (hour % 10) as i32;
+        let minute_tens = (minute / 10) as i32;
+        let minute_ones = (minute % 10) as i32;
+
+        self.write_global_cache(
+            cache_guard,
+            CACHE_KEY_HOUR_TENS,
+            DynamicValue::Integer(hour_tens),
+        )?;
+        self.write_global_cache(
+            cache_guard,
+            CACHE_KEY_HOUR_ONES,
+            DynamicValue::Integer(hour_ones),
+        )?;
+        self.write_global_cache(
+            cache_guard,
+            CACHE_KEY_MINUTE_TENS,
+            DynamicValue::Integer(minute_tens),
+        )?;
+        self.write_global_cache(
+            cache_guard,
+            CACHE_KEY_MINUTE_ONES,
+            DynamicValue::Integer(minute_ones),
+        )?;
 
         // 4. 判断是否需要更新日期字段（首次刷新 或 跨日）
         let need_update_date = match self.current_date {

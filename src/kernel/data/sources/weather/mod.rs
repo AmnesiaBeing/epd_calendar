@@ -180,7 +180,7 @@ impl WeatherDataSource {
         daily_weather_list: &HeaplessVec<DailyWeather, 3>,
     ) -> Result<()> {
         // 4. 处理核心天气数据（原有逻辑）
-        if let Some(today) = daily_weather_list.get(0) {
+        if let Some(today) = daily_weather_list.first() {
             // 核心天气字段
             self.write_cache_field(
                 cache_guard,

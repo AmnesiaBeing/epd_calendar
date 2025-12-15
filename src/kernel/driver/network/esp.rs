@@ -97,7 +97,7 @@ impl NetworkDriver for EspNetworkDriver {
         let device = self
             .device
             .take()
-            .ok_or_else(|| AppError::NetworkStackInitFailed)?;
+            .ok_or(AppError::NetworkStackInitFailed)?;
 
         // 配置网络 - 使用DHCP
         let config = Config::dhcpv4(Default::default());
@@ -131,12 +131,12 @@ impl NetworkDriver for EspNetworkDriver {
         let controller = self
             .controller
             .as_mut()
-            .ok_or_else(|| AppError::NetworkStackInitFailed)?;
+            .ok_or(AppError::NetworkStackInitFailed)?;
 
         let stack = self
             .stack
             .as_ref()
-            .ok_or_else(|| AppError::NetworkStackNotInitialized)?;
+            .ok_or(AppError::NetworkStackNotInitialized)?;
 
         // 配置WiFi客户端
         let client_config = ModeConfig::Client(

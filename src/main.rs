@@ -134,7 +134,7 @@ async fn cold_start(spawner: &Spawner) -> Result<()> {
     let time_driver_mutex = TIME_DRIVER.init(Mutex::new(time_driver));
 
     // 初始化SNTP更新时间驱动
-    let _ = SntpService::initialize(&spawner, network_driver_mutex, time_driver_mutex);
+    SntpService::initialize(spawner, network_driver_mutex, time_driver_mutex);
 
     // 初始化其他驱动和服务
     #[cfg(feature = "embedded_esp")]
@@ -176,7 +176,7 @@ async fn cold_start(spawner: &Spawner) -> Result<()> {
     data_source_registry
         .lock()
         .await
-        .register_source(config_source_mutex)
+        .register_source(config_source_mutex, system_api)
         .await?;
 
     // 注册时间数据源
@@ -184,7 +184,7 @@ async fn cold_start(spawner: &Spawner) -> Result<()> {
     data_source_registry
         .lock()
         .await
-        .register_source(time_source_mutex)
+        .register_source(time_source_mutex, system_api)
         .await?;
 
     // 注册天气数据源
@@ -193,7 +193,7 @@ async fn cold_start(spawner: &Spawner) -> Result<()> {
     data_source_registry
         .lock()
         .await
-        .register_source(weather_source_mutex)
+        .register_source(weather_source_mutex, system_api)
         .await?;
 
     spawner

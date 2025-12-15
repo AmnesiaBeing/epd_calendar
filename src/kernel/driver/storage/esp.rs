@@ -78,9 +78,9 @@ impl ConfigStorage for EspConfigStorageDriver {
         let mut buffer = alloc::vec![0u8; CONFIG_SIZE];
 
         // 从Flash读取数据
-        if let Err(_) = self
+        if self
             .flash_storage
-            .read(self.config_address, &mut buffer[..])
+            .read(self.config_address, &mut buffer[..]).is_err()
         {
             return Err(AppError::StorageError);
         }
@@ -115,7 +115,7 @@ impl ConfigStorage for EspConfigStorageDriver {
         buffer.copy_from_slice(&data[..write_size]);
 
         // 写入数据到Flash
-        if let Err(_) = self.flash_storage.write(self.config_address, &buffer[..]) {
+        if self.flash_storage.write(self.config_address, &buffer[..]).is_err() {
             return Err(AppError::StorageError);
         }
 
@@ -131,7 +131,7 @@ impl ConfigStorage for EspConfigStorageDriver {
         let buffer = alloc::vec![0xFF; CONFIG_SIZE];
 
         // 写入全0xFF来模拟擦除
-        if let Err(_) = self.flash_storage.write(self.config_address, &buffer[..]) {
+        if self.flash_storage.write(self.config_address, &buffer[..]).is_err() {
             return Err(AppError::StorageError);
         }
 

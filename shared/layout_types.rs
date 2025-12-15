@@ -1,27 +1,11 @@
 // 编译期+运行时共用的布局类型定义
-// 包含所有布局节点的基础结构、常量约束、核心trait
-// 适配嵌入式环境：移除HashMap，改用顺序表实现ID映射
-
-use core::fmt::Display;
-use core::hash::{Hash, Hasher};
-use core::ops::Deref;
-use core::str;
-use core::str::FromStr;
-use heapless::String as HeaplessStringRaw;
-use heapless::Vec as HeaplessVecRaw;
-
-// 为heapless类型创建统一的类型别名
-pub type HeaplessString<const N: usize> = HeaplessStringRaw<N>;
-pub type HeaplessVec<T, const N: usize> = HeaplessVecRaw<T, N>;
+// 适配嵌入式环境：静态不可变，无堆分配，无动态容器
 
 // ==================== 核心常量（对齐规则） ====================
 pub const SCREEN_WIDTH: u16 = 800;
 pub const SCREEN_HEIGHT: u16 = 480;
 
 // 长度/数量约束
-pub const MAX_ID_LENGTH: usize = 64; // ID最大长度
-pub const MAX_CONTENT_LENGTH: usize = 128; // 文本内容最大长度
-pub const MAX_CONDITION_LENGTH: usize = 128; // 条件字符串最大长度
 pub const MAX_CHILDREN_COUNT: usize = 20; // 容器子节点最大数量
 pub const MAX_NEST_LEVEL: usize = 10; // 节点最大嵌套层级
 
@@ -37,14 +21,9 @@ pub const MAX_WEIGHT: f32 = 10.0; // 权重最大值
 /// 布局节点ID类型（池化后用u16索引，节省内存）
 pub type NodeId = u16;
 
-// 常用固定长度的heapless字符串类型别名
-pub type IdHeaplessString = HeaplessString<MAX_ID_LENGTH>;
-pub type ContentHeaplessString = HeaplessString<MAX_CONTENT_LENGTH>;
-pub type ConditionHeaplessString = HeaplessString<MAX_CONDITION_LENGTH>;
-
 // ==================== 枚举定义 ====================
 /// 重要程度（用于颜色映射）
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Importance {
     Normal,   // 黑色
     Warning,  // 黄色
@@ -52,7 +31,7 @@ pub enum Importance {
 }
 
 /// 文本水平对齐方式
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TextAlignment {
     Left,
     Center,
@@ -60,7 +39,7 @@ pub enum TextAlignment {
 }
 
 /// 垂直对齐方式
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VerticalAlignment {
     Top,
     Center,
@@ -68,7 +47,7 @@ pub enum VerticalAlignment {
 }
 
 /// 容器布局方向
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ContainerDirection {
     Horizontal,
     Vertical,
@@ -76,7 +55,7 @@ pub enum ContainerDirection {
 
 // ==================== 子节点布局配置 ====================
 /// 子元素布局配置（池化后用NodeId引用，无嵌套）
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy)] // 新增 Copy，适配静态数组
 pub struct ChildLayout {
     /// 引用布局池中的节点ID
     pub node_id: NodeId,
@@ -88,7 +67,7 @@ pub struct ChildLayout {
 
 // ==================== 布局节点枚举 ====================
 /// 扁平化布局节点（无嵌套，所有子节点用NodeId引用）
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub enum LayoutNode {
     Container(Container),
     Text(Text),
@@ -99,15 +78,15 @@ pub enum LayoutNode {
 }
 
 /// 容器节点（无border属性，符合新规则）
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct Container {
-    pub id: IdHeaplessString,
+    pub id: Id,
     /// 相对/绝对坐标 [x, y, width, height]
     pub rect: [u16; 4],
-    /// 子节点ID列表（池化后无嵌套）
-    pub children: Vec<ChildLayout>,
+    /// 子节点列表（静态数组，适配不可变）
+    pub children: ChildLayoutVec,
     /// 显示条件（可选）
-    pub condition: Option<ConditionHeaplessString>,
+    pub condition: Option<Condition>,
     /// 布局方向
     pub direction: ContainerDirection,
     /// 子节点水平对齐
@@ -117,12 +96,12 @@ pub struct Container {
 }
 
 /// 文本节点
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct Text {
-    pub id: IdHeaplessString,
+    pub id: Id,
     pub rect: [u16; 4],
-    pub content: ContentHeaplessString,
-    pub font_size: FontSize,
+    pub content: Content,
+    pub font_size: FontSize, // 运行时是FontSize,编译期是字符串
     pub alignment: TextAlignment,
     pub vertical_alignment: VerticalAlignment,
     /// 文本最大宽度（自动换行）
@@ -132,19 +111,18 @@ pub struct Text {
 }
 
 /// 图标节点
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct Icon {
-    pub id: IdHeaplessString,
+    pub id: Id,
     pub rect: [u16; 4],
-    /// 图标资源ID（支持格式化字符串）
-    pub icon_id: IdHeaplessString,
+    pub icon_id: IconId,
     pub importance: Option<Importance>,
 }
 
-/// 线条节点（符合CSS规范，start/end/thickness）
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// 线条节点
+#[derive(Debug, Clone)]
 pub struct Line {
-    pub id: IdHeaplessString,
+    pub id: Id,
     /// 起点 [x, y]
     pub start: [u16; 2],
     /// 终点 [x, y]
@@ -155,9 +133,9 @@ pub struct Line {
 }
 
 /// 矩形节点
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct Rectangle {
-    pub id: IdHeaplessString,
+    pub id: Id,
     pub rect: [u16; 4],
     pub fill_importance: Option<Importance>,
     pub stroke_importance: Option<Importance>,
@@ -166,9 +144,9 @@ pub struct Rectangle {
 }
 
 /// 圆形节点
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct Circle {
-    pub id: IdHeaplessString,
+    pub id: Id,
     /// 圆心 [x, y]
     pub center: [u16; 2],
     pub radius: u16,
@@ -179,139 +157,18 @@ pub struct Circle {
 
 // ==================== 布局池（扁平化存储，嵌入式友好） ====================
 /// 布局池（编译期生成，运行时只读）
-/// 所有节点扁平化存储，无嵌套，ID映射改用顺序表，适配嵌入式环境
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct LayoutPool {
-    /// 所有布局节点的扁平数组
-    pub nodes: Vec<LayoutNode>,
+    /// 所有布局节点的静态数组（不可变）
+    pub nodes: LayoutNodeVec,
     /// 根节点ID
     pub root_node_id: NodeId,
-    /// ID到NodeId的映射
-    /// 格式：(节点ID字符串, 节点索引ID)
-    pub id_map: Vec<(IdHeaplessString, NodeId)>,
 }
 
+#[allow(dead_code)]
 impl LayoutPool {
-    /// 运行时通过ID查找节点（顺序表遍历，嵌入式友好）
-    /// 节点数量有限（≤100），遍历性能可接受
-    pub fn find_node_by_id(&self, id: &str) -> Option<NodeId> {
-        self.id_map
-            .iter()
-            .find(|(existing_id, _)| existing_id.as_str() == id)
-            .map(|(_, node_id)| *node_id)
-    }
-
-    /// 运行时通过NodeId获取节点
+    /// 获取指定节点ID的布局节点引用
     pub fn get_node(&self, node_id: NodeId) -> Option<&LayoutNode> {
         self.nodes.get(node_id as usize)
-    }
-}
-
-// ==================== 通用Trait ====================
-/// 所有布局元素的通用行为
-pub trait Element {
-    /// 获取元素ID
-    fn id(&self) -> &IdHeaplessString;
-    /// 获取元素的边界矩形（用于碰撞/渲染）
-    fn rect(&self) -> [u16; 4];
-}
-
-// 实现Element Trait（编译期/运行时共用）
-impl Element for LayoutNode {
-    fn id(&self) -> &IdHeaplessString {
-        match self {
-            LayoutNode::Container(c) => &c.id,
-            LayoutNode::Text(t) => &t.id,
-            LayoutNode::Icon(i) => &i.id,
-            LayoutNode::Line(l) => &l.id,
-            LayoutNode::Rectangle(r) => &r.id,
-            LayoutNode::Circle(c) => &c.id,
-        }
-    }
-
-    fn rect(&self) -> [u16; 4] {
-        match self {
-            LayoutNode::Container(c) => c.rect,
-            LayoutNode::Text(t) => t.rect,
-            LayoutNode::Icon(i) => i.rect,
-            LayoutNode::Line(l) => line_to_rect(l),
-            LayoutNode::Rectangle(r) => r.rect,
-            LayoutNode::Circle(c) => circle_to_rect(c),
-        }
-    }
-}
-
-// 辅助函数：线条转边界矩形
-pub fn line_to_rect(line: &Line) -> [u16; 4] {
-    let x_min = line.start[0].min(line.end[0]);
-    let y_min = line.start[1].min(line.end[1]);
-    let x_max = line.start[0].max(line.end[0]);
-    let y_max = line.start[1].max(line.end[1]);
-    [x_min, y_min, x_max - x_min, y_max - y_min]
-}
-
-// 辅助函数：圆形转边界矩形
-pub fn circle_to_rect(circle: &Circle) -> [u16; 4] {
-    let diameter = circle.radius * 2;
-    [
-        circle.center[0].saturating_sub(circle.radius),
-        circle.center[1].saturating_sub(circle.radius),
-        diameter,
-        diameter,
-    ]
-}
-
-// 为各节点单独实现Element（可选）
-impl Element for Container {
-    fn id(&self) -> &IdHeaplessString {
-        &self.id
-    }
-    fn rect(&self) -> [u16; 4] {
-        self.rect
-    }
-}
-
-impl Element for Text {
-    fn id(&self) -> &IdHeaplessString {
-        &self.id
-    }
-    fn rect(&self) -> [u16; 4] {
-        self.rect
-    }
-}
-
-impl Element for Icon {
-    fn id(&self) -> &IdHeaplessString {
-        &self.id
-    }
-    fn rect(&self) -> [u16; 4] {
-        self.rect
-    }
-}
-
-impl Element for Line {
-    fn id(&self) -> &IdHeaplessString {
-        &self.id
-    }
-    fn rect(&self) -> [u16; 4] {
-        line_to_rect(self)
-    }
-}
-
-impl Element for Rectangle {
-    fn id(&self) -> &IdHeaplessString {
-        &self.id
-    }
-    fn rect(&self) -> [u16; 4] {
-        self.rect
-    }
-}
-
-impl Element for Circle {
-    fn id(&self) -> &IdHeaplessString {
-        &self.id
-    }
-    fn rect(&self) -> [u16; 4] {
-        circle_to_rect(self)
     }
 }

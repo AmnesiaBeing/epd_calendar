@@ -33,7 +33,7 @@ impl ImageRenderer {
             importance
         );
         // 获取图标数据
-        let icon_id = self.get_icon_data(icon_id).ok_or(AppError::IconNotFound)?;
+        let icon_id = IconId::get_icon_data(icon_id).ok_or(AppError::IconNotFound)?;
 
         // 计算图标位置（居中）
         let [x, y, width, height] = rect;
@@ -46,43 +46,6 @@ impl ImageRenderer {
 
         // 绘制图标
         self.draw_icon(draw_target, x_pos, y_pos, icon_id, importance)
-    }
-
-    /// 获取图标数据
-    fn get_icon_data(&self, icon_id: &str) -> Option<IconId> {
-        log::debug!("Looking up icon data for '{}'", icon_id);
-        // 将字符串ID转换为IconId
-        // 这里实现简单的映射，根据实际情况可能需要更复杂的解析
-        match icon_id {
-            "battery-0" => Some(IconId::BATTERY(BatteryIcon::Battery0)),
-            "battery-1" => Some(IconId::BATTERY(BatteryIcon::Battery1)),
-            "battery-2" => Some(IconId::BATTERY(BatteryIcon::Battery2)),
-            "battery-3" => Some(IconId::BATTERY(BatteryIcon::Battery3)),
-            "battery-4" => Some(IconId::BATTERY(BatteryIcon::Battery4)),
-            "bolt" => Some(IconId::BATTERY(BatteryIcon::Bolt)),
-            "connected" => Some(IconId::NETWORK(NetworkIcon::Connected)),
-            "disconnected" => Some(IconId::NETWORK(NetworkIcon::Disconnected)),
-            "digit_0" => Some(IconId::TIME_DIGIT(TimeDigitIcon::Digit0)),
-            "digit_1" => Some(IconId::TIME_DIGIT(TimeDigitIcon::Digit1)),
-            "digit_2" => Some(IconId::TIME_DIGIT(TimeDigitIcon::Digit2)),
-            "digit_3" => Some(IconId::TIME_DIGIT(TimeDigitIcon::Digit3)),
-            "digit_4" => Some(IconId::TIME_DIGIT(TimeDigitIcon::Digit4)),
-            "digit_5" => Some(IconId::TIME_DIGIT(TimeDigitIcon::Digit5)),
-            "digit_6" => Some(IconId::TIME_DIGIT(TimeDigitIcon::Digit6)),
-            "digit_7" => Some(IconId::TIME_DIGIT(TimeDigitIcon::Digit7)),
-            "digit_8" => Some(IconId::TIME_DIGIT(TimeDigitIcon::Digit8)),
-            "digit_9" => Some(IconId::TIME_DIGIT(TimeDigitIcon::Digit9)),
-            "digit_colon" => Some(IconId::TIME_DIGIT(TimeDigitIcon::DigitColon)),
-            "digit_sep" => Some(IconId::TIME_DIGIT(TimeDigitIcon::DigitSep)),
-            // 天气图标支持，如 "100", "101", etc.
-            _ if icon_id.starts_with("icon_") => {
-                let weather_code = &icon_id[5..];
-                WeatherIcon::from_api_str(weather_code)
-                    .ok()
-                    .map(IconId::Weather)
-            }
-            _ => WeatherIcon::from_api_str(icon_id).ok().map(IconId::Weather),
-        }
     }
 
     /// 绘制图标
