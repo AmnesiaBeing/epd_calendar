@@ -9,7 +9,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::builder::config::{BuildConfig, LocalIconCategoryConfig, WeatherIconConfig};
+use crate::builder::config::{BuildConfig, IconCategoryConfig, WeatherIconConfig};
 use crate::builder::utils::file_utils;
 use crate::builder::utils::icon_renderer::{IconConfig, IconRenderResult, IconRenderer};
 use crate::builder::utils::progress::ProgressTracker;
@@ -17,14 +17,14 @@ use crate::builder::utils::progress::ProgressTracker;
 /// 图标的尺寸信息
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct IconSize {
-    pub width: u32,
-    pub height: u32,
+    pub width: u16,
+    pub height: u16,
 }
 
 impl IconSize {
     /// 计算位图数据长度（单色位图，每像素1位）
     pub fn bitmap_len(&self) -> usize {
-        (self.width * self.height).div_ceil(8) as usize
+        (self.width as u32 * self.height as u32).div_ceil(8) as usize
     }
 
     /// 创建空白位图数据
@@ -80,7 +80,7 @@ pub fn build(config: &BuildConfig, progress: &ProgressTracker) -> Result<()> {
 
     // 1. 处理本地静态图标
     progress.update_progress(1, 4, "处理本地静态图标");
-    let local_icons = process_local_icon_categories(config, progress)?;
+    let local_icons = process_icon_categories(config, progress)?;
 
     // 2. 处理天气图标
     progress.update_progress(2, 4, "处理天气图标");
@@ -98,15 +98,15 @@ pub fn build(config: &BuildConfig, progress: &ProgressTracker) -> Result<()> {
 }
 
 /// 处理本地静态图标分类
-fn process_local_icon_categories(
+fn process_icon_categories(
     config: &BuildConfig,
     progress: &ProgressTracker,
 ) -> Result<Vec<ProcessedIconInfo>> {
     let mut stats = ProcessingStats::default();
-    let total_categories = config.local_icon_categories.len();
+    let total_categories = config.icon_categories.len();
     let mut all_icons = Vec::new();
 
-    for (cat_idx, category) in config.local_icon_categories.iter().enumerate() {
+    for (cat_idx, category) in config.icon_categories.iter().enumerate() {
         progress.update_progress(
             cat_idx,
             total_categories,
@@ -126,7 +126,7 @@ fn process_local_icon_categories(
 
 /// 处理单个本地静态图标分类
 fn process_local_icon_category(
-    category: &LocalIconCategoryConfig,
+    category: &IconCategoryConfig,
     stats: &mut ProcessingStats,
 ) -> Result<Vec<ProcessedIconInfo>> {
     // 检查目录是否存在
@@ -184,7 +184,7 @@ fn collect_svg_files(dir: &Path) -> Result<Vec<PathBuf>> {
 /// 处理单个本地图标
 fn process_single_local_icon(
     svg_path: &Path,
-    category: &LocalIconCategoryConfig,
+    category: &IconCategoryConfig,
     stats: &mut ProcessingStats,
 ) -> Result<ProcessedIconInfo> {
     // 获取文件名（不含扩展名）
@@ -198,7 +198,7 @@ fn process_single_local_icon(
     let variant_name = convert_to_variant_name(&filename);
 
     // 渲染图标
-    let render_result = render_svg(svg_path, category.width, category.height)?;
+    let render_result = render_svg(svg_path, category.width as u32, category.height as u32)?;
 
     let size = IconSize {
         width: category.width,
@@ -339,7 +339,7 @@ fn process_single_weather_icon(
         .join(format!("{}.svg", icon.icon_code));
 
     let (bitmap_data, size) = if svg_path.exists() {
-        let render_result = render_svg(&svg_path, config.width, config.height)?;
+        let render_result = render_svg(&svg_path, config.width as u32, config.height as u32)?;
         let size = IconSize {
             width: config.width,
             height: config.height,
@@ -534,7 +534,7 @@ fn generate_unified_icon_file(config: &BuildConfig, all_icons: &[ProcessedIconIn
     // 首先，将每个分类的图标数据写入单独的bin文件
     for (category, icons) in &local_icons_by_category {
         if let Some(_category_config) = config
-            .local_icon_categories
+            .icon_categories
             .iter()
             .find(|c| c.category == *category)
         {
@@ -618,7 +618,7 @@ fn generate_enums(
     // 生成本地图标枚举
     for (category, icons) in local_icons_by_category {
         if let Some(category_config) = config
-            .local_icon_categories
+            .icon_categories
             .iter()
             .find(|c| c.category == *category)
         {
@@ -704,7 +704,7 @@ fn generate_icon_id_enum(
     // 添加本地静态图标变体
     for category in local_icons_by_category.keys() {
         if let Some(category_config) = config
-            .local_icon_categories
+            .icon_categories
             .iter()
             .find(|c| c.category == *category)
         {
@@ -734,7 +734,7 @@ fn generate_icon_data_and_methods(
     // 生成图标数据常量（使用include_bytes宏）
     for (category, icons) in local_icons_by_category {
         if let Some(_category_config) = config
-            .local_icon_categories
+            .icon_categories
             .iter()
             .find(|c| c.category == *category)
         {
@@ -830,7 +830,7 @@ fn generate_icon_id_methods(
 
     for (category, icons) in local_icons_by_category {
         if let Some(category_config) = config
-            .local_icon_categories
+            .icon_categories
             .iter()
             .find(|c| c.category == *category)
         {
@@ -920,7 +920,7 @@ fn generate_icon_id_methods(
     // 处理本地图标：类型::命名 格式
     for (category, icons) in local_icons_by_category {
         if let Some(category_config) = config
-            .local_icon_categories
+            .icon_categories
             .iter()
             .find(|c| c.category == *category)
         {

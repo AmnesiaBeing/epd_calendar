@@ -4,11 +4,11 @@
 
 pub use crate::assets::generated_fonts::FontSize;
 
-type Id = &'static str;
+type NodeIdStr = &'static str;
 type IconId = &'static str;
 type Content = &'static str;
 type Condition = &'static str;
-type LayoutNodeVec = &'static [LayoutNode];
-type ChildLayoutVec = &'static [ChildLayout];
+type LayoutNodeEntryVec = &'static [LayoutPoolEntry];
+type ChildLayoutVec = &'static [NodeId];
 
 include!("../../../../shared/layout_types.rs");

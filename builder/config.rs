@@ -5,54 +5,54 @@ use std::path::PathBuf;
 
 use crate::builder::modules::font_generator::FontSizeConfig;
 
-/// 本地静态图标分类配置
+/// 图标分类配置
 #[derive(Debug, Clone)]
-pub struct LocalIconCategoryConfig {
-    /// 分类名称，如"battery"
+pub struct IconCategoryConfig {
+    /// 图标的分类名称，用于匹配icon_id前缀
     pub category: String,
-    /// 图标目录路径，如assets/icons/battery
+    /// 图标文件所在的目录路径
     pub dir: PathBuf,
-    /// 生成的Rust枚举名，如"BatteryIcon"
+    /// 生成的Rust枚举类型名称
     pub enum_name: String,
-    /// 图标宽度（硬编码）
-    pub width: u32,
-    /// 图标高度（硬编码）
-    pub height: u32,
+    /// 图标的固定宽度（像素）
+    pub width: u16,
+    /// 图标的固定高度（像素）
+    pub height: u16,
 }
 
 /// 天气图标配置
 #[derive(Debug, Clone)]
 pub struct WeatherIconConfig {
-    /// 天气图标根目录，如../Icons
+    /// 天气图标文件的根目录
     pub dir: PathBuf,
-    /// 图标清单JSON路径，如../Icons/icons-list.json
+    /// 图标清单JSON文件路径，包含天气图标的元数据
     pub list_path: PathBuf,
-    /// 生成的枚举名，如"WeatherIcon"
+    /// 生成的Rust枚举类型名称
     pub enum_name: String,
-    /// 图标宽度（硬编码）
-    pub width: u32,
-    /// 图标高度（硬编码）
-    pub height: u32,
+    /// 天气图标的固定宽度（像素）
+    pub width: u16,
+    /// 天气图标的固定高度（像素）
+    pub height: u16,
 }
 
 /// 构建配置
 #[derive(Debug, Clone)]
 pub struct BuildConfig {
-    /// 输出目录
+    /// 构建输出目录，所有生成的资源文件都会放到此目录
     pub output_dir: PathBuf,
-    /// 句子目录
+    /// 格言文件目录，包含日历中使用的各种格言
     pub sentences_dir: PathBuf,
-    /// 分类配置路径
+    /// 分类配置文件路径，定义句子的分类信息
     pub categories_path: PathBuf,
-    /// 字体路径
+    /// 字体文件路径，用于生成字体位图
     pub font_path: PathBuf,
-    /// 字体尺寸配置列表
+    /// 字体尺寸配置列表，定义要生成的不同字体大小
     pub font_size_configs: Vec<FontSizeConfig>,
-    /// 本地静态图标分类配置列表
-    pub local_icon_categories: Vec<LocalIconCategoryConfig>,
-    /// 天气图标配置
+    /// 图标分类配置列表，定义不同类别的图标资源
+    pub icon_categories: Vec<IconCategoryConfig>,
+    /// 天气图标配置，定义天气图标的生成规则
     pub weather_icon_config: WeatherIconConfig,
-    /// 主布局配置路径
+    /// 主布局配置文件路径，定义界面布局结构
     pub main_layout_path: PathBuf,
 }
 
@@ -69,22 +69,22 @@ impl BuildConfig {
                 FontSizeConfig::new("Medium", 24), // 中号字体 24px
                 FontSizeConfig::new("Large", 40),  // 大号字体 40px
             ],
-            local_icon_categories: vec![
-                LocalIconCategoryConfig {
+            icon_categories: vec![
+                IconCategoryConfig {
                     category: "battery".to_string(),
                     dir: PathBuf::from("assets/icons/battery"),
                     enum_name: "BatteryIcon".to_string(),
                     width: 32,
                     height: 32,
                 },
-                LocalIconCategoryConfig {
+                IconCategoryConfig {
                     category: "network".to_string(),
                     dir: PathBuf::from("assets/icons/network"),
                     enum_name: "NetworkIcon".to_string(),
                     width: 32,
                     height: 32,
                 },
-                LocalIconCategoryConfig {
+                IconCategoryConfig {
                     category: "time_digit".to_string(),
                     dir: PathBuf::from("assets/icons/time_digit"),
                     enum_name: "TimeDigitIcon".to_string(),

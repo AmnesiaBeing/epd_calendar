@@ -98,7 +98,7 @@ impl<'a> RenderContext<'a> {
     /// - container_bounds: 容器边界
     pub fn calculate_child_layout(
         &self,
-        direction: ContainerDirection,
+        direction: Direction,
         children: &[ChildLayout],
         container_bounds: [u16; 4],
     ) -> Result<Vec<[u16; 4]>> {
@@ -112,7 +112,7 @@ impl<'a> RenderContext<'a> {
 
         match direction {
             // 水平布局：按权重分配宽度
-            ContainerDirection::Horizontal => {
+            Direction::Horizontal => {
                 // 计算总权重
                 let total_weight: f32 = children
                     .iter()
@@ -153,7 +153,7 @@ impl<'a> RenderContext<'a> {
             }
 
             // 垂直布局：按权重分配高度
-            ContainerDirection::Vertical => {
+            Direction::Vertical => {
                 // 计算总权重
                 let total_weight: f32 = children
                     .iter()
@@ -199,11 +199,6 @@ impl<'a> RenderContext<'a> {
 
     /// 创建子上下文（用于递归渲染子节点）
     pub fn create_child_context(&mut self, child_bounds: [u16; 4]) -> Result<Self> {
-        if self.nest_level >= MAX_NEST_LEVEL {
-            log::error!("布局嵌套层级超限（最大{}）", MAX_NEST_LEVEL);
-            return Err(AppError::RenderError);
-        }
-
         Ok(Self {
             data_source_registry: self.data_source_registry,
             cache: self.cache,

@@ -3,6 +3,7 @@
 
 use anyhow::{Context, Result};
 use serde_yaml;
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs;
 
@@ -15,13 +16,13 @@ use crate::builder::utils::progress::ProgressTracker;
 mod layout_validate;
 mod layout_yaml_parser;
 
-type Id = String;
+type NodeIdStr = String;
 type IconId = String;
 type Content = String;
 type Condition = String;
 type FontSize = String;
-type LayoutNodeVec = Vec<LayoutNode>;
-type ChildLayoutVec = Vec<ChildLayout>;
+type LayoutNodeEntryVec = Vec<LayoutPoolEntry>;
+type ChildLayoutVec = Vec<NodeId>;
 include!("../../../shared/layout_types.rs");
 
 /// 布局构建器（仅编译期使用）
@@ -36,15 +37,6 @@ impl LayoutBuilder {
         progress.update_progress(1, 4, "解析YAML");
         let yaml_node: YamlLayoutNode =
             serde_yaml::from_str(&yaml_content).with_context(|| "解析YAML布局文件失败")?;
-
-        progress.update_progress(2, 4, "校验布局规则");
-        let validation_result = LayoutValidator::validate(&yaml_node, config)?;
-        if !validation_result.warnings.is_empty() {
-            println!(
-                "cargo:warning=⚠️  布局文件警告: {:?}",
-                validation_result.warnings
-            );
-        }
 
         progress.update_progress(3, 4, "转换为扁平化布局池并生成RS文件");
         let layout_pool = Self::convert_to_pool(&yaml_node, config)?;
@@ -64,48 +56,52 @@ impl LayoutBuilder {
             .with_context(|| format!("读取布局文件失败: {}", layout_path.display()))
     }
 
-    /// 将YAML节点转换为扁平化布局池（核心池化逻辑，增强规则校验）
+    /// 将YAML节点转换为扁平化布局池（核心池化逻辑）
     fn convert_to_pool(yaml_node: &YamlLayoutNode, config: &BuildConfig) -> Result<LayoutPool> {
         let mut pool = LayoutPool::default();
         let mut id_set = HashSet::new(); // 校验ID唯一性
-        let root_node_id = Self::convert_yaml_node(
+        let mut node_id_counter = 0u16;
+        let mut node_map = HashMap::new(); // 存储id到NodeId的映射
+        let mut parent_map = HashMap::new(); // 存储节点到父节点的映射
+
+        // 先分配所有节点的ID
+        Self::assign_node_ids(
             yaml_node,
-            &mut pool,
+            &mut node_id_counter,
+            &mut node_map,
+            &mut parent_map,
+            ROOT_PARENT_ID,
             &mut id_set,
-            1,     // 初始嵌套层级
-            false, // 父节点是否绝对定位
-            config,
         )?;
 
-        pool.root_node_id = root_node_id;
+        // 转换所有节点（递归处理）
+        Self::convert_all_nodes(yaml_node, &mut pool, &node_map, &parent_map, config)?;
+
+        // 设置根节点ID（应该是第一个分配的节点）
+        pool.root_node_id = 0;
+
         Ok(pool)
     }
 
-    /// 递归转换YAML节点（编译期严格校验，适配新布局规则）
-    fn convert_yaml_node(
+    /// 分配节点ID（先序遍历）
+    fn assign_node_ids(
         yaml_node: &YamlLayoutNode,
-        pool: &mut LayoutPool,
+        counter: &mut NodeId,
+        node_map: &mut HashMap<String, NodeId>,
+        parent_map: &mut HashMap<NodeId, NodeId>,
+        parent_id: NodeId,
         id_set: &mut HashSet<String>,
-        nest_level: usize,
-        _parent_absolute: bool,
-        config: &BuildConfig, // 字体尺寸配置依赖
-    ) -> Result<NodeId> {
-        // 1. 嵌套层级校验（编译期严格限制）
-        if nest_level > MAX_NEST_LEVEL {
-            return Err(anyhow::anyhow!(
-                "节点嵌套层级超限: {} > {}",
-                nest_level,
-                MAX_NEST_LEVEL
-            ));
-        }
+    ) -> Result<()> {
+        let current_id = *counter;
 
-        match yaml_node {
-            // ========== 容器节点处理（适配新布局规则：补充全量字段） ==========
+        // 获取节点ID字符串并进行校验
+        let node_id_str = match yaml_node {
             YamlLayoutNode::Container(yaml) => {
-                // 2. ID唯一性+长度校验
+                // ID唯一性校验
                 if !id_set.insert(yaml.id.clone()) {
-                    return Err(anyhow::anyhow!("容器ID重复: {}", yaml.id));
+                    return Err(anyhow::anyhow!("节点ID重复: {}", yaml.id));
                 }
+                // 长度校验
                 if yaml.id.len() > MAX_ID_LENGTH {
                     return Err(anyhow::anyhow!(
                         "容器{}ID长度超限: {} > {}",
@@ -114,145 +110,11 @@ impl LayoutBuilder {
                         MAX_ID_LENGTH
                     ));
                 }
-                let id = yaml.id.clone();
-
-                // 3. 子节点数量校验
-                if yaml.children.len() > MAX_CHILDREN_COUNT {
-                    return Err(anyhow::anyhow!(
-                        "容器{}子节点数量超限: {} > {}",
-                        yaml.id,
-                        yaml.children.len(),
-                        MAX_CHILDREN_COUNT
-                    ));
-                }
-
-                // 4. 转换子节点（递归+池化）
-                let mut children = Vec::new();
-                for yaml_child in &yaml.children {
-                    let child_node_id = Self::convert_yaml_node(
-                        &yaml_child.node,
-                        pool,
-                        id_set,
-                        nest_level + 1,
-                        yaml_child.is_absolute,
-                        config,
-                    )?;
-
-                    // 5. 子节点权重校验（自动修正非法值）
-                    let weight = normalize_weight(yaml_child.weight);
-                    validate_weight(&weight)
-                        .map_err(|e| anyhow::anyhow!("容器{}子节点权重校验失败: {}", yaml.id, e))?;
-
-                    children.push(ChildLayout {
-                        node_id: child_node_id,
-                        weight, // 使用修正后的权重
-                        is_absolute: yaml_child.is_absolute,
-                    });
-                }
-
-                // 6. 解析容器属性（适配新布局规则）
-                let direction = yaml
-                    .direction
-                    .as_deref()
-                    .map(ContainerDirection::try_from)
-                    .transpose()
-                    .map_err(|e| anyhow::anyhow!("容器{}方向解析失败: {}", yaml.id, e))?
-                    .unwrap_or_default();
-
-                let alignment = yaml
-                    .alignment
-                    .as_deref()
-                    .map(TextAlignment::try_from)
-                    .transpose()
-                    .map_err(|e| anyhow::anyhow!("容器{}对齐解析失败: {}", yaml.id, e))?
-                    .unwrap_or_default();
-
-                let vertical_alignment = yaml
-                    .vertical_alignment
-                    .as_deref()
-                    .map(VerticalAlignment::try_from)
-                    .transpose()
-                    .map_err(|e| anyhow::anyhow!("容器{}垂直对齐解析失败: {}", yaml.id, e))?
-                    .unwrap_or_default();
-
-                // 条件字符串校验（规则1.1）
-                let condition = if let Some(cond) = &yaml.condition {
-                    if cond.len() > MAX_CONDITION_LENGTH {
-                        return Err(anyhow::anyhow!(
-                            "容器{}条件字符串长度超限: {} > {}",
-                            yaml.id,
-                            cond.len(),
-                            MAX_CONDITION_LENGTH
-                        ));
-                    }
-                    // 校验条件表达式语法（规则4.3）
-                    validate_condition_syntax(cond)
-                        .with_context(|| format!("容器{}条件表达式语法错误", yaml.id))?;
-                    Some(cond.clone())
-                } else {
-                    None
-                };
-
-                // 解析新布局属性：position/anchor/width/height（替代原rect）
-                let position = yaml.position.unwrap_or_default();
-                let anchor = yaml
-                    .anchor
-                    .as_deref()
-                    .map(Anchor::try_from)
-                    .transpose()
-                    .map_err(|e| anyhow::anyhow!("容器{}锚点解析失败: {}", yaml.id, e))?
-                    .unwrap_or_default();
-                let width = yaml.width;
-                let height = yaml.height;
-                let is_absolute = yaml.is_absolute.unwrap_or(false);
-
-                // 坐标范围校验（区分绝对/相对定位，规则3.4）
-                validate_coordinate(&position, "容器", &yaml.id, is_absolute)?;
-                if let Some(w) = width {
-                    if w > MAX_DIMENSION {
-                        return Err(anyhow::anyhow!(
-                            "容器{}宽度超限: {} > {}",
-                            yaml.id,
-                            w,
-                            MAX_DIMENSION
-                        ));
-                    }
-                }
-                if let Some(h) = height {
-                    if h > MAX_DIMENSION {
-                        return Err(anyhow::anyhow!(
-                            "容器{}高度超限: {} > {}",
-                            yaml.id,
-                            h,
-                            MAX_DIMENSION
-                        ));
-                    }
-                }
-
-                // 7. 创建容器节点并加入池（适配新结构）
-                let container = LayoutNode::Container(Container {
-                    id: id.clone(),
-                    position,
-                    anchor,
-                    width,
-                    height,
-                    children: children.into(), // 转换为静态数组
-                    condition,
-                    direction,
-                    alignment,
-                    vertical_alignment,
-                });
-
-                let node_id = pool.nodes.len() as NodeId;
-                pool.nodes.push(container);
-                Ok(node_id)
+                &yaml.id
             }
-
-            // ========== 文本节点处理（适配新布局规则：补充全量字段） ==========
             YamlLayoutNode::Text(yaml) => {
-                // ID唯一性+长度校验
                 if !id_set.insert(yaml.id.clone()) {
-                    return Err(anyhow::anyhow!("文本ID重复: {}", yaml.id));
+                    return Err(anyhow::anyhow!("节点ID重复: {}", yaml.id));
                 }
                 if yaml.id.len() > MAX_ID_LENGTH {
                     return Err(anyhow::anyhow!(
@@ -262,152 +124,11 @@ impl LayoutBuilder {
                         MAX_ID_LENGTH
                     ));
                 }
-                let id = yaml.id.clone();
-
-                // 内容长度校验（规则1.1）
-                if yaml.content.len() > MAX_CONTENT_LENGTH {
-                    return Err(anyhow::anyhow!(
-                        "文本{}内容长度超限: {} > {}",
-                        yaml.id,
-                        yaml.content.len(),
-                        MAX_CONTENT_LENGTH
-                    ));
-                }
-                // 内容占位符校验（规则4.2）
-                validate_content_placeholders(&yaml.content)
-                    .with_context(|| format!("文本{}内容占位符格式错误", yaml.id))?;
-                let content = yaml.content.clone();
-
-                // 字体尺寸解析+校验（规则4.5）
-                let font_size = validate_font_size(&yaml.font_size, config)
-                    .with_context(|| format!("文本{}字体尺寸校验失败", yaml.id))?;
-
-                // 对齐方式解析（使用默认值）
-                let alignment = yaml
-                    .alignment
-                    .as_deref()
-                    .map(TextAlignment::try_from)
-                    .transpose()
-                    .map_err(|e| anyhow::anyhow!("文本{}对齐解析失败: {}", yaml.id, e))?
-                    .unwrap_or_default();
-
-                let vertical_alignment = yaml
-                    .vertical_alignment
-                    .as_deref()
-                    .map(VerticalAlignment::try_from)
-                    .transpose()
-                    .map_err(|e| anyhow::anyhow!("文本{}垂直对齐解析失败: {}", yaml.id, e))?
-                    .unwrap_or_default();
-
-                // max_lines校验
-                let max_lines = if let Some(lines) = yaml.max_lines {
-                    if lines < MIN_MAX_LINES {
-                        Some(MIN_MAX_LINES)
-                    } else if lines > MAX_MAX_LINES {
-                        Some(MAX_MAX_LINES)
-                    } else {
-                        Some(lines)
-                    }
-                } else {
-                    None
-                };
-
-                // max_width校验（规则2.1）
-                let max_width: Option<u16> = if let Some(w) = yaml.max_width {
-                    if w > SCREEN_WIDTH {
-                        Some(SCREEN_WIDTH)
-                    } else {
-                        Some(w)
-                    }
-                } else {
-                    None
-                };
-
-                // 条件字符串校验（规则2.3/4.3）
-                let condition = if let Some(cond) = &yaml.condition {
-                    if cond.len() > MAX_CONDITION_LENGTH {
-                        return Err(anyhow::anyhow!(
-                            "文本{}条件字符串长度超限: {} > {}",
-                            yaml.id,
-                            cond.len(),
-                            MAX_CONDITION_LENGTH
-                        ));
-                    }
-                    validate_condition_syntax(cond)
-                        .with_context(|| format!("文本{}条件表达式语法错误", yaml.id))?;
-                    Some(cond.clone())
-                } else {
-                    None
-                };
-
-                // 权重校验（自动修正，规则4.6）
-                let weight = normalize_weight(yaml.weight);
-                validate_weight(&weight).with_context(|| format!("文本{}权重校验失败", yaml.id))?;
-
-                // 解析新布局属性（替代rect）
-                let position = yaml.position.unwrap_or_default();
-                let anchor = yaml
-                    .anchor
-                    .as_deref()
-                    .map(Anchor::try_from)
-                    .transpose()
-                    .map_err(|e| anyhow::anyhow!("文本{}锚点解析失败: {}", yaml.id, e))?
-                    .unwrap_or_default();
-                let width = yaml.width;
-                let height = yaml.height;
-                let is_absolute = yaml.is_absolute;
-
-                // 坐标范围校验（区分绝对/相对定位，规则3.4）
-                validate_coordinate(&position, "文本", &yaml.id, is_absolute)?;
-                if let Some(w) = width {
-                    if w > MAX_DIMENSION {
-                        return Err(anyhow::anyhow!(
-                            "文本{}宽度超限: {} > {}",
-                            yaml.id,
-                            w,
-                            MAX_DIMENSION
-                        ));
-                    }
-                }
-                if let Some(h) = height {
-                    if h > MAX_DIMENSION {
-                        return Err(anyhow::anyhow!(
-                            "文本{}高度超限: {} > {}",
-                            yaml.id,
-                            h,
-                            MAX_DIMENSION
-                        ));
-                    }
-                }
-
-                // 创建文本节点（适配新结构）
-                let text = LayoutNode::Text(Text {
-                    id: id.clone(),
-                    position,
-                    anchor,
-                    width,
-                    height,
-                    content,
-                    font_size,
-                    alignment,
-                    vertical_alignment,
-                    max_width,
-                    max_lines,
-                    condition,
-                    is_absolute,
-                    weight,
-                });
-
-                let node_id = pool.nodes.len() as NodeId;
-                pool.nodes.push(text);
-                Ok(node_id)
+                &yaml.id
             }
-
-            // ========== 图标节点处理（适配新布局规则：补充全量字段） ==========
             YamlLayoutNode::Icon(yaml) => {
-                // ID唯一性+长度校验
                 if !id_set.insert(yaml.id.clone()) {
-                    return Err(anyhow::anyhow!("图标ID重复: {}", yaml.id));
+                    return Err(anyhow::anyhow!("节点ID重复: {}", yaml.id));
                 }
                 if yaml.id.len() > MAX_ID_LENGTH {
                     return Err(anyhow::anyhow!(
@@ -417,135 +138,11 @@ impl LayoutBuilder {
                         MAX_ID_LENGTH
                     ));
                 }
-                let id = yaml.id.clone();
-
-                // 图标资源ID校验（规则4.4：{模块}:{键}格式）
-                if !yaml.icon_id.contains(':') {
-                    return Err(anyhow::anyhow!(
-                        "图标{}资源ID格式错误，需符合{{模块}}:{{键}}: {}",
-                        yaml.id,
-                        yaml.icon_id
-                    ));
-                }
-                if yaml.icon_id.len() > MAX_ICON_ID_LENGTH {
-                    return Err(anyhow::anyhow!(
-                        "图标{}资源ID长度超限: {} > {}",
-                        yaml.id,
-                        yaml.icon_id.len(),
-                        MAX_ICON_ID_LENGTH
-                    ));
-                }
-                let icon_id = yaml.icon_id.clone();
-
-                // 重要程度解析
-                let importance = yaml
-                    .importance
-                    .as_ref()
-                    .map(|i| Importance::try_from(i.as_str()))
-                    .transpose()
-                    .map_err(|e| anyhow::anyhow!("图标{}重要程度解析失败: {}", yaml.id, e))?;
-
-                // 条件字符串校验（规则2.3/4.3）
-                let condition = if let Some(cond) = &yaml.condition {
-                    if cond.len() > MAX_CONDITION_LENGTH {
-                        return Err(anyhow::anyhow!(
-                            "图标{}条件字符串长度超限: {} > {}",
-                            yaml.id,
-                            cond.len(),
-                            MAX_CONDITION_LENGTH
-                        ));
-                    }
-                    validate_condition_syntax(cond)
-                        .with_context(|| format!("图标{}条件表达式语法错误", yaml.id))?;
-                    Some(cond.clone())
-                } else {
-                    None
-                };
-
-                // 对齐方式解析（使用默认值）
-                let alignment = yaml
-                    .alignment
-                    .as_deref()
-                    .map(TextAlignment::try_from)
-                    .transpose()
-                    .map_err(|e| anyhow::anyhow!("图标{}对齐解析失败: {}", yaml.id, e))?
-                    .unwrap_or_default();
-
-                let vertical_alignment = yaml
-                    .vertical_alignment
-                    .as_deref()
-                    .map(VerticalAlignment::try_from)
-                    .transpose()
-                    .map_err(|e| anyhow::anyhow!("图标{}垂直对齐解析失败: {}", yaml.id, e))?
-                    .unwrap_or_default();
-
-                // 权重校验（自动修正，规则4.6）
-                let weight = normalize_weight(yaml.weight);
-                validate_weight(&weight).with_context(|| format!("图标{}权重校验失败", yaml.id))?;
-
-                // 解析新布局属性（替代rect）
-                let position = yaml.position.unwrap_or_default();
-                let anchor = yaml
-                    .anchor
-                    .as_deref()
-                    .map(Anchor::try_from)
-                    .transpose()
-                    .map_err(|e| anyhow::anyhow!("图标{}锚点解析失败: {}", yaml.id, e))?
-                    .unwrap_or_default();
-                // 图标宽高兜底（规则3.1.2）
-                let width = yaml.width.or(Some(DEFAULT_ICON_WIDTH));
-                let height = yaml.height.or(Some(DEFAULT_ICON_HEIGHT));
-                let is_absolute = yaml.is_absolute;
-
-                // 坐标范围校验（区分绝对/相对定位，规则3.4）
-                validate_coordinate(&position, "图标", &yaml.id, is_absolute)?;
-                if let Some(w) = width {
-                    if w > MAX_DIMENSION {
-                        return Err(anyhow::anyhow!(
-                            "图标{}宽度超限: {} > {}",
-                            yaml.id,
-                            w,
-                            MAX_DIMENSION
-                        ));
-                    }
-                }
-                if let Some(h) = height {
-                    if h > MAX_DIMENSION {
-                        return Err(anyhow::anyhow!(
-                            "图标{}高度超限: {} > {}",
-                            yaml.id,
-                            h,
-                            MAX_DIMENSION
-                        ));
-                    }
-                }
-
-                // 创建图标节点（适配新结构）
-                let icon = LayoutNode::Icon(Icon {
-                    id: id.clone(),
-                    position,
-                    anchor,
-                    width,
-                    height,
-                    icon_id,
-                    importance,
-                    condition,
-                    is_absolute,
-                    alignment,
-                    vertical_alignment,
-                    weight,
-                });
-
-                let node_id = pool.nodes.len() as NodeId;
-                pool.nodes.push(icon);
-                Ok(node_id)
+                &yaml.id
             }
-
-            // ========== 线条节点处理（适配新布局规则：补充全量字段） ==========
             YamlLayoutNode::Line(yaml) => {
-                // ID唯一性+长度校验
                 if !id_set.insert(yaml.id.clone()) {
-                    return Err(anyhow::anyhow!("线条ID重复: {}", yaml.id));
+                    return Err(anyhow::anyhow!("节点ID重复: {}", yaml.id));
                 }
                 if yaml.id.len() > MAX_ID_LENGTH {
                     return Err(anyhow::anyhow!(
@@ -555,65 +152,11 @@ impl LayoutBuilder {
                         MAX_ID_LENGTH
                     ));
                 }
-                let id = yaml.id.clone();
-
-                // 厚度校验（自动修正，规则4.7）
-                let thickness = normalize_thickness(yaml.thickness);
-                validate_thickness(&thickness)
-                    .with_context(|| format!("线条{}厚度校验失败", yaml.id))?;
-
-                // 重要程度解析
-                let importance = yaml
-                    .importance
-                    .as_ref()
-                    .map(|i| Importance::try_from(i.as_str()))
-                    .transpose()
-                    .map_err(|e| anyhow::anyhow!("线条{}重要程度解析失败: {}", yaml.id, e))?;
-
-                // 条件字符串校验（规则2.3/4.3）
-                let condition = if let Some(cond) = &yaml.condition {
-                    if cond.len() > MAX_CONDITION_LENGTH {
-                        return Err(anyhow::anyhow!(
-                            "线条{}条件字符串长度超限: {} > {}",
-                            yaml.id,
-                            cond.len(),
-                            MAX_CONDITION_LENGTH
-                        ));
-                    }
-                    validate_condition_syntax(cond)
-                        .with_context(|| format!("线条{}条件表达式语法错误", yaml.id))?;
-                    Some(cond.clone())
-                } else {
-                    None
-                };
-
-                let is_absolute = yaml.is_absolute;
-
-                // 绝对坐标校验（起点+终点，规则3.4）
-                validate_coordinate(&yaml.start, "线条起点", &yaml.id, is_absolute)?;
-                validate_coordinate(&yaml.end, "线条终点", &yaml.id, is_absolute)?;
-
-                // 创建线条节点
-                let line = LayoutNode::Line(Line {
-                    id: id.clone(),
-                    start: yaml.start,
-                    end: yaml.end,
-                    thickness, // 使用修正后的厚度
-                    importance,
-                    condition,
-                    is_absolute,
-                });
-
-                let node_id = pool.nodes.len() as NodeId;
-                pool.nodes.push(line);
-                Ok(node_id)
+                &yaml.id
             }
-
-            // ========== 矩形节点处理（适配新布局规则：补充全量字段） ==========
             YamlLayoutNode::Rectangle(yaml) => {
-                // ID唯一性+长度校验
                 if !id_set.insert(yaml.id.clone()) {
-                    return Err(anyhow::anyhow!("矩形ID重复: {}", yaml.id));
+                    return Err(anyhow::anyhow!("节点ID重复: {}", yaml.id));
                 }
                 if yaml.id.len() > MAX_ID_LENGTH {
                     return Err(anyhow::anyhow!(
@@ -623,30 +166,510 @@ impl LayoutBuilder {
                         MAX_ID_LENGTH
                     ));
                 }
-                let id = yaml.id.clone();
+                &yaml.id
+            }
+        };
 
-                // 描边厚度校验（自动修正，规则4.7）
-                let stroke_thickness = normalize_thickness(yaml.stroke_thickness);
-                validate_thickness(&stroke_thickness)
-                    .with_context(|| format!("矩形{}描边厚度校验失败", yaml.id))?;
+        // 记录映射关系
+        node_map.insert(node_id_str.clone(), current_id);
+        parent_map.insert(current_id, parent_id);
+        *counter += 1;
 
-                // 重要程度解析
-                let fill_importance = yaml
-                    .fill_importance
-                    .as_ref()
-                    .map(|i| Importance::try_from(i.as_str()))
+        // 递归处理子节点
+        if let YamlLayoutNode::Container(yaml) = yaml_node {
+            // 子节点数量校验
+            if yaml.children.len() > MAX_CHILDREN_COUNT {
+                return Err(anyhow::anyhow!(
+                    "容器{}子节点数量超限: {} > {}",
+                    yaml.id,
+                    yaml.children.len(),
+                    MAX_CHILDREN_COUNT
+                ));
+            }
+
+            for child in &yaml.children {
+                Self::assign_node_ids(
+                    &child.node,
+                    counter,
+                    node_map,
+                    parent_map,
+                    current_id,
+                    id_set,
+                )?;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// 转换所有节点（递归处理）
+    fn convert_all_nodes(
+        yaml_node: &YamlLayoutNode,
+        pool: &mut LayoutPool,
+        node_map: &HashMap<String, NodeId>,
+        parent_map: &HashMap<NodeId, NodeId>,
+        config: &BuildConfig,
+    ) -> Result<()> {
+        // 先转换当前节点
+        Self::convert_single_node(yaml_node, pool, node_map, parent_map, config)?;
+
+        // 递归处理子节点
+        if let YamlLayoutNode::Container(yaml) = yaml_node {
+            for child in &yaml.children {
+                Self::convert_all_nodes(&child.node, pool, node_map, parent_map, config)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// 转换单个节点
+    fn convert_single_node(
+        yaml_node: &YamlLayoutNode,
+        pool: &mut LayoutPool,
+        node_map: &HashMap<String, NodeId>,
+        parent_map: &HashMap<NodeId, NodeId>,
+        config: &BuildConfig,
+    ) -> Result<()> {
+        match yaml_node {
+            YamlLayoutNode::Container(yaml) => {
+                let node_id = *node_map
+                    .get(&yaml.id)
+                    .ok_or_else(|| anyhow::anyhow!("容器节点ID未找到: {}", yaml.id))?;
+                let parent_id = *parent_map.get(&node_id).unwrap_or(&ROOT_PARENT_ID);
+
+                // 转换子节点ID列表
+                let mut children_ids = Vec::new();
+                for child in &yaml.children {
+                    let child_node_id = node_map
+                        .get(match &child.node {
+                            YamlLayoutNode::Container(c) => &c.id,
+                            YamlLayoutNode::Text(t) => &t.id,
+                            YamlLayoutNode::Icon(i) => &i.id,
+                            YamlLayoutNode::Line(l) => &l.id,
+                            YamlLayoutNode::Rectangle(r) => &r.id,
+                        })
+                        .ok_or_else(|| anyhow::anyhow!("子节点ID未找到"))?;
+                    children_ids.push(*child_node_id);
+                }
+
+                // 解析布局类型
+                let layout = match yaml.layout.as_str() {
+                    "absolute" => Layout::Absolute,
+                    _ => Layout::Flow, // 默认flow
+                };
+
+                // 坐标转换（i16 -> u16）
+                let position = yaml.position.map(|pos| Self::convert_coordinate(pos));
+
+                // 锚点解析
+                let anchor = if layout == Layout::Absolute {
+                    yaml.anchor
+                        .as_deref()
+                        .map(Anchor::try_from)
+                        .transpose()
+                        .map_err(|e| anyhow::anyhow!("容器{}锚点解析失败: {}", yaml.id, e))?
+                        .or(Some(Anchor::TopLeft))
+                } else {
+                    None // flow布局不需要锚点
+                };
+
+                // 方向解析
+                let direction = match yaml.direction.as_str() {
+                    "vertical" => Direction::Vertical,
+                    _ => Direction::Horizontal, // 默认horizontal
+                };
+
+                // 对齐解析
+                let alignment = yaml
+                    .alignment
+                    .as_deref()
+                    .map(Alignment::try_from)
                     .transpose()
-                    .map_err(|e| anyhow::anyhow!("矩形{}填充重要程度解析失败: {}", yaml.id, e))?;
+                    .map_err(|e| anyhow::anyhow!("容器{}对齐解析失败: {}", yaml.id, e))?
+                    .unwrap_or(Alignment::Start);
 
-                let stroke_importance = yaml
-                    .stroke_importance
-                    .as_ref()
-                    .map(|i| Importance::try_from(i.as_str()))
+                let vertical_alignment = yaml
+                    .vertical_alignment
+                    .as_deref()
+                    .map(Alignment::try_from)
                     .transpose()
-                    .map_err(|e| anyhow::anyhow!("矩形{}描边重要程度解析失败: {}", yaml.id, e))?;
+                    .map_err(|e| anyhow::anyhow!("容器{}垂直对齐解析失败: {}", yaml.id, e))?
+                    .unwrap_or(Alignment::Start);
 
-                // 条件字符串校验（规则2.3/4.3）
-                let condition = if let Some(cond) = &yaml.condition {
+                // 条件表达式校验
+                let condition = if let Some(cond) = yaml.condition.clone() {
+                    if cond.len() > MAX_CONDITION_LENGTH {
+                        return Err(anyhow::anyhow!(
+                            "容器{}条件字符串长度超限: {} > {}",
+                            yaml.id,
+                            cond.len(),
+                            MAX_CONDITION_LENGTH
+                        ));
+                    }
+                    validate_condition_expression(&cond)
+                        .with_context(|| format!("容器{}条件表达式语法错误", yaml.id))?;
+                    Some(cond)
+                } else {
+                    None
+                };
+
+                // 宽高校验
+                if let Some(w) = yaml.width {
+                    if w == 0 {
+                        println!("cargo:warning=⚠️  容器{}宽度为0，修正为1", yaml.id);
+                    } else if w > SCREEN_WIDTH {
+                        return Err(anyhow::anyhow!(
+                            "容器{}宽度超限: {} > {}",
+                            yaml.id,
+                            w,
+                            SCREEN_WIDTH
+                        ));
+                    }
+                }
+
+                if let Some(h) = yaml.height {
+                    if h == 0 {
+                        println!("cargo:warning=⚠️  容器{}高度为0，修正为1", yaml.id);
+                    } else if h > SCREEN_HEIGHT {
+                        return Err(anyhow::anyhow!(
+                            "容器{}高度超限: {} > {}",
+                            yaml.id,
+                            h,
+                            SCREEN_HEIGHT
+                        ));
+                    }
+                }
+
+                let container = LayoutNode::Container(Container {
+                    id: node_id,
+                    #[cfg(debug_assertions)]
+                    id_str: yaml.id.clone(),
+                    layout,
+                    position,
+                    anchor,
+                    direction,
+                    alignment,
+                    vertical_alignment,
+                    children: children_ids,
+                    weight: yaml.weight,
+                    width: yaml.width,
+                    height: yaml.height,
+                    condition,
+                });
+
+                pool.nodes.push((node_id, parent_id, container));
+                Ok(())
+            }
+
+            YamlLayoutNode::Text(yaml) => {
+                let node_id = *node_map.get(&yaml.id).unwrap();
+                let parent_id = *parent_map.get(&node_id).unwrap();
+
+                // 布局类型
+                let layout = match yaml.layout.as_str() {
+                    "absolute" => Layout::Absolute,
+                    _ => Layout::Flow, // 默认flow
+                };
+
+                // 坐标转换
+                let position = yaml.position.map(|pos| Self::convert_coordinate(pos));
+
+                // 字体尺寸解析
+                let font_size = Self::parse_font_size(&yaml.font_size, config)
+                    .with_context(|| format!("文本{}字体尺寸解析失败", yaml.id))?;
+
+                // 对齐解析
+                let alignment = yaml
+                    .alignment
+                    .as_deref()
+                    .map(Alignment::try_from)
+                    .transpose()
+                    .map_err(|e| anyhow::anyhow!("文本{}对齐解析失败: {}", yaml.id, e))?
+                    .unwrap_or(Alignment::Start);
+
+                let vertical_alignment = yaml
+                    .vertical_alignment
+                    .as_deref()
+                    .map(Alignment::try_from)
+                    .transpose()
+                    .map_err(|e| anyhow::anyhow!("文本{}垂直对齐解析失败: {}", yaml.id, e))?
+                    .unwrap_or(Alignment::Start);
+
+                // 条件表达式校验
+                let condition = if let Some(cond) = yaml.condition.clone() {
+                    if cond.len() > MAX_CONDITION_LENGTH {
+                        return Err(anyhow::anyhow!(
+                            "文本{}条件字符串长度超限: {} > {}",
+                            yaml.id,
+                            cond.len(),
+                            MAX_CONDITION_LENGTH
+                        ));
+                    }
+                    validate_condition_expression(&cond)
+                        .with_context(|| format!("文本{}条件表达式语法错误", yaml.id))?;
+                    Some(cond)
+                } else {
+                    None
+                };
+
+                // 内容截断
+                let content = if yaml.content.len() > MAX_CONTENT_LENGTH {
+                    // 按UTF-8完整字符截断
+                    let mut truncated = String::new();
+                    for ch in yaml.content.chars() {
+                        if truncated.len() + ch.len_utf8() > MAX_CONTENT_LENGTH {
+                            break;
+                        }
+                        truncated.push(ch);
+                    }
+                    println!(
+                        "cargo:warning=⚠️  文本{}内容过长，已截断: {} -> {}字符",
+                        yaml.id,
+                        yaml.content.len(),
+                        truncated.len()
+                    );
+                    truncated
+                } else {
+                    yaml.content.clone()
+                };
+
+                // 内容占位符校验
+                validate_content_placeholders(&content)
+                    .with_context(|| format!("文本{}内容占位符格式错误", yaml.id))?;
+
+                // 宽高校验
+                if let Some(w) = yaml.width {
+                    if w == 0 {
+                        println!("cargo:warning=⚠️  文本{}宽度为0，修正为1", yaml.id);
+                    } else if w > SCREEN_WIDTH {
+                        return Err(anyhow::anyhow!(
+                            "文本{}宽度超限: {} > {}",
+                            yaml.id,
+                            w,
+                            SCREEN_WIDTH
+                        ));
+                    }
+                }
+
+                if let Some(h) = yaml.height {
+                    if h == 0 {
+                        println!("cargo:warning=⚠️  文本{}高度为0，修正为1", yaml.id);
+                    } else if h > SCREEN_HEIGHT {
+                        return Err(anyhow::anyhow!(
+                            "文本{}高度超限: {} > {}",
+                            yaml.id,
+                            h,
+                            SCREEN_HEIGHT
+                        ));
+                    }
+                }
+
+                let text = LayoutNode::Text(Text {
+                    id: node_id,
+                    #[cfg(debug_assertions)]
+                    id_str: yaml.id.clone(),
+                    layout,
+                    position,
+                    content,
+                    font_size,
+                    alignment,
+                    vertical_alignment,
+                    max_width: yaml.max_width,
+                    max_height: yaml.max_height,
+                    weight: yaml.weight,
+                    width: yaml.width,
+                    height: yaml.height,
+                    condition,
+                });
+
+                pool.nodes.push((node_id, parent_id, text));
+                Ok(())
+            }
+
+            YamlLayoutNode::Icon(yaml) => {
+                let node_id = *node_map
+                    .get(&yaml.id)
+                    .ok_or_else(|| anyhow::anyhow!("图标节点ID未找到: {}", yaml.id))?;
+                let parent_id = *parent_map.get(&node_id).unwrap_or(&ROOT_PARENT_ID);
+
+                // 布局类型
+                let layout = match yaml.layout.as_str() {
+                    "absolute" => Layout::Absolute,
+                    _ => Layout::Flow, // 默认flow
+                };
+
+                // 坐标转换
+                let position = yaml.position.map(|pos| Self::convert_coordinate(pos));
+
+                // 锚点解析
+                let anchor = if layout == Layout::Absolute {
+                    yaml.anchor
+                        .as_deref()
+                        .map(Anchor::try_from)
+                        .transpose()
+                        .map_err(|e| anyhow::anyhow!("图标{}锚点解析失败: {}", yaml.id, e))?
+                        .or(Some(Anchor::TopLeft))
+                } else {
+                    None // flow布局不需要锚点
+                };
+
+                // 对齐解析
+                let alignment = yaml
+                    .alignment
+                    .as_deref()
+                    .map(Alignment::try_from)
+                    .transpose()
+                    .map_err(|e| anyhow::anyhow!("图标{}对齐解析失败: {}", yaml.id, e))?
+                    .unwrap_or(Alignment::Start);
+
+                let vertical_alignment = yaml
+                    .vertical_alignment
+                    .as_deref()
+                    .map(Alignment::try_from)
+                    .transpose()
+                    .map_err(|e| anyhow::anyhow!("图标{}垂直对齐解析失败: {}", yaml.id, e))?
+                    .unwrap_or(Alignment::Start);
+
+                // 条件表达式校验
+                let condition = if let Some(cond) = yaml.condition.clone() {
+                    if cond.len() > MAX_CONDITION_LENGTH {
+                        return Err(anyhow::anyhow!(
+                            "图标{}条件字符串长度超限: {} > {}",
+                            yaml.id,
+                            cond.len(),
+                            MAX_CONDITION_LENGTH
+                        ));
+                    }
+                    validate_condition_expression(&cond)
+                        .with_context(|| format!("图标{}条件表达式语法错误", yaml.id))?;
+                    Some(cond)
+                } else {
+                    None
+                };
+
+                // icon_id校验
+                validate_icon_id(&yaml.icon_id, config)
+                    .with_context(|| format!("图标{} icon_id校验失败", yaml.id))?;
+
+                // 图标尺寸补充
+                let (width, height) =
+                    Self::parse_icon_size(&yaml.icon_id, yaml.width, yaml.height, config)
+                        .with_context(|| format!("图标{} 尺寸解析失败", yaml.id))?;
+
+                // 权重校验
+                if let Some(weight) = yaml.weight {
+                    if weight < 0.0 {
+                        println!("cargo:warning=⚠️  图标{}权重为负数，修正为0.0", yaml.id);
+                    } else if weight > 10.0 {
+                        println!("cargo:warning=⚠️  图标{}权重大于10.0，修正为10.0", yaml.id);
+                    }
+                }
+
+                let icon = LayoutNode::Icon(Icon {
+                    id: node_id,
+                    #[cfg(debug_assertions)]
+                    id_str: yaml.id.clone(),
+                    layout,
+                    position,
+                    anchor,
+                    icon_id: yaml.icon_id.clone(),
+                    alignment,
+                    vertical_alignment,
+                    weight: yaml.weight,
+                    width: Some(width),
+                    height: Some(height),
+                    condition,
+                });
+
+                pool.nodes.push((node_id, parent_id, icon));
+                Ok(())
+            }
+
+            YamlLayoutNode::Line(yaml) => {
+                let node_id = *node_map
+                    .get(&yaml.id)
+                    .ok_or_else(|| anyhow::anyhow!("线条节点ID未找到: {}", yaml.id))?;
+                let parent_id = *parent_map.get(&node_id).unwrap_or(&ROOT_PARENT_ID);
+
+                // 坐标转换
+                let start = Self::convert_coordinate(yaml.start);
+                let end = Self::convert_coordinate(yaml.end);
+
+                // 条件表达式校验
+                let condition = if let Some(cond) = yaml.condition.clone() {
+                    if cond.len() > MAX_CONDITION_LENGTH {
+                        return Err(anyhow::anyhow!(
+                            "线条{}条件字符串长度超限: {} > {}",
+                            yaml.id,
+                            cond.len(),
+                            MAX_CONDITION_LENGTH
+                        ));
+                    }
+                    validate_condition_expression(&cond)
+                        .with_context(|| format!("线条{}条件表达式语法错误", yaml.id))?;
+                    Some(cond)
+                } else {
+                    None
+                };
+
+                // 厚度校验
+                let thickness = if yaml.thickness == 0 {
+                    println!("cargo:warning=⚠️  线条{}厚度为0，修正为1", yaml.id);
+                    1
+                } else if yaml.thickness > 10 {
+                    println!(
+                        "cargo:warning=⚠️  线条{}厚度过大{}，修正为10",
+                        yaml.id, yaml.thickness
+                    );
+                    10
+                } else {
+                    yaml.thickness
+                };
+
+                let line = LayoutNode::Line(Line {
+                    id: node_id,
+                    #[cfg(debug_assertions)]
+                    id_str: yaml.id.clone(),
+                    thickness,
+                    start,
+                    end,
+                    condition,
+                });
+
+                pool.nodes.push((node_id, parent_id, line));
+                Ok(())
+            }
+
+            YamlLayoutNode::Rectangle(yaml) => {
+                let node_id = *node_map
+                    .get(&yaml.id)
+                    .ok_or_else(|| anyhow::anyhow!("矩形节点ID未找到: {}", yaml.id))?;
+                let parent_id = *parent_map.get(&node_id).unwrap_or(&ROOT_PARENT_ID);
+
+                // 布局类型
+                let layout = match yaml.layout.as_str() {
+                    "absolute" => Layout::Absolute,
+                    _ => Layout::Flow, // 默认flow
+                };
+
+                // 坐标转换
+                let position = yaml.position.map(|pos| Self::convert_coordinate(pos));
+
+                // 锚点解析
+                let anchor = if layout == Layout::Absolute {
+                    yaml.anchor
+                        .as_deref()
+                        .map(Anchor::try_from)
+                        .transpose()
+                        .map_err(|e| anyhow::anyhow!("矩形{}锚点解析失败: {}", yaml.id, e))?
+                        .or(Some(Anchor::TopLeft))
+                } else {
+                    None // flow布局不需要锚点
+                };
+
+                // 条件表达式校验
+                let condition = if let Some(cond) = yaml.condition.clone() {
                     if cond.len() > MAX_CONDITION_LENGTH {
                         return Err(anyhow::anyhow!(
                             "矩形{}条件字符串长度超限: {} > {}",
@@ -655,156 +678,170 @@ impl LayoutBuilder {
                             MAX_CONDITION_LENGTH
                         ));
                     }
-                    validate_condition_syntax(cond)
+                    validate_condition_expression(&cond)
                         .with_context(|| format!("矩形{}条件表达式语法错误", yaml.id))?;
-                    Some(cond.clone())
+                    Some(cond)
                 } else {
                     None
                 };
 
-                let is_absolute = yaml.is_absolute;
-
-                // 解析新布局属性（替代rect）
-                let position = yaml.position.unwrap_or_default();
-                let anchor = yaml
-                    .anchor
-                    .as_deref()
-                    .map(Anchor::try_from)
-                    .transpose()
-                    .map_err(|e| anyhow::anyhow!("矩形{}锚点解析失败: {}", yaml.id, e))?
-                    .unwrap_or_default();
-                let width = yaml.width;
-                let height = yaml.height;
-
-                // 范围校验（区分绝对/相对定位，规则3.4）
-                validate_coordinate(&position, "矩形", &yaml.id, is_absolute)?;
-                if width > MAX_DIMENSION || height > MAX_DIMENSION {
-                    return Err(anyhow::anyhow!(
-                        "矩形{}尺寸超限: 宽{} 高{} (最大{})",
-                        yaml.id,
-                        width,
-                        height,
-                        MAX_DIMENSION
-                    ));
-                }
-
-                // 创建矩形节点（适配新结构）
-                let rectangle = LayoutNode::Rectangle(Rectangle {
-                    id: id.clone(),
-                    position,
-                    anchor,
-                    width,
-                    height,
-                    fill_importance,
-                    stroke_importance,
-                    stroke_thickness, // 使用修正后的厚度
-                    condition,
-                    is_absolute,
-                });
-
-                let node_id = pool.nodes.len() as NodeId;
-                pool.nodes.push(rectangle);
-                Ok(node_id)
-            }
-
-            // ========== 圆形节点处理（适配新布局规则：补充全量字段） ==========
-            YamlLayoutNode::Circle(yaml) => {
-                // ID唯一性+长度校验
-                if !id_set.insert(yaml.id.clone()) {
-                    return Err(anyhow::anyhow!("圆形ID重复: {}", yaml.id));
-                }
-                if yaml.id.len() > MAX_ID_LENGTH {
-                    return Err(anyhow::anyhow!(
-                        "圆形{}ID长度超限: {} > {}",
-                        yaml.id,
-                        yaml.id.len(),
-                        MAX_ID_LENGTH
-                    ));
-                }
-                let id = yaml.id.clone();
-
-                // 描边厚度校验（自动修正，规则4.7）
-                let stroke_thickness = normalize_thickness(yaml.stroke_thickness);
-                validate_thickness(&stroke_thickness)
-                    .with_context(|| format!("圆形{}描边厚度校验失败", yaml.id))?;
-
-                // 半径校验（自动修正，规则3.5.2）
-                let radius = if yaml.radius < MIN_RADIUS {
-                    MIN_RADIUS
-                } else if yaml.radius > MAX_RADIUS {
-                    MAX_RADIUS
-                } else {
-                    yaml.radius
-                };
-
-                // 重要程度解析
-                let fill_importance = yaml
-                    .fill_importance
-                    .as_ref()
-                    .map(|i| Importance::try_from(i.as_str()))
-                    .transpose()
-                    .map_err(|e| anyhow::anyhow!("圆形{}填充重要程度解析失败: {}", yaml.id, e))?;
-
-                let stroke_importance = yaml
-                    .stroke_importance
-                    .as_ref()
-                    .map(|i| Importance::try_from(i.as_str()))
-                    .transpose()
-                    .map_err(|e| anyhow::anyhow!("圆形{}描边重要程度解析失败: {}", yaml.id, e))?;
-
-                // 条件字符串校验（规则2.3/4.3）
-                let condition = if let Some(cond) = &yaml.condition {
-                    if cond.len() > MAX_CONDITION_LENGTH {
+                // 宽高校验
+                let width = if let Some(w) = yaml.width {
+                    if w == 0 {
+                        println!("cargo:warning=⚠️  矩形{}宽度为0，修正为1", yaml.id);
+                        1
+                    } else if w > SCREEN_WIDTH {
                         return Err(anyhow::anyhow!(
-                            "圆形{}条件字符串长度超限: {} > {}",
+                            "矩形{}宽度超限: {} > {}",
                             yaml.id,
-                            cond.len(),
-                            MAX_CONDITION_LENGTH
+                            w,
+                            SCREEN_WIDTH
                         ));
+                    } else {
+                        w
                     }
-                    validate_condition_syntax(cond)
-                        .with_context(|| format!("圆形{}条件表达式语法错误", yaml.id))?;
-                    Some(cond.clone())
                 } else {
-                    None
+                    return Err(anyhow::anyhow!("矩形{}必须指定宽度", yaml.id));
                 };
 
-                let is_absolute = yaml.is_absolute;
+                let height = if let Some(h) = yaml.height {
+                    if h == 0 {
+                        println!("cargo:warning=⚠️  矩形{}高度为0，修正为1", yaml.id);
+                        1
+                    } else if h > SCREEN_HEIGHT {
+                        return Err(anyhow::anyhow!(
+                            "矩形{}高度超限: {} > {}",
+                            yaml.id,
+                            h,
+                            SCREEN_HEIGHT
+                        ));
+                    } else {
+                        h
+                    }
+                } else {
+                    return Err(anyhow::anyhow!("矩形{}必须指定高度", yaml.id));
+                };
 
-                // 解析新布局属性（替代center）
-                let position = yaml.position.unwrap_or_default();
-                let anchor = yaml
-                    .anchor
-                    .as_deref()
-                    .map(Anchor::try_from)
-                    .transpose()
-                    .map_err(|e| anyhow::anyhow!("圆形{}锚点解析失败: {}", yaml.id, e))?
-                    .unwrap_or(Anchor::Center); // 圆形默认锚点为中心
+                // 描边厚度校验
+                let thickness = if yaml.thickness == 0 {
+                    println!("cargo:warning=⚠️  矩形{}描边厚度为0，修正为1", yaml.id);
+                    1
+                } else if yaml.thickness > 10 {
+                    println!(
+                        "cargo:warning=⚠️  矩形{}描边厚度过大{}，修正为10",
+                        yaml.id, yaml.thickness
+                    );
+                    10
+                } else {
+                    yaml.thickness
+                };
 
-                // 绝对坐标校验（规则3.4）
-                validate_coordinate(&position, "圆形", &yaml.id, is_absolute)?;
-
-                // 创建圆形节点（适配新结构）
-                let circle = LayoutNode::Circle(Circle {
-                    id: id.clone(),
+                let rectangle = LayoutNode::Rectangle(Rectangle {
+                    id: node_id,
+                    #[cfg(debug_assertions)]
+                    id_str: yaml.id.clone(),
+                    layout,
                     position,
                     anchor,
-                    radius, // 使用修正后的半径
-                    fill_importance,
-                    stroke_importance,
-                    stroke_thickness, // 使用修正后的厚度
+                    width: Some(width),
+                    height: Some(height),
+                    thickness,
                     condition,
-                    is_absolute,
                 });
 
-                let node_id = pool.nodes.len() as NodeId;
-                pool.nodes.push(circle);
-                Ok(node_id)
+                pool.nodes.push((node_id, parent_id, rectangle));
+                Ok(())
             }
         }
     }
 
-    /// 生成布局RS文件（直接构造LayoutPool实例）
+    /// 坐标转换：i16运算坐标 → u16绝对坐标
+    fn convert_coordinate(coord: [i16; 2]) -> [u16; 2] {
+        [
+            coord[0].max(0).min(SCREEN_WIDTH as i16) as u16,
+            coord[1].max(0).min(SCREEN_HEIGHT as i16) as u16,
+        ]
+    }
+
+    /// 解析字体尺寸
+    fn parse_font_size(font_size: &str, config: &BuildConfig) -> Result<FontSize> {
+        // 查找匹配的字体尺寸配置
+        for fs_config in &config.font_size_configs {
+            if fs_config.name.to_lowercase() == font_size.to_lowercase() {
+                return Ok(fs_config.name.clone());
+            }
+        }
+        // 未找到，使用第一个配置
+        if let Some(first) = config.font_size_configs.first() {
+            println!(
+                "cargo:warning=⚠️  字体尺寸'{}'未找到，使用默认'{}'",
+                font_size, first.name
+            );
+            return Ok(first.name.clone());
+        }
+        Err(anyhow::anyhow!("没有可用的字体尺寸配置"))
+    }
+
+    /// 解析图标尺寸
+    fn parse_icon_size(
+        icon_id: &str,
+        width: Option<u16>,
+        height: Option<u16>,
+        config: &BuildConfig,
+    ) -> Result<(u16, u16)> {
+        // 如果已设置宽高，直接使用
+        if let (Some(w), Some(h)) = (width, height) {
+            if w == 0 || h == 0 {
+                return Err(anyhow::anyhow!("图标宽高不能为0: {}x{}", w, h));
+            }
+            return Ok((w, h));
+        }
+
+        // 解析icon_id格式：{模块}:{键}
+        let parts: Vec<&str> = icon_id.split(':').collect();
+        if parts.len() != 2 {
+            return Err(anyhow::anyhow!(
+                "icon_id格式错误，应为{{模块}}:{{键}}: {}",
+                icon_id
+            ));
+        }
+
+        let module = parts[0];
+
+        // 查找匹配的图标分类配置
+        for category in &config.icon_categories {
+            if category.category == module {
+                if category.width == 0 || category.height == 0 {
+                    return Err(anyhow::anyhow!(
+                        "图标分类'{}'的宽高配置错误: {}x{}",
+                        category.category,
+                        category.width,
+                        category.height
+                    ));
+                }
+                return Ok((category.width, category.height));
+            }
+        }
+
+        // 检查是否为天气图标
+        if module == "weather" {
+            if config.weather_icon_config.width == 0 || config.weather_icon_config.height == 0 {
+                return Err(anyhow::anyhow!(
+                    "天气图标宽高配置错误: {}x{}",
+                    config.weather_icon_config.width,
+                    config.weather_icon_config.height
+                ));
+            }
+            return Ok((
+                config.weather_icon_config.width,
+                config.weather_icon_config.height,
+            ));
+        }
+
+        Err(anyhow::anyhow!("未找到图标模块'{}'的尺寸配置", module))
+    }
+
+    /// 生成布局RS文件
     fn write_layout_rs_file(config: &BuildConfig, pool: &LayoutPool) -> Result<()> {
         let output_dir = &config.output_dir;
         fs::create_dir_all(output_dir)
@@ -819,43 +856,51 @@ impl LayoutBuilder {
         Ok(())
     }
 
-    /// 生成布局RS代码（适配新布局规则：补充全量字段）
+    /// 生成布局RS代码
     fn generate_layout_rs_code(pool: &LayoutPool) -> Result<String> {
         let mut code = String::new();
 
         // ========== 1. 头部注释 + 导入 ==========
         code.push_str("//! 自动生成的布局数据（编译期生成，运行时只读）\n");
-        code.push_str("//! 不要手动修改此文件\n");
-        code.push('\n');
-        code.push_str("use crate::kernel::render::layout::nodes::*;\n");
-        code.push('\n');
-        code.push_str("// ========== 静态常量定义（运行时不可修改） ==========\n");
-        code.push('\n');
+        code.push_str("//! 不要手动修改此文件\n\n");
 
-        // ========== 2. 生成布局节点数组（核心） ==========
-        code.push_str("/// 所有布局节点静态数组\n");
+        code.push_str("#![allow(dead_code)]\n");
+        code.push_str("#![allow(unused_imports)]\n\n");
+
+        code.push_str("use crate::kernel::render::layout::nodes::*;\n");
+
+        // ========== 3. 生成布局节点数组 ==========
+        code.push_str("// ========== 布局节点静态数组 ==========\n");
         code.push_str("#[rustfmt::skip]\n");
-        code.push_str("static LAYOUT_NODES: &[LayoutNode] = &[\n");
+        code.push_str("static LAYOUT_NODES: &[(NodeId, NodeId, LayoutNode)] = &[\n");
+
+        // 按node_id排序，确保顺序一致
+        let mut sorted_nodes = pool.nodes.clone();
+        sorted_nodes.sort_by_key(|(node_id, _, _)| *node_id);
 
         // 遍历所有节点生成代码
-        for node in &pool.nodes {
-            let node_code = Self::layout_node_to_code(node)?;
+        for (node_id, parent_id, node) in &sorted_nodes {
+            let node_code = Self::layout_node_to_code(node_id, parent_id, node)?;
             code.push_str(&node_code);
             code.push_str(",\n");
         }
 
-        code.push_str("];\n");
-        code.push('\n');
+        code.push_str("];\n\n");
 
-        // ========== 4. 生成全局布局池 ==========
+        // ========== 4. 生成根节点ID常量 ==========
+        code.push_str("// ========== 根节点标识 ==========\n");
+        code.push_str(&format!(
+            "pub const ROOT_NODE_ID: NodeId = {};\n\n",
+            pool.root_node_id
+        ));
+
+        // ========== 5. 生成全局布局池 ==========
         code.push_str("// ========== 全局布局池（运行时只读） ==========\n");
-        code.push('\n');
-        code.push_str("/// 预构建的全局布局池\n");
         code.push_str("pub static MAIN_LAYOUT_POOL: LayoutPool = LayoutPool {\n");
         code.push_str(&format!("    root_node_id: {},\n", pool.root_node_id));
         code.push_str("    nodes: LAYOUT_NODES,\n");
-        code.push_str("};\n");
-        code.push('\n');
+        code.push_str("};\n\n");
+
         code.push_str("/// 获取全局布局池（运行时直接使用）\n");
         code.push_str("pub fn get_global_layout_pool() -> &'static LayoutPool {\n");
         code.push_str("    &MAIN_LAYOUT_POOL\n");
@@ -864,269 +909,199 @@ impl LayoutBuilder {
         Ok(code)
     }
 
-    /// 将LayoutNode转换为RS代码字面量（适配新布局规则：补充全量字段）
-    fn layout_node_to_code(node: &LayoutNode) -> Result<String> {
+    /// 将LayoutNode转换为RS代码字面量
+    fn layout_node_to_code(
+        node_id: &NodeId,
+        parent_id: &NodeId,
+        node: &LayoutNode,
+    ) -> Result<String> {
         let mut code = String::new();
+
+        // 开始元组
+        code.push_str(&format!("({}, {}, ", node_id, parent_id));
 
         match node {
             LayoutNode::Container(container) => {
-                // ========== 容器节点（适配新属性） ==========
                 code.push_str("LayoutNode::Container(Container {\n");
-                code.push_str(&format!("    id: \"{}\",\n", container.id));
-                code.push_str(&format!("    position: {:?},\n", container.position));
+                code.push_str(&format!("    id: {},\n", container.id));
+                #[cfg(debug_assertions)]
+                {
+                    code.push_str(&format!("    id_str: \"{}\",\n", container.id_str));
+                }
                 code.push_str(&format!(
-                    "    anchor: Anchor::{},\n",
-                    anchor_to_code(&container.anchor)
+                    "    layout: Layout::{},\n",
+                    match container.layout {
+                        Layout::Flow => "Flow",
+                        Layout::Absolute => "Absolute",
+                    }
                 ));
-                code.push_str(&format!("    width: {:?},\n", container.width));
-                code.push_str(&format!("    height: {:?},\n", container.height));
-
-                // 内联子节点数组
+                code.push_str(&format!("    position: {:?},\n", container.position));
+                code.push_str(&format!("    anchor: {:?},\n", container.anchor));
+                code.push_str(&format!(
+                    "    direction: Direction::{},\n",
+                    match container.direction {
+                        Direction::Horizontal => "Horizontal",
+                        Direction::Vertical => "Vertical",
+                    }
+                ));
+                code.push_str(&format!(
+                    "    alignment: Alignment::{},\n",
+                    match container.alignment {
+                        Alignment::Start => "Start",
+                        Alignment::Center => "Center",
+                        Alignment::End => "End",
+                    }
+                ));
+                code.push_str(&format!(
+                    "    vertical_alignment: Alignment::{},\n",
+                    match container.vertical_alignment {
+                        Alignment::Start => "Start",
+                        Alignment::Center => "Center",
+                        Alignment::End => "End",
+                    }
+                ));
                 code.push_str("    children: &[\n");
-                for child in &container.children {
-                    code.push_str("        ChildLayout {\n");
-                    code.push_str(&format!("            node_id: {},\n", child.node_id));
-                    code.push_str(&format!("            weight: {:.1},\n", child.weight));
-                    code.push_str(&format!(
-                        "            is_absolute: {},\n",
-                        child.is_absolute
-                    ));
-                    code.push_str("        },\n");
+                for child_id in container.children.iter() {
+                    code.push_str(&format!("        {},\n", child_id));
                 }
                 code.push_str("    ],\n");
-
-                // 容器其他属性
-                code.push_str(&format!(
-                    "    condition: {},\n",
-                    condition_to_code(&container.condition)
-                ));
-                code.push_str(&format!(
-                    "    direction: ContainerDirection::{},\n",
-                    direction_to_code(&container.direction)
-                ));
-                code.push_str(&format!(
-                    "    alignment: TextAlignment::{},\n",
-                    alignment_to_code(&container.alignment)
-                ));
-                code.push_str(&format!(
-                    "    vertical_alignment: VerticalAlignment::{},\n",
-                    vertical_alignment_to_code(&container.vertical_alignment)
-                ));
+                code.push_str(&format!("    weight: {:?},\n", container.weight));
+                code.push_str(&format!("    width: {:?},\n", container.width));
+                code.push_str(&format!("    height: {:?},\n", container.height));
+                code.push_str(&format!("    condition: {:?},\n", container.condition));
                 code.push_str("})");
             }
 
             LayoutNode::Text(text) => {
-                // ========== 文本节点（适配新属性） ==========
                 code.push_str("LayoutNode::Text(Text {\n");
-                code.push_str(&format!("    id: \"{}\",\n", text.id));
-                code.push_str(&format!("    position: {:?},\n", text.position));
+                code.push_str(&format!("    id: {},\n", text.id));
+                #[cfg(debug_assertions)]
+                {
+                    code.push_str(&format!("    id_str: \"{}\",\n", text.id_str));
+                }
                 code.push_str(&format!(
-                    "    anchor: Anchor::{},\n",
-                    anchor_to_code(&text.anchor)
+                    "    layout: Layout::{},\n",
+                    match text.layout {
+                        Layout::Flow => "Flow",
+                        Layout::Absolute => "Absolute",
+                    }
                 ));
-                code.push_str(&format!("    width: {:?},\n", text.width));
-                code.push_str(&format!("    height: {:?},\n", text.height));
+                code.push_str(&format!("    position: {:?},\n", text.position));
                 code.push_str(&format!(
                     "    content: \"{}\",\n",
                     text.content.replace('"', "\\\"")
                 ));
                 code.push_str(&format!("    font_size: FontSize::{},\n", text.font_size));
                 code.push_str(&format!(
-                    "    alignment: TextAlignment::{},\n",
-                    alignment_to_code(&text.alignment)
+                    "    alignment: Alignment::{},\n",
+                    match text.alignment {
+                        Alignment::Start => "Start",
+                        Alignment::Center => "Center",
+                        Alignment::End => "End",
+                    }
                 ));
                 code.push_str(&format!(
-                    "    vertical_alignment: VerticalAlignment::{},\n",
-                    vertical_alignment_to_code(&text.vertical_alignment)
+                    "    vertical_alignment: Alignment::{},\n",
+                    match text.vertical_alignment {
+                        Alignment::Start => "Start",
+                        Alignment::Center => "Center",
+                        Alignment::End => "End",
+                    }
                 ));
                 code.push_str(&format!("    max_width: {:?},\n", text.max_width));
-                code.push_str(&format!("    max_lines: {:?},\n", text.max_lines));
-                code.push_str(&format!(
-                    "    condition: {},\n",
-                    condition_to_code(&text.condition)
-                ));
-                code.push_str(&format!("    is_absolute: {},\n", text.is_absolute));
-                code.push_str(&format!("    weight: {:.1},\n", text.weight));
+                code.push_str(&format!("    max_height: {:?},\n", text.max_height));
+                code.push_str(&format!("    weight: {:?},\n", text.weight));
+                code.push_str(&format!("    width: {:?},\n", text.width));
+                code.push_str(&format!("    height: {:?},\n", text.height));
+                code.push_str(&format!("    condition: {:?},\n", text.condition));
                 code.push_str("})");
             }
 
             LayoutNode::Icon(icon) => {
-                // ========== 图标节点（适配新属性） ==========
                 code.push_str("LayoutNode::Icon(Icon {\n");
-                code.push_str(&format!("    id: \"{}\",\n", icon.id));
-                code.push_str(&format!("    position: {:?},\n", icon.position));
+                code.push_str(&format!("    id: {},\n", icon.id));
+                #[cfg(debug_assertions)]
+                {
+                    code.push_str(&format!("    id_str: \"{}\",\n", icon.id_str));
+                }
                 code.push_str(&format!(
-                    "    anchor: Anchor::{},\n",
-                    anchor_to_code(&icon.anchor)
+                    "    layout: Layout::{},\n",
+                    match icon.layout {
+                        Layout::Flow => "Flow",
+                        Layout::Absolute => "Absolute",
+                    }
                 ));
-                code.push_str(&format!("    width: {:?},\n", icon.width));
-                code.push_str(&format!("    height: {:?},\n", icon.height));
+                code.push_str(&format!("    position: {:?},\n", icon.position));
+                code.push_str(&format!("    anchor: {:?},\n", icon.anchor));
                 code.push_str(&format!(
                     "    icon_id: \"{}\",\n",
                     icon.icon_id.replace('"', "\\\"")
                 ));
                 code.push_str(&format!(
-                    "    importance: {},\n",
-                    importance_to_code(&icon.importance)
+                    "    alignment: Alignment::{},\n",
+                    match icon.alignment {
+                        Alignment::Start => "Start",
+                        Alignment::Center => "Center",
+                        Alignment::End => "End",
+                    }
                 ));
                 code.push_str(&format!(
-                    "    condition: {},\n",
-                    condition_to_code(&icon.condition)
+                    "    vertical_alignment: Alignment::{},\n",
+                    match icon.vertical_alignment {
+                        Alignment::Start => "Start",
+                        Alignment::Center => "Center",
+                        Alignment::End => "End",
+                    }
                 ));
-                code.push_str(&format!("    is_absolute: {},\n", icon.is_absolute));
-                code.push_str(&format!(
-                    "    alignment: TextAlignment::{},\n",
-                    alignment_to_code(&icon.alignment)
-                ));
-                code.push_str(&format!(
-                    "    vertical_alignment: VerticalAlignment::{},\n",
-                    vertical_alignment_to_code(&icon.vertical_alignment)
-                ));
-                code.push_str(&format!("    weight: {:.1},\n", icon.weight));
+                code.push_str(&format!("    weight: {:?},\n", icon.weight));
+                code.push_str(&format!("    width: {:?},\n", icon.width));
+                code.push_str(&format!("    height: {:?},\n", icon.height));
+                code.push_str(&format!("    condition: {:?},\n", icon.condition));
                 code.push_str("})");
             }
 
             LayoutNode::Line(line) => {
-                // ========== 线条节点（补充新字段） ==========
                 code.push_str("LayoutNode::Line(Line {\n");
-                code.push_str(&format!("    id: \"{}\",\n", line.id));
+                code.push_str(&format!("    id: {},\n", line.id));
+                #[cfg(debug_assertions)]
+                {
+                    code.push_str(&format!("    id_str: \"{}\",\n", line.id_str));
+                }
+                code.push_str(&format!("    thickness: {},\n", line.thickness));
                 code.push_str(&format!("    start: {:?},\n", line.start));
                 code.push_str(&format!("    end: {:?},\n", line.end));
-                code.push_str(&format!("    thickness: {},\n", line.thickness));
-                code.push_str(&format!(
-                    "    importance: {},\n",
-                    importance_to_code(&line.importance)
-                ));
-                code.push_str(&format!(
-                    "    condition: {},\n",
-                    condition_to_code(&line.condition)
-                ));
-                code.push_str(&format!("    is_absolute: {},\n", line.is_absolute));
+                code.push_str(&format!("    condition: {:?},\n", line.condition));
                 code.push_str("})");
             }
 
             LayoutNode::Rectangle(rect) => {
-                // ========== 矩形节点（补充新字段） ==========
                 code.push_str("LayoutNode::Rectangle(Rectangle {\n");
-                code.push_str(&format!("    id: \"{}\",\n", rect.id));
+                code.push_str(&format!("    id: {},\n", rect.id));
+                #[cfg(debug_assertions)]
+                {
+                    code.push_str(&format!("    id_str: \"{}\",\n", rect.id_str));
+                }
+                code.push_str(&format!(
+                    "    layout: Layout::{},\n",
+                    match rect.layout {
+                        Layout::Flow => "Flow",
+                        Layout::Absolute => "Absolute",
+                    }
+                ));
                 code.push_str(&format!("    position: {:?},\n", rect.position));
-                code.push_str(&format!(
-                    "    anchor: Anchor::{},\n",
-                    anchor_to_code(&rect.anchor)
-                ));
-                code.push_str(&format!("    width: {},\n", rect.width));
-                code.push_str(&format!("    height: {},\n", rect.height));
-                code.push_str(&format!(
-                    "    fill_importance: {},\n",
-                    importance_to_code(&rect.fill_importance)
-                ));
-                code.push_str(&format!(
-                    "    stroke_importance: {},\n",
-                    importance_to_code(&rect.stroke_importance)
-                ));
-                code.push_str(&format!(
-                    "    stroke_thickness: {},\n",
-                    rect.stroke_thickness
-                ));
-                code.push_str(&format!(
-                    "    condition: {},\n",
-                    condition_to_code(&rect.condition)
-                ));
-                code.push_str(&format!("    is_absolute: {},\n", rect.is_absolute));
-                code.push_str("})");
-            }
-
-            LayoutNode::Circle(circle) => {
-                // ========== 圆形节点（补充新字段） ==========
-                code.push_str("LayoutNode::Circle(Circle {\n");
-                code.push_str(&format!("    id: \"{}\",\n", circle.id));
-                code.push_str(&format!("    position: {:?},\n", circle.position));
-                code.push_str(&format!(
-                    "    anchor: Anchor::{},\n",
-                    anchor_to_code(&circle.anchor)
-                ));
-                code.push_str(&format!("    radius: {},\n", circle.radius));
-                code.push_str(&format!(
-                    "    fill_importance: {},\n",
-                    importance_to_code(&circle.fill_importance)
-                ));
-                code.push_str(&format!(
-                    "    stroke_importance: {},\n",
-                    importance_to_code(&circle.stroke_importance)
-                ));
-                code.push_str(&format!(
-                    "    stroke_thickness: {},\n",
-                    circle.stroke_thickness
-                ));
-                code.push_str(&format!(
-                    "    condition: {},\n",
-                    condition_to_code(&circle.condition)
-                ));
-                code.push_str(&format!("    is_absolute: {},\n", circle.is_absolute));
+                code.push_str(&format!("    anchor: {:?},\n", rect.anchor));
+                code.push_str(&format!("    width: {:?},\n", rect.width));
+                code.push_str(&format!("    height: {:?},\n", rect.height));
+                code.push_str(&format!("    thickness: {},\n", rect.thickness));
+                code.push_str(&format!("    condition: {:?},\n", rect.condition));
                 code.push_str("})");
             }
         }
 
+        // 结束元组
+        code.push_str(")");
+
         Ok(code)
-    }
-}
-
-// ==================== 辅助函数（代码生成） ====================
-fn anchor_to_code(anchor: &Anchor) -> &str {
-    match anchor {
-        Anchor::TopLeft => "TopLeft",
-        Anchor::TopCenter => "TopCenter",
-        Anchor::TopRight => "TopRight",
-        Anchor::CenterLeft => "CenterLeft",
-        Anchor::Center => "Center",
-        Anchor::CenterRight => "CenterRight",
-        Anchor::BottomLeft => "BottomLeft",
-        Anchor::BottomCenter => "BottomCenter",
-        Anchor::BottomRight => "BottomRight",
-    }
-}
-
-fn alignment_to_code(alignment: &TextAlignment) -> &str {
-    match alignment {
-        TextAlignment::Left => "Left",
-        TextAlignment::Center => "Center",
-        TextAlignment::Right => "Right",
-    }
-}
-
-fn vertical_alignment_to_code(alignment: &VerticalAlignment) -> &str {
-    match alignment {
-        VerticalAlignment::Top => "Top",
-        VerticalAlignment::Center => "Center",
-        VerticalAlignment::Bottom => "Bottom",
-    }
-}
-
-fn direction_to_code(direction: &ContainerDirection) -> &str {
-    match direction {
-        ContainerDirection::Horizontal => "Horizontal",
-        ContainerDirection::Vertical => "Vertical",
-    }
-}
-
-fn importance_to_code(importance: &Option<Importance>) -> String {
-    match importance {
-        Some(imp) => format!(
-            "Some(Importance::{})",
-            match imp {
-                Importance::Normal => "Normal",
-                Importance::Warning => "Warning",
-                Importance::Critical => "Critical",
-            }
-        ),
-        None => "None".to_string(),
-    }
-}
-
-fn condition_to_code(condition: &Option<Condition>) -> String {
-    match condition {
-        Some(cond) => format!("Some(\"{}\")", cond.replace('"', "\\\"")),
-        None => "None".to_string(),
     }
 }
 

@@ -15,12 +15,12 @@ use std::path::Path;
 #[derive(Debug, Clone)]
 pub struct FontSizeConfig {
     pub name: String, // 字体名称，如 "Small", "Medium", "Large"
-    pub size: u32,    // 字体高度（像素）
+    pub size: u16,    // 字体高度（像素）
 }
 
 impl FontSizeConfig {
     /// 创建新的字体尺寸配置
-    pub fn new(name: &str, size: u32) -> Self {
+    pub fn new(name: &str, size: u16) -> Self {
         Self {
             name: name.to_string(),
             size,
@@ -151,7 +151,7 @@ fn render_font_bitmap(
 ) -> Result<FontBitmap> {
     let font_render_config = FontConfig {
         font_path: config.font_path.to_string_lossy().to_string(),
-        font_size: font_config.size,
+        font_size: font_config.size as u32,
         chars: chars.to_vec(),
     };
 

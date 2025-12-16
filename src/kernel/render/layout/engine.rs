@@ -14,13 +14,6 @@ use alloc::vec::Vec;
 use embedded_graphics::draw_target::DrawTarget;
 use epd_waveshare::color::QuadColor;
 
-// 布局计算常量（需与 shared/layout_types.rs 保持一致）
-const MIN_WEIGHT: f32 = 0.0001;
-const MIN_THICKNESS: u16 = 1;
-const MAX_THICKNESS: u16 = 3;
-const SCREEN_WIDTH: u16 = 800;
-const SCREEN_HEIGHT: u16 = 480;
-
 /// 渲染引擎
 pub struct RenderEngine {
     /// 文本渲染器
@@ -174,7 +167,7 @@ impl RenderEngine {
         let mut max_h = 0;
 
         match container.direction {
-            ContainerDirection::Horizontal => {
+            Direction::Horizontal => {
                 // 水平布局：宽度=最右子节点x+宽度，高度=子节点最大高度
                 let mut total_width = 0;
                 for child in &container.children {
@@ -196,7 +189,7 @@ impl RenderEngine {
                 }
                 max_w = total_width;
             }
-            ContainerDirection::Vertical => {
+            Direction::Vertical => {
                 // 垂直布局：高度=最底子节点y+高度，宽度=子节点最大宽度
                 let mut total_height = 0;
                 for child in &container.children {
@@ -236,7 +229,7 @@ impl RenderEngine {
 
         match container.direction {
             // 水平布局：按权重分配宽度，适配锚点对齐
-            ContainerDirection::Horizontal => {
+            Direction::Horizontal => {
                 // 1. 计算总权重（默认1.0）
                 let total_weight: f32 = container
                     .children
@@ -293,7 +286,7 @@ impl RenderEngine {
             }
 
             // 垂直布局：按权重分配高度，适配锚点对齐
-            ContainerDirection::Vertical => {
+            Direction::Vertical => {
                 // 1. 计算总权重（默认1.0）
                 let total_weight: f32 = container
                     .children
