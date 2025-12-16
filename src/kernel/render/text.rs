@@ -1,3 +1,4 @@
+use alloc::format;
 use embedded_graphics::{
     draw_target::DrawTarget,
     prelude::{Pixel, Point},
@@ -5,7 +6,7 @@ use embedded_graphics::{
 use epd_waveshare::color::QuadColor;
 use heapless::Vec;
 
-use crate::kernel::render::layout::nodes::*;
+use crate::kernel::{data::DynamicValue, render::layout::nodes::*};
 use crate::{
     common::error::{AppError, Result},
     kernel::data::{DataSourceRegistry, types::HeaplessString},

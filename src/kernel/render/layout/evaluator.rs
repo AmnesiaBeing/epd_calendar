@@ -2,6 +2,7 @@
 //! 实现对布局文件中条件表达式和变量占位符的解析和评估
 
 use alloc::string::String;
+use alloc::vec::Vec;
 
 // 导入类型别名
 use crate::kernel::data::types::{CacheKeyValueMap, DynamicValue};
@@ -20,21 +21,52 @@ impl ExpressionEvaluator {
         Self {}
     }
 
-    /// 评估条件表达式
-    pub fn evaluate_condition(&self, condition: &str, _data: &DataSourceRegistry) -> Result<bool> {
+    /// 评估条件表达式（返回布尔值）
+    pub fn evaluate_condition(
+        &self,
+        condition: &str,
+        data: &DataSourceRegistry,
+        cache: &CacheKeyValueMap,
+    ) -> Result<bool> {
         log::debug!("Evaluating condition: '{}'", condition);
+        // 简化实现：仅支持 变量 比较运算符 值 的格式
+        // 完整实现需解析AST，此处适配嵌入式简化需求
+        let condition = condition.trim();
         if condition.is_empty() {
-            log::debug!("Empty condition, returning true");
-            return Ok(true);
+            return Ok(true); // 空条件视为true
         }
 
-        // 简单实现：仅支持变量引用和基本比较
-        // TODO: 实现完整的表达式解析器
-        Ok(true)
+        // 拆分表达式（如 "{a} == 10"）
+        let parts: Vec<&str> = condition
+            .split(|c| c == '>' || c == '<' || c == '=' || c == '!' || c == '&' || c == '|')
+            .collect();
+        if parts.len() < 2 {
+            return Err(AppError::InvalidSyntax);
+        }
+
+        // 解析左值（变量）
+        let left_part = parts[0].trim();
+        let left_value = if left_part.starts_with('{') && left_part.ends_with('}') {
+            let var_path = left_part.trim_matches(|c| c == '{' || c == '}');
+            self.get_variable_value(data, cache, var_path)
+                .map_err(|_| AppError::InvalidVariable)?
+        } else {
+            return Err(AppError::InvalidSyntax);
+        };
+
+        // 解析右值（常量）
+        let right_part = parts[1].trim();
+        let right_value = self.parse_constant(right_part)?;
+
+        // 解析运算符
+        let op = self.extract_operator(condition)?;
+
+        // 执行比较
+        self.compare_values(&left_value, op, &right_value)
     }
 
     /// 替换占位符并计算最终内容
-    pub fn replace_placeholders(
+    pub fn evaluate_content(
         &self,
         data: &DataSourceRegistry,
         cache: &CacheKeyValueMap,
@@ -80,6 +112,122 @@ impl ExpressionEvaluator {
         }
 
         Ok(result)
+    }
+
+    /// 解析变量引用（处理嵌套≤2层）
+    fn parse_variable(
+        &self,
+        chars: &mut core::iter::Peekable<core::str::Chars<'_>>,
+        depth: u8,
+    ) -> Result<String> {
+        // 检查嵌套层级
+        if depth > 2 {
+            return Err(AppError::NestedTooDeep);
+        }
+
+        let mut var_path = String::new();
+        while let Some(&c) = chars.peek() {
+            if c == '}' {
+                chars.next(); // 跳过闭合花括号
+                return Ok(var_path);
+            } else if c == '{' {
+                // 嵌套变量
+                chars.next(); // 跳过开括号
+                let nested_var = self.parse_variable(chars, depth + 1)?;
+                var_path.push_str(&nested_var);
+            } else {
+                // 检查花括号内是否有非法运算符
+                if ['+', '-', '*', '/', '%', '?'].contains(&c) {
+                    return Err(AppError::UnsupportedOp);
+                }
+                var_path.push(c);
+                chars.next();
+            }
+        }
+
+        Err(AppError::InvalidSyntax)
+    }
+
+    /// 解析常量值
+    fn parse_constant(&self, s: &str) -> Result<DynamicValue> {
+        if s.is_empty() {
+            return Ok(DynamicValue::String(HeaplessString::new()));
+        }
+
+        // 布尔值
+        if s == "true" {
+            return Ok(DynamicValue::Boolean(true));
+        }
+        if s == "false" {
+            return Ok(DynamicValue::Boolean(false));
+        }
+
+        // 整数
+        if let Ok(i) = s.parse::<i32>() {
+            return Ok(DynamicValue::Integer(i));
+        }
+
+        // 浮点数
+        if let Ok(fl) = s.parse::<f32>() {
+            return Ok(DynamicValue::Float(fl));
+        }
+
+        // 字符串（去除引号）
+        let s_trimmed = s.trim_matches(|c| c == '"' || c == '\'');
+        let mut str_val = HeaplessString::<CONTENT_LENGTH>::new();
+        str_val
+            .extend(s_trimmed.chars())
+            .map_err(|_| AppError::TooLong)?;
+        Ok(DynamicValue::String(str_val))
+    }
+
+    /// 提取运算符
+    fn extract_operator(&self, expr: &str) -> Result<&str> {
+        // 支持的运算符
+        let ops = ["==", "!=", ">", "<", ">=", "<=", "&&", "||", "!"];
+        for op in ops {
+            if expr.contains(op) {
+                return Ok(op);
+            }
+        }
+        Err(AppError::UnsupportedOp)
+    }
+
+    /// 比较两个值
+    fn compare_values(&self, left: &DynamicValue, op: &str, right: &DynamicValue) -> Result<bool> {
+        match (left, op, right) {
+            // 布尔比较
+            (DynamicValue::Boolean(l), "==", DynamicValue::Boolean(r)) => Ok(l == r),
+            (DynamicValue::Boolean(l), "!=", DynamicValue::Boolean(r)) => Ok(l != r),
+
+            // 整数比较
+            (DynamicValue::Integer(l), "==", DynamicValue::Integer(r)) => Ok(l == r),
+            (DynamicValue::Integer(l), "!=", DynamicValue::Integer(r)) => Ok(l != r),
+            (DynamicValue::Integer(l), ">", DynamicValue::Integer(r)) => Ok(l > r),
+            (DynamicValue::Integer(l), "<", DynamicValue::Integer(r)) => Ok(l < r),
+            (DynamicValue::Integer(l), ">=", DynamicValue::Integer(r)) => Ok(l >= r),
+            (DynamicValue::Integer(l), "<=", DynamicValue::Integer(r)) => Ok(l <= r),
+
+            // 浮点数比较
+            (DynamicValue::Float(l), "==", DynamicValue::Float(r)) => Ok((l - r).abs() < 0.01),
+            (DynamicValue::Float(l), "!=", DynamicValue::Float(r)) => Ok((l - r).abs() >= 0.01),
+            (DynamicValue::Float(l), ">", DynamicValue::Float(r)) => Ok(l > r),
+            (DynamicValue::Float(l), "<", DynamicValue::Float(r)) => Ok(l < r),
+
+            // 字符串比较
+            (DynamicValue::String(l), "==", DynamicValue::String(r)) => Ok(l == r),
+            (DynamicValue::String(l), "!=", DynamicValue::String(r)) => Ok(l != r),
+
+            // 存在性检查（空字符串）
+            (DynamicValue::String(l), "!=", DynamicValue::String(r)) if r.is_empty() => {
+                Ok(!l.is_empty())
+            }
+            (DynamicValue::String(l), "==", DynamicValue::String(r)) if r.is_empty() => {
+                Ok(l.is_empty())
+            }
+
+            _ => Err(AppError::TypeMismatch),
+        }
     }
 
     /// 评估单个占位符
