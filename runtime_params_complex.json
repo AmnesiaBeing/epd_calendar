@@ -1,0 +1,246 @@
+{
+  "root_size": {
+    "width": 800,
+    "height": 480
+  },
+  "static_elements": [
+    {
+      "type": "empty_box",
+      "name": "static_empty_box",
+      "class": "static-empty-box",
+      "pos": {
+        "x": 55.0,
+        "y": 10.0,
+        "width": 200.0,
+        "height": 60.0
+      },
+      "style": {
+        "border_width": 2.0,
+        "border_style": "solid",
+        "display": "block"
+      }
+    },
+    {
+      "type": "text",
+      "name": "static_text_1",
+      "class": "static-text-1",
+      "pos": {
+        "x": 55.0,
+        "y": 75.0,
+        "width": 200.0,
+        "height": 40.0
+      },
+      "content": "静态文字1：嵌套5+层，固定内容不变化，换行测试",
+      "style": {
+        "font_size": 14.0,
+        "line_height": 18.0,
+        "text_align": "left",
+        "display": "block"
+      },
+      "placeholders": []
+    },
+    {
+      "type": "img",
+      "name": "static_img_1",
+      "class": "static-img-1",
+      "pos": {
+        "x": 130.0,
+        "y": 10.0,
+        "width": 180.0,
+        "height": 150.0
+      },
+      "src": "assets/icons/time_digit/digit_0.svg",
+      "style": {
+        "border_width": 1.0,
+        "border_style": "solid",
+        "display": "block"
+      },
+      "src_placeholders": [],
+      "display_placeholders": []
+    },
+    {
+      "type": "img",
+      "name": "static_img_2",
+      "class": "static-img-2",
+      "pos": {
+        "x": 130.0,
+        "y": 70.0,
+        "width": 180.0,
+        "height": 150.0
+      },
+      "src": "assets/icons/time_digit/digit_1.svg",
+      "style": {
+        "border_width": 1.0,
+        "border_style": "solid",
+        "display": "block"
+      },
+      "src_placeholders": [],
+      "display_placeholders": []
+    },
+    {
+      "type": "img",
+      "name": "static_img_3",
+      "class": "static-img-3",
+      "pos": {
+        "x": 190.0,
+        "y": 10.0,
+        "width": 180.0,
+        "height": 150.0
+      },
+      "src": "assets/icons/time_digit/digit_2.svg",
+      "style": {
+        "border_width": 1.0,
+        "border_style": "solid",
+        "display": "block"
+      },
+      "src_placeholders": [],
+      "display_placeholders": []
+    },
+    {
+      "type": "text",
+      "name": "static_text_2",
+      "class": "static-text-2",
+      "pos": {
+        "x": 190.0,
+        "y": 70.0,
+        "width": 180.0,
+        "height": 40.0
+      },
+      "content": "静态文字2：固定内容，测试break-all断行",
+      "style": {
+        "font_size": 14.0,
+        "line_height": 18.0,
+        "text_align": "left",
+        "display": "block"
+      },
+      "placeholders": []
+    },
+    {
+      "type": "text",
+      "name": "static_text_bottom",
+      "class": "static-text-bottom",
+      "pos": {
+        "x": 10.0,
+        "y": 380.0,
+        "width": 0.0,
+        "height": 0.0
+      },
+      "content": "底部静态文字：800x480复杂嵌套测试，文字图片混排",
+      "style": {
+        "font_size": 18.0,
+        "line_height": 22.0,
+        "text_align": "center",
+        "display": "block"
+      },
+      "placeholders": []
+    }
+  ],
+  "dynamic_elements": [
+    {
+      "type": "text",
+      "name": "dynamic_text",
+      "class": "dynamic-text",
+      "pos": {
+        "x": 10.0,
+        "y": 170.0,
+        "width": 350.0,
+        "height": 200.0
+      },
+      "content": "{dynamic_text}",
+      "style": {
+        "font_size": 16.0,
+        "line_height": 20.0,
+        "text_align": "left",
+        "display": "block"
+      },
+      "placeholders": [
+        "dynamic_text"
+      ],
+      "default_content": "默认动态文字：超长内容测试break-all换行，嵌套层级超过5层！"
+    },
+    {
+      "type": "img",
+      "name": "dynamic_img_1",
+      "class": "dynamic-img-1",
+      "pos": {
+        "x": 10.0,
+        "y": 250.0,
+        "width": 350.0,
+        "height": 200.0
+      },
+      "src": "{dynamic_img_1_src}",
+      "style": {
+        "border_width": 1.0,
+        "border_style": "solid",
+        "display": "block"
+      },
+      "src_placeholders": [
+        "dynamic_img_1_src"
+      ],
+      "display_placeholders": [],
+      "default_src": "./dynamic_img_1.bmp",
+      "default_display": "block"
+    },
+    {
+      "type": "img",
+      "name": "dynamic_img_2",
+      "class": "dynamic-img-2",
+      "pos": {
+        "x": 440.0,
+        "y": 170.0,
+        "width": 350.0,
+        "height": 200.0
+      },
+      "src": "{dynamic_img_2_src}",
+      "style": {
+        "border_width": 1.0,
+        "border_style": "solid",
+        "display": "block"
+      },
+      "src_placeholders": [
+        "dynamic_img_2_src"
+      ],
+      "display_placeholders": [],
+      "default_src": "./dynamic_img_2.bmp",
+      "default_display": "block"
+    },
+    {
+      "type": "img",
+      "name": "dynamic_img_3",
+      "class": "dynamic-img-3",
+      "pos": {
+        "x": 440.0,
+        "y": 250.0,
+        "width": 350.0,
+        "height": 200.0
+      },
+      "src": "{dynamic_img_3_src}",
+      "style": {
+        "border_width": 1.0,
+        "border_style": "solid",
+        "display": "block"
+      },
+      "src_placeholders": [
+        "dynamic_img_3_src"
+      ],
+      "display_placeholders": [],
+      "default_src": "./dynamic_img_3.bmp",
+      "default_display": "block"
+    }
+  ],
+  "dynamic_placeholders": {
+    "display": [
+      "dynamic_display_1",
+      "dynamic_display_2",
+      "dynamic_display_3"
+    ],
+    "src": [
+      "dynamic_img_1_src",
+      "dynamic_img_2_src",
+      "dynamic_img_3_src"
+    ],
+    "text": [
+      "dynamic_text"
+    ]
+  }
+}

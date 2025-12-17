@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <title>800x480复杂嵌入式测试页面</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        /* 1层：根容器（固定800x480） */
+        .page-container {
+            width: 800px;
+            height: 480px;
+            position: relative;
+            background: #FFFFFF;
+            overflow: hidden;
+        }
+
+        /* 2层：根flex容器（列布局） */
+        .flex-root-container {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 10px;
+        }
+
+        /* 3层：顶部flex行容器 */
+        .flex-row-top {
+            flex-basis: 150px;
+            flex-grow: 0;
+            display: flex;
+            flex-direction: row;
+            justify-content: space-around;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        /* 4层：顶部静态项组1 */
+        .static-item-group-1 {
+            width: 200px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        /* 5层：静态空白容器（带边框） */
+        .static-empty-box {
+            width: 100%;
+            height: 60px;
+            border-width: 2px;
+            border-style: solid;
+            margin-bottom: 5px;
+        }
+
+        /* 6层：静态文字（嵌套5+层） */
+        .static-text-1 {
+            font-size: 14px;
+            line-height: 18px;
+            width: 100%;
+            height: 40px;
+            white-space: normal;
+            word-break: break-all;
+        }
+
+        /* 4层：顶部静态项组2 */
+        .static-item-group-2 {
+            width: 180px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-around;
+        }
+
+        /* 5层：静态图片1容器 */
+        .static-img-1-wrapper {
+            width: 100%;
+            height: 60px;
+        }
+
+        /* 6层：静态图片1 */
+        .static-img-1 {
+            width: 100%;
+            height: 100%;
+            border-width: 1px;
+            border-style: solid;
+        }
+
+        /* 5层：静态图片2容器 */
+        .static-img-2-wrapper {
+            width: 100%;
+            height: 60px;
+        }
+
+        /* 6层：静态图片2 */
+        .static-img-2 {
+            width: 100%;
+            height: 100%;
+            border-width: 1px;
+            border-style: solid;
+        }
+
+        /* 4层：顶部静态项组3 */
+        .static-item-group-3 {
+            width: 180px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-around;
+        }
+
+        /* 5层：静态图片3容器 */
+        .static-img-3-wrapper {
+            width: 100%;
+            height: 60px;
+        }
+
+        /* 6层：静态图片3 */
+        .static-img-3 {
+            width: 100%;
+            height: 100%;
+            border-width: 1px;
+            border-style: solid;
+        }
+
+        /* 6层：静态文字2 */
+        .static-text-2 {
+            font-size: 14px;
+            line-height: 18px;
+            width: 100%;
+            height: 40px;
+            white-space: normal;
+            word-break: break-all;
+        }
+
+        /* 3层：中间flex行容器（动态内容区） */
+        .flex-row-middle {
+            flex-basis: 200px;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: row;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        /* 4层：左侧动态项组 */
+        .dynamic-item-group-left {
+            width: 350px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-around;
+        }
+
+        /* 5层：动态文字容器 */
+        .dynamic-text-wrapper {
+            width: 100%;
+            height: 80px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        /* 6层：动态文字（嵌套5+层） */
+        .dynamic-text {
+            font-size: 16px;
+            line-height: 20px;
+            width: 100%;
+            height: 100%;
+            white-space: normal;
+            word-break: break-all;
+        }
+
+        /* 5层：动态图片1容器（display可控） */
+        .dynamic-img-1-wrapper {
+            width: 100%;
+            height: 80px;
+
+            display: {dynamic_display_1};
+        }
+
+        /* 6层：动态图片1 */
+        .dynamic-img-1 {
+            width: 100%;
+            height: 100%;
+            border-width: 1px;
+            border-style: solid;
+        }
+
+        /* 4层：右侧动态项组 */
+        .dynamic-item-group-right {
+            width: 350px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-around;
+        }
+
+        /* 5层：动态图片2容器（display可控） */
+        .dynamic-img-2-wrapper {
+            width: 100%;
+            height: 80px;
+
+            display: {dynamic_display_2};
+        }
+
+        /* 6层：动态图片2 */
+        .dynamic-img-2 {
+            width: 100%;
+            height: 100%;
+            border-width: 1px;
+            border-style: solid;
+        }
+
+        /* 5层：动态图片3容器（display可控） */
+        .dynamic-img-3-wrapper {
+            width: 100%;
+            height: 80px;
+
+            display: {dynamic_display_3};
+        }
+
+        /* 6层：动态图片3 */
+        .dynamic-img-3 {
+            width: 100%;
+            height: 100%;
+            border-width: 1px;
+            border-style: solid;
+        }
+
+        /* 3层：底部flex行容器 */
+        .flex-row-bottom {
+            flex-basis: 80px;
+            flex-grow: 0;
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* 4层：底部静态文字容器 */
+        .static-text-bottom-wrapper {
+            width: 700px;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* 5层：底部静态文字（嵌套5+层） */
+        .static-text-bottom {
+            font-size: 18px;
+            line-height: 22px;
+            white-space: normal;
+            word-break: break-all;
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="page-container"> <!-- 1层 -->
+        <div class="flex-root-container"> <!-- 2层 -->
+            <!-- 顶部flex行（3层） -->
+            <div class="flex-row-top"> <!-- 3层 -->
+                <!-- 静态项组1（4层） -->
+                <div class="static-item-group-1"> <!-- 4层 -->
+                    <div class="static-empty-box"></div> <!-- 5层 -->
+                    <span class="static-text-1">静态文字1：嵌套5+层，固定内容不变化，换行测试</span> <!-- 6层 -->
+                </div>
+                <!-- 静态项组2（4层） -->
+                <div class="static-item-group-2"> <!-- 4层 -->
+                    <div class="static-img-1-wrapper"> <!-- 5层 -->
+                        <img class="static-img-1" src="assets/icons/time_digit/digit_0.svg"> <!-- 6层 -->
+                    </div>
+                    <div class="static-img-2-wrapper"> <!-- 5层 -->
+                        <img class="static-img-2" src="assets/icons/time_digit/digit_1.svg"> <!-- 6层 -->
+                    </div>
+                </div>
+                <!-- 静态项组3（4层） -->
+                <div class="static-item-group-3"> <!-- 4层 -->
+                    <div class="static-img-3-wrapper"> <!-- 5层 -->
+                        <img class="static-img-3" src="assets/icons/time_digit/digit_2.svg"> <!-- 6层 -->
+                    </div>
+                    <span class="static-text-2">静态文字2：固定内容，测试break-all断行</span> <!-- 6层 -->
+                </div>
+            </div>
+
+            <!-- 中间flex行（3层） -->
+            <div class="flex-row-middle"> <!-- 3层 -->
+                <!-- 左侧动态项组（4层） -->
+                <div class="dynamic-item-group-left"> <!-- 4层 -->
+                    <div class="dynamic-text-wrapper"> <!-- 5层 -->
+                        <span class="dynamic-text">{dynamic_text}</span> <!-- 6层 -->
+                    </div>
+                    <div class="dynamic-img-1-wrapper"> <!-- 5层 -->
+                        <img class="dynamic-img-1" src="{dynamic_img_1_src}"> <!-- 6层 -->
+                    </div>
+                </div>
+                <!-- 右侧动态项组（4层） -->
+                <div class="dynamic-item-group-right"> <!-- 4层 -->
+                    <div class="dynamic-img-2-wrapper"> <!-- 5层 -->
+                        <img class="dynamic-img-2" src="{dynamic_img_2_src}"> <!-- 6层 -->
+                    </div>
+                    <div class="dynamic-img-3-wrapper"> <!-- 5层 -->
+                        <img class="dynamic-img-3" src="{dynamic_img_3_src}"> <!-- 6层 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 底部flex行（3层） -->
+            <div class="flex-row-bottom"> <!-- 3层 -->
+                <div class="static-text-bottom-wrapper"> <!-- 4层 -->
+                    <span class="static-text-bottom">底部静态文字：800x480复杂嵌套测试，文字图片混排</span> <!-- 5层 -->
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>
