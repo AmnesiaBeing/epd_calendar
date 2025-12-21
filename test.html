@@ -3,328 +3,429 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>800x480复杂嵌入式测试页面</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>800x480 信息面板</title>
     <style>
+        /* 基础重置&字体引入 */
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
 
-        /* 1层：根容器（固定800x480） */
-        .page-container {
-            width: 800px;
-            height: 480px;
-            position: relative;
-            background: #FFFFFF;
-            overflow: hidden;
+        html,
+        body {
+            height: 100%;
+            background-color: #FFFFFF;
         }
 
-        /* 2层：根flex容器（列布局） */
-        .flex-root-container {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        @font-face {
+            font-family: 'MapleMono';
+            src: url('assets/fonts/MapleMono-NF-CN-Regular.ttf') format('truetype');
+            font-weight: normal;
+            font-style: normal;
+        }
+    </style>
+    <style>
+        /* 核心容器 */
+        #root_container {
+            position: relative;
+            width: 800px;
+            height: 480px;
+            background-color: #FFFFFF;
+            border: 1px solid #000000;
+            font-family: 'MapleMono';
             display: flex;
             flex-direction: column;
-            justify-content: space-between;
             padding: 10px;
         }
 
-        /* 3层：顶部flex行容器 */
-        .flex-row-top {
-            flex-basis: 150px;
-            flex-grow: 0;
+        /* 时间模块 (id替代class) */
+        #time_wrap {
             display: flex;
-            flex-direction: row;
-            justify-content: space-around;
-            align-items: center;
-            margin-bottom: 10px;
-        }
-
-        /* 4层：顶部静态项组1 */
-        .static-item-group-1 {
-            width: 200px;
-            height: 100%;
-            display: flex;
-            flex-direction: column;
             justify-content: center;
+            align-items: center;
+            /* display仅用flex/block/none */
         }
 
-        /* 5层：静态空白容器（带边框） */
-        .static-empty-box {
-            width: 100%;
-            height: 60px;
-            border-width: 2px;
-            border-style: solid;
+        #time_digit {
+            display: block;
+            /* 显式声明允许的display值 */
+        }
+
+        /* 日期模块 */
+        #date_wrap {
+            text-align: center;
+            font-size: 24px;
+            color: #000000;
+            margin: 10px 0;
+            display: block;
+        }
+
+        /* 水平分割线 */
+        #divider1 {
+            width: calc(100% - 10px);
+            height: 1px;
+            background-color: #000000;
+            margin: 0 auto;
+            display: block;
+        }
+
+        #divider2 {
+            width: calc(100% - 10px);
+            height: 1px;
+            background-color: #000000;
+            margin: 0 auto;
+            display: block;
+        }
+
+        /* 农历天气模块 */
+        #lunar_weather_wrap {
+            display: flex;
+            flex: 1;
+            margin: 10px 0;
+            position: relative;
+        }
+
+        /* 垂直分割线 */
+        #vertical_divider {
+            position: absolute;
+            left: 50%;
+            top: 5px;
+            bottom: 5px;
+            width: 1px;
+            background-color: #000000;
+            transform: translateX(-50%);
+            display: block;
+        }
+
+        /* 农历区 */
+        #lunar_wrap {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 0 10px;
+        }
+
+        #lunar_year {
+            font-size: 24px;
+            color: #000000;
             margin-bottom: 5px;
+            display: block;
+            text-align: center;
         }
 
-        /* 6层：静态文字（嵌套5+层） */
-        .static-text-1 {
-            font-size: 14px;
-            line-height: 18px;
-            width: 100%;
-            height: 40px;
-            white-space: normal;
-            word-break: break-all;
+        #lunar_day {
+            font-size: 40px;
+            color: #000000;
+            display: block;
+            text-align: center;
         }
 
-        /* 4层：顶部静态项组2 */
-        .static-item-group-2 {
-            width: 180px;
-            height: 100%;
+        #lunar_yi_ji {
+            flex: 1;
             display: flex;
             flex-direction: column;
-            justify-content: space-around;
+            font-size: 16px;
+            color: #000000;
         }
 
-        /* 5层：静态图片1容器 */
-        .static-img-1-wrapper {
-            width: 100%;
-            height: 60px;
-        }
-
-        /* 6层：静态图片1 */
-        .static-img-1 {
-            width: 100%;
-            height: 100%;
-            border-width: 1px;
-            border-style: solid;
-        }
-
-        /* 5层：静态图片2容器 */
-        .static-img-2-wrapper {
-            width: 100%;
-            height: 60px;
-        }
-
-        /* 6层：静态图片2 */
-        .static-img-2 {
-            width: 100%;
-            height: 100%;
-            border-width: 1px;
-            border-style: solid;
-        }
-
-        /* 4层：顶部静态项组3 */
-        .static-item-group-3 {
-            width: 180px;
-            height: 100%;
+        /* 天气区 */
+        #weather_wrap {
+            flex: 1;
             display: flex;
             flex-direction: column;
-            justify-content: space-around;
+            padding: 0 10px;
         }
 
-        /* 5层：静态图片3容器 */
-        .static-img-3-wrapper {
-            width: 100%;
-            height: 60px;
-        }
-
-        /* 6层：静态图片3 */
-        .static-img-3 {
-            width: 100%;
-            height: 100%;
-            border-width: 1px;
-            border-style: solid;
-        }
-
-        /* 6层：静态文字2 */
-        .static-text-2 {
-            font-size: 14px;
-            line-height: 18px;
-            width: 100%;
-            height: 40px;
-            white-space: normal;
-            word-break: break-all;
-        }
-
-        /* 3层：中间flex行容器（动态内容区） */
-        .flex-row-middle {
-            flex-basis: 200px;
-            flex-grow: 1;
+        #weather_location_temp_hum_wrap {
             display: flex;
             flex-direction: row;
             justify-content: space-between;
-            margin-bottom: 10px;
+            padding: 0 20px;
         }
 
-        /* 4层：左侧动态项组 */
-        .dynamic-item-group-left {
-            width: 350px;
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-around;
-        }
-
-        /* 5层：动态文字容器 */
-        .dynamic-text-wrapper {
-            width: 100%;
-            height: 80px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-        }
-
-        /* 6层：动态文字（嵌套5+层） */
-        .dynamic-text {
+        #weather_location {
             font-size: 16px;
-            line-height: 20px;
-            width: 100%;
-            height: 100%;
-            white-space: normal;
-            word-break: break-all;
+            color: #000000;
+            margin-bottom: 5px;
+            display: block;
         }
 
-        /* 5层：动态图片1容器（display可控） */
-        .dynamic-img-1-wrapper {
-            width: 100%;
-            height: 80px;
-
-            display: {dynamic_display_1};
+        #weather_temp_hum {
+            font-size: 16px;
+            color: #000000;
+            margin-bottom: 5px;
+            display: block;
         }
 
-        /* 6层：动态图片1 */
-        .dynamic-img-1 {
-            width: 100%;
-            height: 100%;
-            border-width: 1px;
-            border-style: solid;
+        #weather_3days {
+            display: flex;
+            justify-content: space-around;
+            flex: 1;
+            align-items: center;
         }
 
-        /* 4层：右侧动态项组 */
-        .dynamic-item-group-right {
-            width: 350px;
-            height: 100%;
+        #weather_day1,
+        #weather_day2,
+        #weather_day3 {
             display: flex;
             flex-direction: column;
-            justify-content: space-around;
-        }
-
-        /* 5层：动态图片2容器（display可控） */
-        .dynamic-img-2-wrapper {
-            width: 100%;
-            height: 80px;
-
-            display: {dynamic_display_2};
-        }
-
-        /* 6层：动态图片2 */
-        .dynamic-img-2 {
-            width: 100%;
-            height: 100%;
-            border-width: 1px;
-            border-style: solid;
-        }
-
-        /* 5层：动态图片3容器（display可控） */
-        .dynamic-img-3-wrapper {
-            width: 100%;
-            height: 80px;
-
-            display: {dynamic_display_3};
-        }
-
-        /* 6层：动态图片3 */
-        .dynamic-img-3 {
-            width: 100%;
-            height: 100%;
-            border-width: 1px;
-            border-style: solid;
-        }
-
-        /* 3层：底部flex行容器 */
-        .flex-row-bottom {
-            flex-basis: 80px;
-            flex-grow: 0;
-            display: flex;
-            flex-direction: row;
-            justify-content: center;
             align-items: center;
+            font-size: 16px;
+            color: #000000;
         }
 
-        /* 4层：底部静态文字容器 */
-        .static-text-bottom-wrapper {
-            width: 700px;
-            height: 100%;
+        #weather_icon1,
+        #weather_icon2,
+        #weather_icon3 {
+            width: 40px;
+            height: 40px;
+            margin: 5px 0;
+            display: block;
+        }
+
+        #motto_wrap {
+            height: 120px;
+            padding: 0 20px;
             display: flex;
+            flex-direction: column;
             justify-content: center;
-            align-items: center;
         }
 
-        /* 5层：底部静态文字（嵌套5+层） */
-        .static-text-bottom {
-            font-size: 18px;
-            line-height: 22px;
-            white-space: normal;
-            word-break: break-all;
-            text-align: center;
+        #motto_content {
+            font-size: 24px;
+            color: #000000;
+            max-height: 96px;
+            width: 100%;
+            display: block;
+        }
+
+        #motto_source {
+            font-size: 16px;
+            color: #000000;
+            margin-top: 5px;
+            text-align: right;
+            display: block;
+        }
+
+        /* 状态图标 */
+        #network_icon {
+            position: absolute;
+            width: 32px;
+            height: 32px;
+            top: 10px;
+            left: 10px;
+            display: block;
+        }
+
+        #battery_icon {
+            position: absolute;
+            width: 32px;
+            height: 32px;
+            top: 10px;
+            right: 10px;
+            display: block;
+        }
+
+        #charging_icon {
+            position: absolute;
+            width: 32px;
+            height: 32px;
+            top: 10px;
+            right: 48px;
+            display: block;
         }
     </style>
 </head>
 
 <body>
-    <div class="page-container"> <!-- 1层 -->
-        <div class="flex-root-container"> <!-- 2层 -->
-            <!-- 顶部flex行（3层） -->
-            <div class="flex-row-top"> <!-- 3层 -->
-                <!-- 静态项组1（4层） -->
-                <div class="static-item-group-1"> <!-- 4层 -->
-                    <div class="static-empty-box"></div> <!-- 5层 -->
-                    <span class="static-text-1">静态文字1：嵌套5+层，固定内容不变化，换行测试</span> <!-- 6层 -->
-                </div>
-                <!-- 静态项组2（4层） -->
-                <div class="static-item-group-2"> <!-- 4层 -->
-                    <div class="static-img-1-wrapper"> <!-- 5层 -->
-                        <img class="static-img-1" src="assets/icons/time_digit/digit_0.svg"> <!-- 6层 -->
-                    </div>
-                    <div class="static-img-2-wrapper"> <!-- 5层 -->
-                        <img class="static-img-2" src="assets/icons/time_digit/digit_1.svg"> <!-- 6层 -->
-                    </div>
-                </div>
-                <!-- 静态项组3（4层） -->
-                <div class="static-item-group-3"> <!-- 4层 -->
-                    <div class="static-img-3-wrapper"> <!-- 5层 -->
-                        <img class="static-img-3" src="assets/icons/time_digit/digit_2.svg"> <!-- 6层 -->
-                    </div>
-                    <span class="static-text-2">静态文字2：固定内容，测试break-all断行</span> <!-- 6层 -->
+    <div id="root_container">
+        <!-- 时间 -->
+        <div id="time_wrap">
+            <img id="time_digit_hour_tens" src="" alt="">
+            <img id="time_digit_hour_ones" src="" alt="">
+            <img id="time_digit" src="assets/icons/time_digit/digit_colon.svg" alt=":">
+            <img id="time_digit_minute_tens" src="" alt="">
+            <img id="time_digit_minute_ones" src="" alt="">
+        </div>
+        <!-- 日期 -->
+        <div id="date_wrap">{{date}}</div>
+        <!-- 水平分割线 -->
+        <div id="divider1"></div>
+        <!-- 农历天气 -->
+        <div id="lunar_weather_wrap">
+            <div id="vertical_divider"></div>
+            <div id="lunar_wrap">
+                <div id="lunar_year">{{lunar_year}}</div>
+                <div id="lunar_day">{{lunar_day}}</div>
+                <div id="lunar_yi_ji">
+                    <div>宜：{{lunar_suitable}}</div>
+                    <div>忌：{{lunar_avoid}}</div>
                 </div>
             </div>
-
-            <!-- 中间flex行（3层） -->
-            <div class="flex-row-middle"> <!-- 3层 -->
-                <!-- 左侧动态项组（4层） -->
-                <div class="dynamic-item-group-left"> <!-- 4层 -->
-                    <div class="dynamic-text-wrapper"> <!-- 5层 -->
-                        <span class="dynamic-text">{dynamic_text}</span> <!-- 6层 -->
-                    </div>
-                    <div class="dynamic-img-1-wrapper"> <!-- 5层 -->
-                        <img class="dynamic-img-1" src="{dynamic_img_1_src}"> <!-- 6层 -->
-                    </div>
+            <div id="weather_wrap">
+                <div id="weather_location_temp_hum_wrap">
+                    <div id="weather_location">{{weather_location}}</div>
+                    <div id="weather_temp_hum">{{weather_temp_hum}}</div>
                 </div>
-                <!-- 右侧动态项组（4层） -->
-                <div class="dynamic-item-group-right"> <!-- 4层 -->
-                    <div class="dynamic-img-2-wrapper"> <!-- 5层 -->
-                        <img class="dynamic-img-2" src="{dynamic_img_2_src}"> <!-- 6层 -->
+                <div id="weather_3days">
+                    <div id="weather_day1">
+                        <span>{{day1}}</span>
+                        <img id="weather_icon1" src="" alt="">
+                        <span>{{desc1}}</span>
                     </div>
-                    <div class="dynamic-img-3-wrapper"> <!-- 5层 -->
-                        <img class="dynamic-img-3" src="{dynamic_img_3_src}"> <!-- 6层 -->
+                    <div id="weather_day2">
+                        <span>{{day2}}</span>
+                        <img id="weather_icon2" src="" alt="">
+                        <span>{{desc2}}</span>
                     </div>
-                </div>
-            </div>
-
-            <!-- 底部flex行（3层） -->
-            <div class="flex-row-bottom"> <!-- 3层 -->
-                <div class="static-text-bottom-wrapper"> <!-- 4层 -->
-                    <span class="static-text-bottom">底部静态文字：800x480复杂嵌套测试，文字图片混排</span> <!-- 5层 -->
+                    <div id="weather_day3">
+                        <span>{{day3}}</span>
+                        <img id="weather_icon3" src="" alt="">
+                        <span>{{desc3}}</span>
+                    </div>
                 </div>
             </div>
         </div>
+        <!-- 水平分割线 -->
+        <div id="divider2"></div>
+        <!-- 格言 -->
+        <div id="motto_wrap">
+            <div id="motto_content">{{motto_content}}</div>
+            <div id="motto_source">{{motto_source}}</div>
+        </div>
+        <!-- 状态图标 -->
+        <img id="network_icon" src="" alt="网络状态">
+        <img id="battery_icon" src="" alt="电池状态">
+        <img id="charging_icon" src="" alt="充电状态">
     </div>
+
+    <script>
+        // 模拟数据 (可替换多行格言测试：比如新增换行符)
+        const mockData = {
+            time: "14:35",
+            date: "2025-12-20 星期六",
+            lunar_year: "甲辰龙年闰二月",
+            lunar_day: "初一",
+            lunar_suitable: "出行、祭祀、嫁娶",
+            lunar_avoid: "动土、破土、安葬",
+            weather_location: "北京市",
+            weather_temp_hum: "25℃ 60%RH",
+            weather_3days: [
+                { day: "今天", icon: "sunny", desc: "晴" },
+                { day: "明天", icon: "cloudy", desc: "多云" },
+                { day: "后天", icon: "rain", desc: "小雨" }
+            ],
+            // 单行格言："路漫漫其修远兮，吾将上下而求索。"
+            // 多行格言（测试用）：
+            motto_content: "路漫漫其修远兮，吾将上下而求索。亦余心之所善兮，虽九死其犹未悔。",
+            motto_source: "——屈原《离骚》",
+            network: "connected",
+            battery: "4",
+            charging: false
+        };
+
+        // 初始化面板
+        function initPanel() {
+            // 1. 生成时间图标
+            generateTimeIcons(mockData.time);
+            // 2. 替换普通占位符
+            replacePlaceholder('{{date}}', mockData.date);
+            replacePlaceholder('{{lunar_year}}', mockData.lunar_year);
+            replacePlaceholder('{{lunar_day}}', mockData.lunar_day);
+            replacePlaceholder('{{lunar_suitable}}', mockData.lunar_suitable);
+            replacePlaceholder('{{lunar_avoid}}', mockData.lunar_avoid);
+            replacePlaceholder('{{weather_location}}', mockData.weather_location);
+            replacePlaceholder('{{weather_temp_hum}}', mockData.weather_temp_hum);
+            replacePlaceholder('{{motto_source}}', mockData.motto_source);
+            // 3. 渲染格言并调整对齐
+            renderMotto(mockData.motto_content);
+            // 4. 生成3天天气
+            generate3DaysWeather(mockData.weather_3days);
+            // 5. 设置状态图标
+            setStatusIcons(mockData.network, mockData.battery, mockData.charging);
+        }
+
+        // 生成时间图标
+        function generateTimeIcons(timeStr) {
+            const timeParts = timeStr.split('');
+            document.getElementById('time_digit_hour_tens').src = `assets/icons/time_digit/digit_${timeParts[0]}.svg`;
+            document.getElementById('time_digit_hour_ones').src = `assets/icons/time_digit/digit_${timeParts[1]}.svg`;
+            document.getElementById('time_digit_minute_tens').src = `assets/icons/time_digit/digit_${timeParts[3]}.svg`;
+            document.getElementById('time_digit_minute_ones').src = `assets/icons/time_digit/digit_${timeParts[4]}.svg`;
+        }
+
+        // 替换占位符
+        function replacePlaceholder(placeholder, value) {
+            const container = document.getElementById('root_container');
+            container.innerHTML = container.innerHTML.replace(placeholder, value);
+        }
+
+        // 渲染格言并动态调整对齐
+        function renderMotto(mottoText) {
+            const mottoContent = document.getElementById('motto_content');
+            mottoContent.textContent = mottoText;
+
+            // 判断行数：通过滚动高度/行高计算
+            const lineHeight = 24; // 与字体大小一致
+            const lineCount = Math.ceil(mottoContent.scrollHeight / lineHeight);
+
+            // 核心逻辑：一行居中，多行左对齐
+            if (lineCount <= 1) {
+                mottoContent.style.textAlign = 'center';
+            } else {
+                mottoContent.style.textAlign = 'left';
+            }
+        }
+
+        // 生成3天天气 (替换占位符+设置图标)
+        function generate3DaysWeather(weatherList) {
+            weatherList.forEach((item, index) => {
+                const dayId = `{{day${index + 1}}}`;
+                const descId = `{{desc${index + 1}}}`;
+                const iconId = `weather_icon${index + 1}`;
+
+                replacePlaceholder(dayId, item.day);
+                replacePlaceholder(descId, item.desc);
+                document.getElementById(iconId).src = `assets/icons/weather/${item.icon}.svg`;
+            });
+        }
+
+        // 设置状态图标
+        function setStatusIcons(network, battery, charging) {
+            document.getElementById('network_icon').src = `assets/icons/network/${network}.svg`;
+            document.getElementById('battery_icon').src = `assets/icons/battery/battery-${battery}.svg`;
+            const chargingIcon = document.getElementById('charging_icon');
+            if (charging) {
+                chargingIcon.src = 'assets/icons/battery/bolt.svg';
+            } else {
+                chargingIcon.style.display = 'none';
+            }
+        }
+
+        // 定时更新时间 (每分钟更新)
+        function updateTime() {
+            const now = new Date();
+            const hours = now.getHours().toString().padStart(2, '0');
+            const minutes = now.getMinutes().toString().padStart(2, '0');
+            const newTime = `${hours}:${minutes}`;
+            generateTimeIcons(newTime);
+        }
+
+        // 页面加载执行
+        window.onload = function () {
+            initPanel();
+            // 每分钟更新一次时间
+            setInterval(updateTime, 60000);
+        };
+    </script>
 </body>
 
 </html>
