@@ -1,3 +1,4 @@
+// builder/modules/font_generator.rs
 //! 字体生成模块 - 支持可配置的字体尺寸
 //! 使用字体渲染器的返回结果，确保正确的字符映射
 

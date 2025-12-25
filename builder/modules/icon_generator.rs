@@ -1,3 +1,4 @@
+// builder/modules/icon_generator.rs
 //! 图标生成模块
 //! 整合本地静态图标与天气图标生成逻辑，输出统一的枚举、位图数据及辅助方法
 
