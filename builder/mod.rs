@@ -1,3 +1,4 @@
+// builder/mod.rs
 //! 资源构建主模块
 
 pub mod config;

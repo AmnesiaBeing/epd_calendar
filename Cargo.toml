@@ -95,6 +95,8 @@ postcard = { version = "1.1", features = ["use-std"] }
 rayon = "1.11.0"
 chrono = "0.4.42"
 html_parser = "0.7.0"
+scraper = "0.25.0"
+
 
 [dependencies]
 # 核心依赖

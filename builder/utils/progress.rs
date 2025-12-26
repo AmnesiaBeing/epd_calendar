@@ -1,3 +1,6 @@
+// builder/utils/progress.rs
+//! 进度跟踪模块
+
 use std::time::Instant;
 
 /// 进度跟踪器

@@ -1,3 +1,4 @@
+// builder/config.rs
 //! 构建配置管理模块
 
 use anyhow::{Context, Result};
@@ -99,7 +100,7 @@ impl BuildConfig {
                 width: 64,
                 height: 64,
             },
-            main_layout_path: PathBuf::from("assets/layout/main.yaml"),
+            main_layout_path: PathBuf::from("assets/layout/main.html"),
         })
     }
 

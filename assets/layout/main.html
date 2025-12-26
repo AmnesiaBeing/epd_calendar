@@ -6,23 +6,132 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>800x480 信息面板</title>
     <style>
-        /* 基础重置&字体引入 */
+        .divider {
+            width: 100%;
+            height: 1px;
+            background-color: #000000;
+            margin: 2px 0;
+        }
+
+        .time-wrap {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .time-digit,
+        .time-colon {
+            display: inline-block;
+            margin: 0 2px;
+        }
+
+        .date-wrap {
+            text-align: center;
+            font-size: 24px;
+        }
+
+        .lunar-weather-wrap {
+            height: 250px;
+            display: flex;
+            justify-content: space-between;
+            align-items: stretch;
+            position: relative;
+        }
+
+        .lunar-cell {
+            width: 40%;
+            padding: 10px 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .weather-cell {
+            width: 60%;
+            padding: 10px 20px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .vertical-divider {
+            width: 1px;
+            background-color: #000000;
+            margin: 10px 0;
+        }
+
+        .lunar-year {
+            font-size: 24px;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .lunar-day {
+            font-size: 40px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .lunar-yi-ji {
+            font-size: 16px;
+        }
+
+        .weather-location-hum {
+            font-size: 16px;
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .weather-3days {
+            display: flex;
+            justify-content: space-around;
+        }
+
+        .weather-day {
+            text-align: center;
+            font-size: 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .hitokoto-wrap {
+            height: 120px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 0 20px;
+        }
+
+        .hitokoto-content {
+            font-size: 24px;
+            text-align: center;
+            word-wrap: break-word;
+            white-space: normal;
+            margin-bottom: 5px;
+        }
+
+        .hitokoto-source {
+            font-size: 16px;
+            text-align: right;
+        }
+    </style>
+    <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
 
-        html,
-        body {
-            height: 100%;
+        .root_container {
+            width: 800px;
+            height: 480px;
+            margin: 0 auto;
             background-color: #FFFFFF;
-        }
-
-        body {
+            border: 1px solid #000000;
+            font-family: 'MapleMono', monospace;
             display: flex;
-            justify-content: center;
-            align-items: center;
+            flex-direction: column;
         }
 
         @font-face {
@@ -32,361 +141,79 @@
             font-style: normal;
         }
     </style>
-    <style>
-        /* 核心容器 */
-        .root_container {
-            position: relative;
-            width: 800px;
-            height: 480px;
-            background-color: #FFFFFF;
-            border-width: 1px;
-            border-color: #000000;
-            border-style: solid;
-            font-family: 'MapleMono';
-            display: flex;
-            flex-direction: column;
-            padding: 10px;
-        }
-
-        /* 时间模块 (id替代class) */
-        .time_wrap {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            /* display仅用flex/block/none */
-        }
-
-        .time_digit {
-            display: block;
-            /* 显式声明允许的display值 */
-        }
-
-        /* 日期模块 */
-        .date_wrap {
-            text-align: center;
-            font-size: 24px;
-            color: #000000;
-            margin-top: 10px;
-            margin-bottom: 10px;
-            display: block;
-        }
-
-        /* 水平分割线 */
-        .divider {
-            width: 90%;
-            height: 1px;
-            background-color: #000000;
-            margin: 0 auto;
-            display: block;
-        }
-
-        /* 农历天气模块 */
-        .lunar_weather_wrap {
-            display: flex;
-            flex: 1;
-            margin-top: 10px;
-            margin-bottom: 10px;
-            position: relative;
-        }
-
-        /* 垂直分割线 */
-        .vertical_divider {
-            position: absolute;
-            left: 50%;
-            top: 5px;
-            bottom: 5px;
-            width: 1px;
-            background-color: #000000;
-            display: block;
-        }
-
-        /* 农历区 */
-        .lunar_wrap {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            padding-left: 10px;
-            padding-right: 10px;
-        }
-
-        .lunar_year {
-            font-size: 24px;
-            color: #000000;
-            margin-bottom: 5px;
-            display: block;
-            text-align: center;
-        }
-
-        .lunar_day {
-            font-size: 40px;
-            color: #000000;
-            display: block;
-            text-align: center;
-        }
-
-        .lunar_yi_ji {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            font-size: 16px;
-            color: #000000;
-        }
-
-        /* 天气区 */
-        .weather_wrap {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            padding-left: 10px;
-            padding-right: 10px;
-        }
-
-        .weather_location_temp_hum_wrap {
-            display: flex;
-            flex-direction: row;
-            justify-content: space-between;
-            padding-left: 20px;
-            padding-right: 20px;
-        }
-
-        .weather_location {
-            font-size: 16px;
-            color: #000000;
-            margin-bottom: 5px;
-            display: block;
-        }
-
-        .weather_temp_hum {
-            font-size: 16px;
-            color: #000000;
-            margin-bottom: 5px;
-            display: block;
-        }
-
-        .weather_3days {
-            display: flex;
-            justify-content: space-around;
-            flex: 1;
-            align-items: center;
-        }
-
-        .weather_day {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            font-size: 16px;
-            color: #000000;
-        }
-
-        .weather_icon {
-            width: 40px;
-            height: 40px;
-            margin-top: 5px;
-            margin-bottom: 5px;
-            display: block;
-        }
-
-        .motto_wrap {
-            height: 120px;
-            padding-left: 20px;
-            padding-right: 20px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-        }
-
-        .motto_content {
-            font-size: 24px;
-            color: #000000;
-            max-height: 96px;
-            width: 100%;
-            display: block;
-        }
-
-        .motto_source {
-            font-size: 16px;
-            color: #000000;
-            margin-top: 5px;
-            text-align: right;
-            display: block;
-        }
-
-        /* 状态图标 */
-        .network_icon {
-            position: absolute;
-            width: 32px;
-            height: 32px;
-            top: 10px;
-            left: 10px;
-            display: block;
-        }
-
-        .battery_icon {
-            position: absolute;
-            width: 32px;
-            height: 32px;
-            top: 10px;
-            right: 10px;
-            display: block;
-        }
-
-        .charging_icon {
-            position: absolute;
-            width: 32px;
-            height: 32px;
-            top: 10px;
-            right: 48px;
-            display: block;
-        }
-    </style>
 </head>
 
 <body>
     <div class="root_container">
-        <!-- 时间 -->
-        <div class="time_wrap">
-            <img class="time_digit" src="{{time_digit_hour_tens}}" alt="">
-            <img class="time_digit" src="{{time_digit_hour_ones}}" alt="">
-            <img class="time_digit" src="assets/icons/time_digit/digit_colon.svg" alt=":">
-            <img class="time_digit" src="{{time_digit_minute_tens}}" alt="">
-            <img class="time_digit" src="{{time_digit_minute_ones}}" alt="">
+        <div class="time-wrap">
+            <img class="time-digit" src="{{time.time_digit_hour_tens}}" alt="">
+            <img class="time-digit" src="{{time.time_digit_hour_ones}}" alt="">
+            <img class="time-colon" src="assets/icons/time_digit/digit_colon.svg" alt=":">
+            <img class="time-digit" src="{{time.time_digit_minute_tens}}" alt="">
+            <img class="time-digit" src="{{time.time_digit_minute_ones}}" alt="">
         </div>
-        <!-- 日期 -->
-        <div class="date_wrap">{{date}}</div>
-        <!-- 水平分割线 -->
+        <div class="date-wrap">
+            {{date}}
+        </div>
         <div class="divider"></div>
-        <!-- 农历天气 -->
-        <div class="lunar_weather_wrap">
-            <div class="vertical_divider"></div>
-            <div class="lunar_wrap">
-                <div class="lunar_year">{{lunar_year}}</div>
-                <div class="lunar_day">{{lunar_day}}</div>
-                <div class="lunar_yi_ji">
-                    <div>宜：{{lunar_suitable}}</div>
-                    <div>忌：{{lunar_avoid}}</div>
+        <div class="lunar-weather-wrap">
+            <div class="lunar-cell">
+                <div class="lunar-year">{{time.lunar_year}}</div>
+                <div class="lunar-day">{{time.lunar_day}}</div>
+                <div class="lunar-yi-ji">
+                    <div>宜：{{time.lunar_suitable}}</div>
+                    <div>忌：{{time.lunar_avoid}}</div>
                 </div>
             </div>
-            <div class="weather_wrap">
-                <div class="weather_location_temp_hum_wrap">
-                    <div class="weather_location">{{weather_location}}</div>
-                    <div class="weather_temp_hum">{{weather_temp_hum}}</div>
+            <div class="vertical-divider"></div>
+            <div class="weather-cell">
+                <div class="weather-location-hum">
+                    <div>{{weather.weather_location}}</div>
+                    <div>{{weather.weather_temp_hum}}</div>
                 </div>
-                <div class="weather_3days">
-                    <div class="weather_day">
-                        <span>{{day1}}</span>
-                        <img class="weather_icon" src="{{weather_icon1}}" alt="">
-                        <span>{{desc1}}</span>
+                <div class="weather-3days">
+                    <div class="weather-day">
+                        <span>{{weather.day1}}</span>
+                        <img class="weather-icon" src="{{weather.day1.icon}}" alt="">
+                        <span>{{weather.day1.desc}}</span>
                     </div>
-                    <div class="weather_day">
-                        <span>{{day2}}</span>
-                        <img class="weather_icon" src="{{weather_icon2}}" alt="">
-                        <span>{{desc2}}</span>
+                    <div class="weather-day">
+                        <span>{{weather.day2}}</span>
+                        <img class="weather-icon" src="{{weather.day2.icon}}" alt="">
+                        <span>{{weather.day2.desc}}</span>
                     </div>
-                    <div class="weather_day">
-                        <span>{{day3}}</span>
-                        <img class="weather_icon" src="{{weather_icon3}}" alt="">
-                        <span>{{desc3}}</span>
+                    <div class="weather-day">
+                        <span>{{weather.day3}}</span>
+                        <img class="weather-icon" src="{{weather.day3.icon}}" alt="">
+                        <span>{{weather.day3.desc}}</span>
                     </div>
                 </div>
             </div>
         </div>
-        <!-- 水平分割线 -->
         <div class="divider"></div>
-        <!-- 格言 -->
-        <div class="motto_wrap">
-            <div class="motto_content">{{motto_content}}</div>
-            <div class="motto_source">{{motto_source}}</div>
+        <div class="hitokoto-wrap">
+            <div class="hitokoto-content">{{hitokoto.hitokoto_content}}</div>
+            <div class="hitokoto-source">{{hitokoto.hitokoto_source}}</div>
         </div>
-        <!-- 状态图标 -->
-        <img class="network_icon" src="{{network_icon}}" alt="网络状态">
-        <img class="battery_icon" src="{{battery_icon}}" alt="电池状态">
-        <img class="charging_icon" src="{{charging_icon}}" alt="充电状态">
     </div>
-
     <script>
-        // 模拟数据 (可替换多行格言测试：比如新增换行符)
-        const mockData = {
-            time: "14:35",
-            date: "2025-12-20 星期六",
-            lunar_year: "甲辰龙年闰二月",
-            lunar_day: "初一",
-            lunar_suitable: "出行、祭祀、嫁娶",
-            lunar_avoid: "动土、破土、安葬",
-            weather_location: "北京市",
-            weather_temp_hum: "25℃ 60%RH",
-            weather_3days: [
-                { day: "今天", icon: "sunny", desc: "晴" },
-                { day: "明天", icon: "cloudy", desc: "多云" },
-                { day: "后天", icon: "rain", desc: "小雨" }
-            ],
-            // 单行格言："路漫漫其修远兮，吾将上下而求索。"
-            // 多行格言（测试用）：
-            motto_content: "路漫漫其修远兮，吾将上下而求索。亦余心之所善兮，虽九死其犹未悔。",
-            motto_source: "——屈原《离骚》",
-            network: "connected",
-            battery: "4",
-            charging: false
-        };
-
-        // 初始化面板
-        function initPanel() {
-            // 1. 替换时间占位符
-            const timeParts = mockData.time.split('');
-            replacePlaceholder('{{time_digit_hour_tens}}', `assets/icons/time_digit/digit_${timeParts[0]}.svg`);
-            replacePlaceholder('{{time_digit_hour_ones}}', `assets/icons/time_digit/digit_${timeParts[1]}.svg`);
-            replacePlaceholder('{{time_digit_minute_tens}}', `assets/icons/time_digit/digit_${timeParts[3]}.svg`);
-            replacePlaceholder('{{time_digit_minute_ones}}', `assets/icons/time_digit/digit_${timeParts[4]}.svg`);
-            replacePlaceholder('{{date}}', mockData.date);
-            replacePlaceholder('{{lunar_year}}', mockData.lunar_year);
-            replacePlaceholder('{{lunar_day}}', mockData.lunar_day);
-            replacePlaceholder('{{lunar_suitable}}', mockData.lunar_suitable);
-            replacePlaceholder('{{lunar_avoid}}', mockData.lunar_avoid);
-            // 2. 替换天气占位符
-            weatherList.forEach((item, index) => {
-                const dayId = `{{day${index + 1}}}`;
-                const descId = `{{desc${index + 1}}}`;
-                const iconId = `{{weather_icon${index + 1}}}`;
-                replacePlaceholder(dayId, item.day);
-                replacePlaceholder(descId, item.desc);
-                replacePlaceholder(iconId, `assets/icons/weather/${item.icon}.svg`);
-            });
-            replacePlaceholder('{{weather_location}}', mockData.weather_location);
-            replacePlaceholder('{{weather_temp_hum}}', mockData.weather_temp_hum);
-            // 3. 替换格言占位符
-            replacePlaceholder('{{motto_content}}', mockData.motto_content);
-            replacePlaceholder('{{motto_source}}', mockData.motto_source);
-            // 4. 替换状态占位符
-            replacePlaceholder('{{network_icon}}', `assets/icons/network/${mockData.network}.svg`);
-            replacePlaceholder('{{battery_icon}}', `assets/icons/battery/battery-${mockData.battery}.svg`);
-            const chargingIcon = document.getElementById('charging_icon');
-            if (charging) {
-                replacePlaceholder('{{charging_icon}}', mockData.charging ? 'assets/icons/battery/bolt.svg' : 'none');
-            } else {
-                chargingIcon.style.display = 'none';
-            }
-        }
-
-        // 替换占位符
-        function replacePlaceholder(placeholder, value) {
-            const container = document.getElementById('root_container');
-            container.innerHTML = container.innerHTML.replace(placeholder, value);
-        }
-
-        // 定时更新时间 (每分钟更新)
-        function updateTime() {
-            const now = new Date();
-            const hours = now.getHours().toString().padStart(2, '0');
-            const minutes = now.getMinutes().toString().padStart(2, '0');
-            const newTime = `${hours}:${minutes}`;
-            generateTimeIcons(newTime);
-        }
-
-        // 页面加载执行
-        window.onload = function () {
-            initPanel();
-            // 每分钟更新一次时间
-            setInterval(updateTime, 60000);
-        };
+        const hitokotoContent = "路漫漫其修远兮，吾将上下而求索。亦余心之所善兮，虽九死其犹未悔。宁溘死以流亡兮，余不忍为此态也！";
+        const hitokotoSource = "——屈原《离骚》";
+        document.querySelector('.date-wrap').textContent = "2025-12-26 星期五";
+        document.querySelector('.lunar-year').textContent = "甲辰龙年闰二月初一";
+        document.querySelector('.lunar-day').textContent = "初一";
+        document.querySelector('.lunar-yi-ji div:first-child').textContent = "宜：出行、祭祀、嫁娶";
+        document.querySelector('.lunar-yi-ji div:last-child').textContent = "忌：动土、破土、安葬";
+        document.querySelector('.weather-location-hum div:first-child').textContent = "北京市";
+        document.querySelector('.weather-location-hum div:last-child').textContent = "25℃ 60%RH";
+        document.querySelectorAll('.weather-day span:first-child')[0].textContent = "今天";
+        document.querySelectorAll('.weather-day span:last-child')[0].textContent = "晴";
+        document.querySelectorAll('.weather-day span:first-child')[1].textContent = "明天";
+        document.querySelectorAll('.weather-day span:last-child')[1].textContent = "多云";
+        document.querySelectorAll('.weather-day span:first-child')[2].textContent = "后天";
+        document.querySelectorAll('.weather-day span:last-child')[2].textContent = "小雨";
+        document.querySelector('.hitokoto-content').textContent = hitokotoContent;
+        document.querySelector('.hitokoto-source').textContent = hitokotoSource;
     </script>
 </body>
 
