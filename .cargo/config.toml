@@ -13,6 +13,9 @@ rustflags = [
     'getrandom_backend="custom"',
 ]
 
+[env]
+ESP_LOG = "INFO"
+
 # 如果删除下面一行，VSCode的代码分析器将无法正常运行
 [build]
 target = "riscv32imac-unknown-none-elf"

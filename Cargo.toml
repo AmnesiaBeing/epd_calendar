@@ -60,6 +60,7 @@ embedded_esp = [
     "esp-bootloader-esp-idf",
     "getrandom",
     "rtt-target",
+    "panic-rtt-target",
 ]
 embedded_graphics_simulator = ["epd-waveshare/simulator"]
 spi_bitbang = ["bitbang-hal"]
@@ -96,7 +97,6 @@ rayon = "1.11.0"
 chrono = "0.4.42"
 html_parser = "0.7.0"
 scraper = "0.25.0"
-
 
 [dependencies]
 # 核心依赖
@@ -184,7 +184,7 @@ esp-hal = { version = "1.0", optional = true, features = [
     "esp32c6",
     "unstable",
 ] }
-esp-alloc = { version = "0.9", optional = true, features = ["defmt"] }
+esp-alloc = { version = "0.9", optional = true }
 esp-rtos = { version = "0.2", optional = true, features = [
     "esp-radio",
     "embassy",
@@ -193,8 +193,10 @@ esp-rtos = { version = "0.2", optional = true, features = [
 esp-bootloader-esp-idf = { version = "0.4", optional = true, features = [
     "esp32c6",
 ] }
-esp-println = { version = "0.16", optional = true, features = ["esp32c6"] }
-rtt-target = { version = "0.6", optional = true, features = ["defmt"] }
+esp-println = { version = "0.16", optional = true, features = [
+    "esp32c6",
+    "log-04",
+] }
 esp-backtrace = { version = "0.18", optional = true, features = [
     "esp32c6",
     "println",
@@ -208,3 +210,5 @@ esp-radio = { version = "0.17.0", optional = true, features = [
 ] }
 esp-sync = { version = "0.1.1", optional = true, features = ["esp32c6"] }
 esp-storage = { version = "0.8.1", optional = true, features = ["esp32c6"] }
+panic-rtt-target = { version = "0.2.0", optional = true }
+rtt-target = { version = "0.6.2", optional = true }

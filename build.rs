@@ -10,7 +10,6 @@ fn main() -> Result<()> {
     #[cfg(feature = "embedded_esp")]
     {
         linker_be_nice();
-        println!("cargo:rustc-link-arg=-Tdefmt.x");
         println!("cargo:rustc-link-arg=-Tlinkall.x");
     }
 
@@ -18,6 +17,7 @@ fn main() -> Result<()> {
 }
 
 #[cfg(feature = "embedded_esp")]
+
 fn linker_be_nice() {
     let args: Vec<String> = std::env::args().collect();
     if args.len() > 1 {

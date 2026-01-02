@@ -2,28 +2,6 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Rust Remote Debug (ADB + LLDB)",
-      "type": "lldb", // 使用 CodeLLDB 插件
-      "request": "launch",
-      // 本地编译产物路径（带调试符号，用于加载源码和符号）
-      "program": "${workspaceFolder}/target/aarch64-unknown-linux-gnu/debug/epd_calendar", // 若为 release 则改路径
-      // 调试前执行的前置任务（即上面定义的复合任务）
-      "preLaunchTask": "pre-debug",
-      // 连接到开发板的 lldb-server（通过 ADB 转发的本地端口）
-      "initCommands": [
-        // 告诉 LLDB 连接到本地转发的端口（对应开发板的 1234 端口）
-        "platform select remote-linux",
-        "platform connect connect://localhost:1234"
-      ],
-      // 开发板上的程序路径（用于 LLDB 定位远端程序）
-      // 源码路径映射（若本地与开发板路径不同，需配置，一般无需修改）
-      "sourceMap": {
-        "${workspaceFolder}": "${workspaceFolder}"
-      },
-      // 工作目录（项目根目录）
-      "cwd": "${workspaceFolder}"
-    },
-    {
       "type": "probe-rs-debug",
       "request": "launch",
       "name": "Launch",
@@ -40,14 +18,7 @@
       "coreConfigs": [
         {
           "coreIndex": 0,
-          "programBinary": "target/riscv32imac-unknown-none-elf/debug/${workspaceFolderBasename}",
-          "rttEnabled": true,
-          "rttChannelFormats": [
-            {
-              "channelNumber": 0,
-              "dataFormat": "Defmt"
-            }
-          ]
+          "programBinary": "target/riscv32imac-unknown-none-elf/debug/${workspaceFolderBasename}"
         }
       ]
     },
@@ -60,14 +31,7 @@
       "coreConfigs": [
         {
           "coreIndex": 0,
-          "programBinary": "target/riscv32imac-unknown-none-elf/debug/${workspaceFolderBasename}",
-          "rttEnabled": true,
-          "rttChannelFormats": [
-            {
-              "channelNumber": 0,
-              "dataFormat": "Defmt"
-            }
-          ]
+          "programBinary": "target/riscv32imac-unknown-none-elf/debug/${workspaceFolderBasename}"
         }
       ]
     }

@@ -3,15 +3,25 @@
 
 #![cfg_attr(feature = "embedded_esp", no_std)]
 #![cfg_attr(feature = "embedded_esp", no_main)]
-
-#[cfg(feature = "embedded_esp")]
-use core::prelude::v1::*;
+#![cfg_attr(
+    feature = "embedded_esp",
+    deny(
+        clippy::mem_forget,
+        reason = "mem::forget is generally not safe to do with esp_hal types, especially those \
+    holding buffers for the duration of a data transfer."
+    )
+)]
+#![cfg_attr(feature = "embedded_esp", deny(clippy::large_stack_frames))]
 
 extern crate alloc;
 
 use embassy_executor::Spawner;
 use embassy_sync::mutex::Mutex;
 use embassy_time::{Duration, Instant, Timer};
+#[cfg(feature = "embedded_esp")]
+use esp_hal::clock::CpuClock;
+#[cfg(feature = "embedded_esp")]
+use esp_hal::timer::timg::TimerGroup;
 use static_cell::StaticCell;
 
 mod assets;
@@ -49,6 +59,12 @@ static WEATHER_SOURCE: StaticCell<GlobalMutex<WeatherDataSource>> = StaticCell::
 
 #[cfg(feature = "embedded_esp")]
 esp_bootloader_esp_idf::esp_app_desc!();
+
+#[cfg(feature = "embedded_esp")]
+use panic_rtt_target as _;
+
+#[cfg(feature = "embedded_esp")]
+use rtt_target::rprintln;
 
 #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
 use embassy_executor::main as platform_main;
@@ -108,11 +124,24 @@ async fn cold_start(spawner: &Spawner) -> Result<()> {
     log::info!("Cold start initializing system...");
 
     #[cfg(feature = "embedded_esp")]
-    let peripherals = esp_hal::init(esp_hal::Config::default());
+    let peripherals = esp_hal::init(esp_hal::Config::default().with_cpu_clock(CpuClock::max()));
+
+    #[cfg(feature = "embedded_esp")]
+    esp_alloc::heap_allocator!(#[esp_hal::ram(reclaimed)] size: 65536);
+
+    #[cfg(feature = "embedded_esp")]
+    let timg0 = TimerGroup::new(peripherals.TIMG0);
+
+    #[cfg(feature = "embedded_esp")]
+    let sw_interrupt =
+        esp_hal::interrupt::software::SoftwareInterruptControl::new(peripherals.SW_INTERRUPT);
+
+    #[cfg(feature = "embedded_esp")]
+    esp_rtos::start(timg0.timer0, sw_interrupt.software_interrupt0);
 
     // 初始化存储驱动与配置服务
     #[cfg(feature = "embedded_esp")]
-    let storage_driver = DefaultConfigStorageDriver::new(&peripherals).unwrap();
+    let storage_driver = DefaultConfigStorageDriver::new(peripherals.FLASH).unwrap();
     #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
     let storage_driver = DefaultConfigStorageDriver::new("flash.bin", 4096).unwrap();
 
@@ -221,6 +250,7 @@ async fn init_logging() {
     #[cfg(feature = "embedded_esp")]
     {
         rtt_target::rtt_init_print!();
+        esp_println::logger::init_logger_from_env();
         log::info!("Initializing logger for ESP32");
     }
 }
@@ -237,11 +267,4 @@ async fn log_system_health() {
     // 例如：内存使用情况、任务状态等
 
     log::debug!("System health check completed");
-}
-
-/// ESP32平台 panic 处理程序
-#[cfg(feature = "embedded_esp")]
-#[panic_handler]
-fn panic(_: &core::panic::PanicInfo) -> ! {
-    loop {}
 }
