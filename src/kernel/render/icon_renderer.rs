@@ -1,87 +1,110 @@
-//! 图标渲染模块
-//! 基于编译期生成的图标资源，实现电子墨水屏单色图标渲染
+//! 图像/图标渲染器
+//! 负责将图像和图标绘制到屏幕上
 
+use crate::assets::generated_icons::{
+    BatteryIcon, IconId, NetworkIcon, TimeDigitIcon, WeatherIcon,
+};
+use crate::common::error::{AppError, Result};
 use embedded_graphics::{draw_target::DrawTarget, prelude::*};
 use epd_waveshare::color::QuadColor;
 
-use crate::assets::generated_icons::IconId;
-use crate::common::error::{AppError, Result};
-
-/// 图标渲染器
+/// 图像渲染器
 pub struct IconRenderer;
 
 impl IconRenderer {
-    /// 渲染图标到指定位置
-    pub fn render_icon<DT>(target: &mut DT, icon_id: &str, x: u32, y: u32) -> Result<()>
-    where
-        DT: DrawTarget<Color = QuadColor>,
-        DT::Error: core::fmt::Debug,
-    {
-        // 1. 获取图标ID
-        let icon = IconId::get_icon_data(icon_id)
-            .ok_or_else(|| AppError::IconMissing(icon_id.to_string()))?;
-
-        // 2. 获取图标数据和尺寸
-        let icon_data = icon.data();
-        let icon_size = icon.size();
-
-        // 3. 渲染图标位图
-        Self::render_icon_bitmap(target, icon_data, icon_size.width, icon_size.height, x, y)?;
-
-        Ok(())
+    /// 创建新的图像渲染器
+    pub const fn new() -> Self {
+        Self {}
     }
 
-    /// 渲染图标位图
-    fn render_icon_bitmap<DT>(
-        target: &mut DT,
-        bitmap: &[u8],
-        width: u32,
-        height: u32,
-        x: u32,
-        y: u32,
-    ) -> Result<()>
-    where
-        DT: DrawTarget<Color = QuadColor>,
-        DT::Error: core::fmt::Debug,
-    {
-        // 遍历位图的每个像素
-        for (row_idx, row) in bitmap.chunks((width + 7) as usize / 8).enumerate() {
-            for (col_idx, _) in (0..width).enumerate() {
-                // 计算像素在字节中的位置
-                let byte_idx = col_idx / 8;
-                let bit_idx = 7 - (col_idx % 8);
+    /// 渲染图标
+    pub fn render<D: DrawTarget<Color = QuadColor>>(
+        &self,
+        draw_target: &mut D,
+        rect: [u16; 4],
+        icon_id: &str,
+    ) -> Result<()> {
+        // 获取图标数据
+        let icon_id = self.get_icon_data(icon_id).ok_or(AppError::IconNotFound)?;
 
-                // 检查像素是否为黑色
-                if (row[byte_idx] >> bit_idx) & 1 == 1 {
-                    let pixel_x = x + col_idx as u32;
-                    let pixel_y = y + row_idx as u32;
+        // 计算图标位置（居中）
+        let [x, y, width, height] = rect;
+        let icon_size = icon_id.size();
+        let icon_width = icon_size.width as u16;
+        let icon_height = icon_size.height as u16;
 
-                    // 绘制像素
-                    target
-                        .draw_pixel(Point::new(pixel_x as i32, pixel_y as i32), QuadColor::Black)?;
-                }
+        let x_pos = x + (width - icon_width) / 2;
+        let y_pos = y + (height - icon_height) / 2;
+
+        // 绘制图标
+        self.draw_icon(draw_target, x_pos, y_pos, icon_id)
+    }
+
+    /// 获取图标数据
+    fn get_icon_data(&self, icon_id: &str) -> Option<IconId> {
+        // 将字符串ID转换为IconId
+        // 这里实现简单的映射，根据实际情况可能需要更复杂的解析
+        match icon_id {
+            "battery-0" => Some(IconId::BATTERY(BatteryIcon::Battery0)),
+            "battery-1" => Some(IconId::BATTERY(BatteryIcon::Battery1)),
+            "battery-2" => Some(IconId::BATTERY(BatteryIcon::Battery2)),
+            "battery-3" => Some(IconId::BATTERY(BatteryIcon::Battery3)),
+            "battery-4" => Some(IconId::BATTERY(BatteryIcon::Battery4)),
+            "bolt" => Some(IconId::BATTERY(BatteryIcon::Bolt)),
+            "connected" => Some(IconId::NETWORK(NetworkIcon::Connected)),
+            "disconnected" => Some(IconId::NETWORK(NetworkIcon::Disconnected)),
+            "digit_0" => Some(IconId::TIME_DIGIT(TimeDigitIcon::Digit0)),
+            "digit_1" => Some(IconId::TIME_DIGIT(TimeDigitIcon::Digit1)),
+            "digit_2" => Some(IconId::TIME_DIGIT(TimeDigitIcon::Digit2)),
+            "digit_3" => Some(IconId::TIME_DIGIT(TimeDigitIcon::Digit3)),
+            "digit_4" => Some(IconId::TIME_DIGIT(TimeDigitIcon::Digit4)),
+            "digit_5" => Some(IconId::TIME_DIGIT(TimeDigitIcon::Digit5)),
+            "digit_6" => Some(IconId::TIME_DIGIT(TimeDigitIcon::Digit6)),
+            "digit_7" => Some(IconId::TIME_DIGIT(TimeDigitIcon::Digit7)),
+            "digit_8" => Some(IconId::TIME_DIGIT(TimeDigitIcon::Digit8)),
+            "digit_9" => Some(IconId::TIME_DIGIT(TimeDigitIcon::Digit9)),
+            "digit_colon" => Some(IconId::TIME_DIGIT(TimeDigitIcon::DigitColon)),
+            "digit_sep" => Some(IconId::TIME_DIGIT(TimeDigitIcon::DigitSep)),
+            // 天气图标支持，如 "100", "101", etc.
+            _ if icon_id.starts_with("icon_") => {
+                let weather_code = &icon_id[5..];
+                WeatherIcon::from_api_str(weather_code)
+                    .ok()
+                    .map(IconId::Weather)
             }
+            _ => WeatherIcon::from_api_str(icon_id).ok().map(IconId::Weather),
         }
-
-        Ok(())
     }
 
-    /// 渲染线条（分割线）
-    pub fn render_line<DT>(target: &mut DT, x1: u32, y1: u32, x2: u32, y2: u32) -> Result<()>
-    where
-        DT: DrawTarget<Color = QuadColor>,
-        DT::Error: core::fmt::Debug,
-    {
-        // 水平/垂直线优化
-        if x1 == x2 {
-            // 垂直线
-            for y in y1..=y2 {
-                target.draw_pixel(Point::new(x1 as i32, y as i32), QuadColor::Black)?;
-            }
-        } else if y1 == y2 {
-            // 水平线
-            for x in x1..=x2 {
-                target.draw_pixel(Point::new(x as i32, y1 as i32), QuadColor::Black)?;
+    /// 绘制图标
+    fn draw_icon<D: DrawTarget<Color = QuadColor>>(
+        &self,
+        draw_target: &mut D,
+        x: u16,
+        y: u16,
+        icon_id: IconId,
+    ) -> Result<()> {
+        let icon_size = icon_id.size();
+        let bitmap_data = icon_id.data();
+        let width = icon_size.width;
+        let _height = icon_size.height;
+
+        // 按字节绘制位图数据
+        for (byte_idx, byte) in bitmap_data.iter().enumerate() {
+            let y_offset = byte_idx / (width as usize / 8);
+            let x_offset = (byte_idx % (width as usize / 8)) * 8;
+
+            // 处理每个字节的8个像素
+            for bit in 0..8 {
+                if (byte >> (7 - bit)) & 1 != 0 {
+                    let pixel_x = x + (x_offset + bit) as u16;
+                    let pixel_y = y + y_offset as u16;
+
+                    // 确保像素在绘制目标范围内
+                    let point = Point::new(pixel_x as i32, pixel_y as i32);
+                    let pixel = Pixel(point, QuadColor::Black);
+                    let _ = draw_target.draw_iter(core::iter::once(pixel));
+                }
             }
         }
 

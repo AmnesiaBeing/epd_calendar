@@ -38,9 +38,9 @@ pub fn run() -> Result<()> {
     progress.complete_stage();
 
     // 3. 处理布局文件（严格按顺序执行）
-    progress.start_stage("处理布局文件");
-    modules::layout_processor::build(&config, &progress)?;
-    progress.complete_stage();
+    // progress.start_stage("处理布局文件");
+    // modules::layout_processor::build(&config, &progress)?;
+    // progress.complete_stage();
 
     progress.finish_build();
     Ok(())

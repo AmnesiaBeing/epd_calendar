@@ -13,8 +13,6 @@ use crate::builder::utils::progress::ProgressTracker;
 /// 编译期布局常数
 #[derive(Debug, Clone)]
 pub struct CompileLayoutConst {
-    // 根容器常数
-    pub root: RootConst,
     // 元素样式（key: 元素class蛇形名，value: 样式属性）
     pub element_styles: HashMap<String, ElementStyle>,
     // Flex容器配置（key: 元素class蛇形名）
@@ -31,15 +29,8 @@ pub struct CompileLayoutConst {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ElementType {
     Icon,      // 图标元素（标签为img）
-    Text,      // 文本元素（有font_size样式，或包含动态文本变量）
+    Text,      // 文本元素（包含文本）
     Container, // 容器元素（Flex容器，无动态内容）
-}
-
-/// 根容器常数
-#[derive(Debug, Clone)]
-pub struct RootConst {
-    pub width: u32,
-    pub height: u32,
 }
 
 /// 元素样式（仅保留非默认值）

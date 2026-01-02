@@ -3,4 +3,4 @@
 pub mod font_generator;
 pub mod hitokoto;
 pub mod icon_generator;
-pub mod layout_processor;
+// pub mod layout_processor;
