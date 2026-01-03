@@ -291,31 +291,35 @@ impl DataSource for WeatherDataSource {
             }
         };
 
-        let forecast_valid = if let Ok(weather_data_list) = self.get_remote_weather_data().await {
-            log::debug!("成功从远程API获取天气数据");
-            self.update_online_weather_cache(cache_guard, &weather_data_list)?;
-            true
-        } else {
-            // 2. 写入新增字段：本地传感器数据（CacheStringValue类型）
-            let (sensor_temp, sensor_hum) = sensor_data;
-            self.write_cache_field(
-                cache_guard,
-                "sensor.temperature",
-                DynamicValue::String(self.f32_to_cache_string(sensor_temp)?),
-            )?;
-            self.write_cache_field(
-                cache_guard,
-                "sensor.humidity",
-                DynamicValue::String(self.f32_to_cache_string(sensor_hum)?),
-            )?;
-            false
-        };
+        let (sensor_temp, sensor_hum) = sensor_data;
+        self.write_cache_field(
+            cache_guard,
+            "sensor.temperature",
+            DynamicValue::String(self.f32_to_cache_string(sensor_temp)?),
+        )?;
+        self.write_cache_field(
+            cache_guard,
+            "sensor.humidity",
+            DynamicValue::String(self.f32_to_cache_string(sensor_hum)?),
+        )?;
 
         self.write_cache_field(
             cache_guard,
-            "forecast.valid",
-            DynamicValue::Boolean(forecast_valid),
+            "location",
+            DynamicValue::String(unsafe {
+                CacheStringValue::from_utf8_unchecked(
+                    HeaplessVec::from_slice("广州市".as_bytes()).unwrap(),
+                )
+            }),
         )?;
+
+        if let Ok(weather_data_list) = self.get_remote_weather_data().await {
+            log::debug!("成功从远程API获取天气数据");
+            self.update_online_weather_cache(cache_guard, &weather_data_list)?;
+            self.write_cache_field(cache_guard, "valid", DynamicValue::Boolean(true))?;
+        } else {
+            self.write_cache_field(cache_guard, "valid", DynamicValue::Boolean(false))?;
+        }
 
         Ok(())
     }

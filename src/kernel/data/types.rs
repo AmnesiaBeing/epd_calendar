@@ -13,7 +13,7 @@ pub type HeaplessString<const N: usize> = heapless::String<N>;
 pub type HeaplessVec<T, const N: usize> = heapless::Vec<T, N>;
 
 pub const KEY_LENGTH: usize = 32;
-pub const VALUE_LENGTH: usize = 32;
+pub const VALUE_LENGTH: usize = 256;
 pub type CacheKey = HeaplessString<KEY_LENGTH>;
 pub type CacheStringValue = HeaplessString<VALUE_LENGTH>;
 pub type CacheKeyValueMap = BTreeMap<CacheKey, DynamicValue>;

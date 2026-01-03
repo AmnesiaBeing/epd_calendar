@@ -249,6 +249,9 @@ pub enum AppError {
 
     #[error("LED error")]
     LedError,
+
+    #[error("Random generation failed")]
+    RandomGenerationFailed,
 }
 
 /// 应用程序结果类型别名

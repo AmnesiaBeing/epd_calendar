@@ -35,13 +35,8 @@ impl RenderEngine {
     /// 获取缓存中的字符串值
     fn get_cache_string(&self, cache: &CacheKeyValueMap, key: &str) -> Result<String> {
         log::debug!("尝试获取缓存字符串值: {}", key);
-        cache
-            .get(key)
-            .ok_or_else(|| {
-                log::error!("缓存键不存在: {}", key);
-                AppError::ConvertError
-            })
-            .and_then(|value| match value {
+        match cache.get(key) {
+            Some(value) => match value {
                 DynamicValue::String(s) => {
                     log::debug!("缓存键 {} 为字符串类型: {}", key, s);
                     Ok(s.to_string())
@@ -58,29 +53,32 @@ impl RenderEngine {
                     log::debug!("缓存键 {} 为布尔类型，转换为字符串: {}", key, b);
                     Ok(b.to_string())
                 }
-            })
+            },
+            None => {
+                log::debug!("缓存键不存在: {}, 返回默认值空字符串", key);
+                Ok(String::new())
+            }
+        }
     }
 
     /// 获取缓存中的整数值
     fn get_cache_integer(&self, cache: &CacheKeyValueMap, key: &str) -> Result<i32> {
         log::debug!("尝试获取缓存整数值: {}", key);
-        cache
-            .get(key)
-            .ok_or_else(|| {
-                log::error!("缓存键不存在: {}", key);
-                AppError::ConvertError
-            })
-            .and_then(|value| match value {
+        match cache.get(key) {
+            Some(value) => match value {
                 DynamicValue::Integer(i) => {
                     log::debug!("缓存键 {} 为整数类型: {}", key, i);
                     Ok(*i)
                 }
                 DynamicValue::String(s) => {
                     log::debug!("缓存键 {} 为字符串类型，尝试转换为整数: {}", key, s);
-                    i32::from_str(s.as_str()).map_err(|_| {
-                        log::error!("字符串转整数失败: {}", s);
-                        AppError::ConvertError
-                    })
+                    match i32::from_str(s.as_str()) {
+                        Ok(num) => Ok(num),
+                        Err(_) => {
+                            log::debug!("字符串转整数失败: {}, 返回默认值0", s);
+                            Ok(0)
+                        }
+                    }
                 }
                 DynamicValue::Float(f) => {
                     log::debug!(
@@ -96,7 +94,50 @@ impl RenderEngine {
                     log::debug!("缓存键 {} 为布尔类型，转换为整数: {} -> {}", key, b, result);
                     Ok(result)
                 }
-            })
+            },
+            None => {
+                log::debug!("缓存键不存在: {}, 返回默认值0", key);
+                Ok(0)
+            }
+        }
+    }
+
+    /// 获取缓存中的布尔值
+    fn get_cache_boolean(&self, cache: &CacheKeyValueMap, key: &str) -> Result<bool> {
+        log::debug!("尝试获取缓存布尔值: {}", key);
+        match cache.get(key) {
+            Some(value) => match value {
+                DynamicValue::Boolean(b) => {
+                    log::debug!("缓存键 {} 为布尔类型: {}", key, b);
+                    Ok(*b)
+                }
+                DynamicValue::Integer(i) => {
+                    let result = *i != 0;
+                    log::debug!(
+                        "缓存键 {} 为整数类型，转换为布尔值: {} -> {}",
+                        key,
+                        i,
+                        result
+                    );
+                    Ok(result)
+                }
+                DynamicValue::String(s) => {
+                    let result = s.to_lowercase() == "true";
+                    log::debug!(
+                        "缓存键 {} 为字符串类型，转换为布尔值: {} -> {}",
+                        key,
+                        s,
+                        result
+                    );
+                    Ok(result)
+                }
+                DynamicValue::Float(_) => todo!(),
+            },
+            None => {
+                log::debug!("缓存键不存在: {}, 返回默认值 false", key);
+                Ok(false)
+            }
+        }
     }
 
     /// 渲染整个布局到显示缓冲区
@@ -340,8 +381,7 @@ impl RenderEngine {
         )
         .into_styled(PrimitiveStyle::with_stroke(QuadColor::Black, 1));
         log::debug!(
-            "竖直分割线位置: 起点({}, {}), 终点({}, {})
-            , 粗细: 1",
+            "竖直分割线位置: 起点({}, {}), 终点({}, {}), 粗细: 1",
             left_width,
             120,
             left_width,
@@ -383,7 +423,7 @@ impl RenderEngine {
     {
         // 获取农历数据
         let ganzhi = self.get_cache_string(cache, "datetime.lunar.ganzhi")?;
-        let zodiac = self.get_cache_string(cache, "datetime.lunar.zodiac")?;
+        let _zodiac = self.get_cache_string(cache, "datetime.lunar.zodiac")?;
         let month = self.get_cache_string(cache, "datetime.lunar.month")?;
         let jieqi = self.get_cache_string(cache, "datetime.lunar.jieqi")?;
         let festival = self.get_cache_string(cache, "datetime.lunar.festival")?;
@@ -460,8 +500,9 @@ impl RenderEngine {
     {
         // 获取天气数据
         let location = self.get_cache_string(cache, "weather.location")?;
-        let temperature = self.get_cache_integer(cache, "weather.temperature")?;
-        let humidity = self.get_cache_integer(cache, "weather.humidity")?;
+        let temperature = self.get_cache_string(cache, "weather.sensor.temperature")?;
+        let humidity = self.get_cache_string(cache, "weather.sensor.humidity")?;
+        let valid = self.get_cache_boolean(cache, "weather.valid")?;
 
         // 绘制位置
         text_renderer.render(
@@ -488,35 +529,37 @@ impl RenderEngine {
             FontSize::Small,
         )?;
 
-        // 绘制3天天气预报
-        for i in 0..3 {
-            let day = i + 1;
-            let weather_code =
-                self.get_cache_string(cache, &format!("weather.condition.day{}.code", day))?;
-            let temp_max =
-                self.get_cache_integer(cache, &format!("weather.day{}.temp_max", day))?;
-            let temp_min =
-                self.get_cache_integer(cache, &format!("weather.day{}.temp_min", day))?;
+        if valid {
+            // 绘制3天天气预报
+            for i in 0..3 {
+                let day = i + 1;
+                let weather_code =
+                    self.get_cache_string(cache, &format!("weather.condition.day{}.code", day))?;
+                let temp_max =
+                    self.get_cache_integer(cache, &format!("weather.day{}.temp_max", day))?;
+                let temp_min =
+                    self.get_cache_integer(cache, &format!("weather.day{}.temp_min", day))?;
 
-            // 计算位置
-            let x = left_offset + 10 + (i * (width / 3)) as i16;
-            let y = 190;
+                // 计算位置
+                let x = left_offset + 10 + (i * (width / 3)) as i16;
+                let y = 190;
 
-            // 绘制天气图标
-            icon_renderer.render(target, [x, y, 30, 30], &weather_code)?;
+                // 绘制天气图标
+                icon_renderer.render(target, [x, y, 30, 30], &weather_code)?;
 
-            // 绘制温度范围
-            let temp_range = format!("{}/{}", temp_max, temp_min);
-            text_renderer.render(
-                target,
-                [x, y + 35, width / 3 - 10, 20],
-                &temp_range,
-                TextAlignment::Center,
-                VerticalAlignment::Center,
-                None,
-                None,
-                FontSize::Small,
-            )?;
+                // 绘制温度范围
+                let temp_range = format!("{}/{}", temp_max, temp_min);
+                text_renderer.render(
+                    target,
+                    [x, y + 35, width / 3 - 10, 20],
+                    &temp_range,
+                    TextAlignment::Center,
+                    VerticalAlignment::Center,
+                    None,
+                    None,
+                    FontSize::Small,
+                )?;
+            }
         }
 
         Ok(())
@@ -562,11 +605,13 @@ impl RenderEngine {
         // 获取格言数据
         let motto = self.get_cache_string(cache, "hitokoto.content")?;
         log::debug!("获取到格言内容: {}", motto);
-        let author = self.get_cache_string(cache, "hitokoto.author")?;
-        log::debug!("获取到格言作者: {}", author);
+        let who = self.get_cache_string(cache, "hitokoto.author")?;
+        log::debug!("获取到格言作者: {}", who);
+        let from = self.get_cache_string(cache, "hitokoto.from")?;
+        log::debug!("获取到格言来源: {}", from);
 
         // 格式化格言
-        let motto_text = format!("{} —— {}", motto, author);
+        let motto_text = format!("{} —— {}《{}》", motto, who, from);
         log::debug!("格式化后的格言: {}", motto_text);
 
         // 绘制格言（垂直居中）

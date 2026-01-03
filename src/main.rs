@@ -37,6 +37,7 @@ use crate::common::error::Result;
 use crate::kernel::data::DataSourceRegistry;
 use crate::kernel::data::generic_scheduler_task;
 use crate::kernel::data::sources::config::ConfigDataSource;
+use crate::kernel::data::sources::motto::MottoDataSource;
 use crate::kernel::data::sources::time::TimeDataSource;
 use crate::kernel::data::sources::weather::WeatherDataSource;
 use crate::kernel::driver::display::DefaultDisplayDriver;
@@ -60,6 +61,7 @@ static SYSTEM_API: StaticCell<GlobalMutex<DefaultSystemApi>> = StaticCell::new()
 static CONFIG_SOURCE: StaticCell<GlobalMutex<ConfigDataSource>> = StaticCell::new();
 static TIME_SOURCE: StaticCell<GlobalMutex<TimeDataSource>> = StaticCell::new();
 static WEATHER_SOURCE: StaticCell<GlobalMutex<WeatherDataSource>> = StaticCell::new();
+static MOTTO_SOURCE: StaticCell<GlobalMutex<MottoDataSource>> = StaticCell::new();
 
 #[cfg(feature = "embedded_esp")]
 esp_bootloader_esp_idf::esp_app_desc!();
@@ -218,12 +220,21 @@ async fn cold_start(spawner: &Spawner) -> Result<()> {
         .await?;
 
     // 注册天气数据源
-    let weather_source_mutex =
+    let weather_source_mutex = 
         WEATHER_SOURCE.init(Mutex::new(WeatherDataSource::new(system_api).await?));
     data_source_registry
         .lock()
         .await
         .register_source(weather_source_mutex, system_api)
+        .await?;
+    
+    // 注册格言数据源
+    let motto_source_mutex = 
+        MOTTO_SOURCE.init(Mutex::new(MottoDataSource::new()?));
+    data_source_registry
+        .lock()
+        .await
+        .register_source(motto_source_mutex, system_api)
         .await?;
 
     spawner
