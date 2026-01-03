@@ -151,7 +151,6 @@ reqwless = { version = "0.13.0", default-features = false, features = [
 ] }
 sntpc = { version = "0.7", default-features = false, features = [
     "embassy-socket",
-    "log",
 ] }
 
 # GZip解压

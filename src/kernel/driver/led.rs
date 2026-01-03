@@ -1,6 +1,6 @@
 // src/kernel/driver/actuators.rs
 use crate::common::error::{AppError, Result};
-use core::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use core::sync::atomic::{AtomicUsize, Ordering};
 use embassy_executor::Spawner;
 
 #[cfg(feature = "embedded_esp")]
@@ -36,7 +36,6 @@ impl LedState {
 
 /// 全局LED状态（用于任务间通信）
 static LED_STATE: AtomicUsize = AtomicUsize::new(LedState::Off as usize);
-static BLINK_TASK_RUNNING: AtomicBool = AtomicBool::new(false);
 
 /// 执行器驱动trait
 pub trait LedDriver {
@@ -89,7 +88,6 @@ impl EspLedDriver {
             log::error!("启动LED任务失败: {:?}", e);
             AppError::LedError
         })?;
-        BLINK_TASK_RUNNING.store(true, Ordering::SeqCst);
 
         Ok(Self)
     }
