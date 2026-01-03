@@ -41,7 +41,7 @@ impl EspConfigStorageDriver {
     ///
     /// # 返回值
     /// - `Result<Self>`: 存储实例或错误
-    pub fn new(flash: Flash) -> Result<Self> {
+    pub fn new(peripherals: &Peripherals) -> Result<Self> {
         // 1. 初始化 FlashStorage 并获取静态引用
         let flash_storage_ref = FLASH_STORAGE.init(FlashStorage::new(unsafe {
             peripherals.FLASH.clone_unchecked()
@@ -80,7 +80,8 @@ impl ConfigStorage for EspConfigStorageDriver {
         // 从Flash读取数据
         if self
             .flash_storage
-            .read(self.config_address, &mut buffer[..]).is_err()
+            .read(self.config_address, &mut buffer[..])
+            .is_err()
         {
             return Err(AppError::StorageError);
         }
@@ -115,7 +116,11 @@ impl ConfigStorage for EspConfigStorageDriver {
         buffer.copy_from_slice(&data[..write_size]);
 
         // 写入数据到Flash
-        if self.flash_storage.write(self.config_address, &buffer[..]).is_err() {
+        if self
+            .flash_storage
+            .write(self.config_address, &buffer[..])
+            .is_err()
+        {
             return Err(AppError::StorageError);
         }
 
@@ -131,7 +136,11 @@ impl ConfigStorage for EspConfigStorageDriver {
         let buffer = alloc::vec![0xFF; CONFIG_SIZE];
 
         // 写入全0xFF来模拟擦除
-        if self.flash_storage.write(self.config_address, &buffer[..]).is_err() {
+        if self
+            .flash_storage
+            .write(self.config_address, &buffer[..])
+            .is_err()
+        {
             return Err(AppError::StorageError);
         }
 

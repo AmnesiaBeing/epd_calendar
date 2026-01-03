@@ -39,11 +39,11 @@ impl TextRenderer {
     pub fn render<D: DrawTarget<Color = QuadColor>>(
         &self,
         draw_target: &mut D,
-        rect: [u16; 4],
+        rect: [i16; 4],
         content: &str,
         alignment: TextAlignment,
         vertical_alignment: VerticalAlignment,
-        max_width: Option<u16>,
+        max_width: Option<i16>,
         max_lines: Option<u8>,
         font_size: FontSize,
     ) -> AppResult<()> {
@@ -54,7 +54,7 @@ impl TextRenderer {
         let [x, y, width, height] = rect;
         let draw_rect = Rectangle::new(
             Point::new(x as i32, y as i32),
-            Size::new(width.into(), height.into()),
+            Size::new(width as u32, height as u32),
         );
         let effective_width = max_width.unwrap_or(width) as i32;
         let line_height = font_size.pixel_size() + 2; // 基础行高 + 2px 行间距

@@ -18,11 +18,14 @@ extern crate alloc;
 use embassy_executor::Spawner;
 use embassy_sync::mutex::Mutex;
 use embassy_time::{Duration, Instant, Timer};
+use static_cell::StaticCell;
+
 #[cfg(feature = "embedded_esp")]
 use esp_hal::clock::CpuClock;
 #[cfg(feature = "embedded_esp")]
+use esp_hal::peripherals::Peripherals;
+#[cfg(feature = "embedded_esp")]
 use esp_hal::timer::timg::TimerGroup;
-use static_cell::StaticCell;
 
 mod assets;
 mod common;
@@ -62,9 +65,6 @@ esp_bootloader_esp_idf::esp_app_desc!();
 
 #[cfg(feature = "embedded_esp")]
 use panic_rtt_target as _;
-
-#[cfg(feature = "embedded_esp")]
-use rtt_target::rprintln;
 
 #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
 use embassy_executor::main as platform_main;
@@ -130,18 +130,11 @@ async fn cold_start(spawner: &Spawner) -> Result<()> {
     esp_alloc::heap_allocator!(#[esp_hal::ram(reclaimed)] size: 65536);
 
     #[cfg(feature = "embedded_esp")]
-    let timg0 = TimerGroup::new(peripherals.TIMG0);
-
-    #[cfg(feature = "embedded_esp")]
-    let sw_interrupt =
-        esp_hal::interrupt::software::SoftwareInterruptControl::new(peripherals.SW_INTERRUPT);
-
-    #[cfg(feature = "embedded_esp")]
-    esp_rtos::start(timg0.timer0, sw_interrupt.software_interrupt0);
+    init_rtos(&peripherals);
 
     // 初始化存储驱动与配置服务
     #[cfg(feature = "embedded_esp")]
-    let storage_driver = DefaultConfigStorageDriver::new(peripherals.FLASH).unwrap();
+    let storage_driver = DefaultConfigStorageDriver::new(&peripherals).unwrap();
     #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
     let storage_driver = DefaultConfigStorageDriver::new("flash.bin", 4096).unwrap();
 
@@ -249,10 +242,24 @@ async fn init_logging() {
 
     #[cfg(feature = "embedded_esp")]
     {
-        rtt_target::rtt_init_print!();
-        esp_println::logger::init_logger_from_env();
+        rtt_target::rtt_init_log!();
         log::info!("Initializing logger for ESP32");
     }
+}
+
+/// 初始化ESP-RTOS
+/// # 功能
+/// - 嵌入式ESP32初始化中断及定时器
+/// - Linux模拟器无作用
+#[cfg(feature = "embedded_esp")]
+fn init_rtos(peripherals: &Peripherals) {
+    let timg0 = TimerGroup::new(unsafe { peripherals.TIMG0.clone_unchecked() });
+
+    let sw_interrupt = esp_hal::interrupt::software::SoftwareInterruptControl::new(unsafe {
+        peripherals.SW_INTERRUPT.clone_unchecked()
+    });
+
+    esp_rtos::start(timg0.timer0, sw_interrupt.software_interrupt0);
 }
 
 /// 记录系统健康状态

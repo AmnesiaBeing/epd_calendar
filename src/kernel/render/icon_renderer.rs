@@ -21,7 +21,7 @@ impl IconRenderer {
     pub fn render<D: DrawTarget<Color = QuadColor>>(
         &self,
         draw_target: &mut D,
-        rect: [u16; 4],
+        rect: [i16; 4],
         icon_id: &str,
     ) -> Result<()> {
         // 获取图标数据
@@ -30,8 +30,8 @@ impl IconRenderer {
         // 计算图标位置（居中）
         let [x, y, width, height] = rect;
         let icon_size = icon_id.size();
-        let icon_width = icon_size.width as u16;
-        let icon_height = icon_size.height as u16;
+        let icon_width = icon_size.width as i16;
+        let icon_height = icon_size.height as i16;
 
         let x_pos = x + (width - icon_width) / 2;
         let y_pos = y + (height - icon_height) / 2;
@@ -80,8 +80,8 @@ impl IconRenderer {
     fn draw_icon<D: DrawTarget<Color = QuadColor>>(
         &self,
         draw_target: &mut D,
-        x: u16,
-        y: u16,
+        x: i16,
+        y: i16,
         icon_id: IconId,
     ) -> Result<()> {
         let icon_size = icon_id.size();
@@ -97,8 +97,8 @@ impl IconRenderer {
             // 处理每个字节的8个像素
             for bit in 0..8 {
                 if (byte >> (7 - bit)) & 1 != 0 {
-                    let pixel_x = x + (x_offset + bit) as u16;
-                    let pixel_y = y + y_offset as u16;
+                    let pixel_x = x + (x_offset + bit) as i16;
+                    let pixel_y = y + y_offset as i16;
 
                     // 确保像素在绘制目标范围内
                     let point = Point::new(pixel_x as i32, pixel_y as i32);

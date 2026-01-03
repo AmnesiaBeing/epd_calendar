@@ -109,8 +109,8 @@ impl RenderEngine {
 
         // 获取屏幕尺寸
         let display_size = target.size();
-        let width = display_size.width as u16;
-        let _height = display_size.height as u16;
+        let width = display_size.width as i16;
+        let _height = display_size.height as i16;
 
         // 创建渲染器实例
         let text_renderer = TextRenderer::new();
@@ -157,7 +157,7 @@ impl RenderEngine {
         target: &mut DT,
         icon_renderer: &IconRenderer,
         cache: &CacheKeyValueMap,
-        width: u16,
+        width: i16,
     ) -> Result<()>
     where
         DT: DrawTarget<Color = QuadColor>,
@@ -237,7 +237,7 @@ impl RenderEngine {
         target: &mut DT,
         text_renderer: &TextRenderer,
         cache: &CacheKeyValueMap,
-        width: u16,
+        width: i16,
     ) -> Result<()>
     where
         DT: DrawTarget<Color = QuadColor>,
@@ -276,7 +276,7 @@ impl RenderEngine {
     }
 
     /// 绘制分割线1
-    fn render_divider1<DT>(&self, target: &mut DT, width: u16) -> Result<()>
+    fn render_divider1<DT>(&self, target: &mut DT, width: i16) -> Result<()>
     where
         DT: DrawTarget<Color = QuadColor>,
         DT::Error: Debug,
@@ -300,7 +300,7 @@ impl RenderEngine {
         text_renderer: &TextRenderer,
         icon_renderer: &IconRenderer,
         cache: &CacheKeyValueMap,
-        width: u16,
+        width: i16,
     ) -> Result<()>
     where
         DT: DrawTarget<Color = QuadColor>,
@@ -354,7 +354,7 @@ impl RenderEngine {
         target: &mut DT,
         text_renderer: &TextRenderer,
         cache: &CacheKeyValueMap,
-        width: u16,
+        width: i16,
     ) -> Result<()> where
         DT: DrawTarget<Color = QuadColor>,
         DT::Error: Debug,
@@ -429,8 +429,8 @@ impl RenderEngine {
         text_renderer: &TextRenderer,
         icon_renderer: &IconRenderer,
         cache: &CacheKeyValueMap,
-        left_offset: u16,
-        width: u16,
+        left_offset: i16,
+        width: i16,
     ) -> Result<()>
     where
         DT: DrawTarget<Color = QuadColor>,
@@ -477,7 +477,7 @@ impl RenderEngine {
                 self.get_cache_integer(cache, &format!("weather.day{}.temp_min", day))?;
 
             // 计算位置
-            let x = left_offset + 10 + (i * (width / 3)) as u16;
+            let x = left_offset + 10 + (i * (width / 3)) as i16;
             let y = 190;
 
             // 绘制天气图标
@@ -501,7 +501,7 @@ impl RenderEngine {
     }
 
     /// 绘制分割线2
-    fn render_divider2<DT>(&self, target: &mut DT, width: u16) -> Result<()>
+    fn render_divider2<DT>(&self, target: &mut DT, width: i16) -> Result<()>
     where
         DT: DrawTarget<Color = QuadColor>,
         DT::Error: Debug,
@@ -524,7 +524,7 @@ impl RenderEngine {
         target: &mut DT,
         text_renderer: &TextRenderer,
         cache: &CacheKeyValueMap,
-        width: u16,
+        width: i16,
     ) -> Result<()>
     where
         DT: DrawTarget<Color = QuadColor>,

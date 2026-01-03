@@ -18,7 +18,8 @@
       "coreConfigs": [
         {
           "coreIndex": 0,
-          "programBinary": "target/riscv32imac-unknown-none-elf/debug/${workspaceFolderBasename}"
+          "programBinary": "target/riscv32imac-unknown-none-elf/debug/${workspaceFolderBasename}",
+          "rttEnabled": true,
         }
       ]
     },
@@ -31,7 +32,8 @@
       "coreConfigs": [
         {
           "coreIndex": 0,
-          "programBinary": "target/riscv32imac-unknown-none-elf/debug/${workspaceFolderBasename}"
+          "programBinary": "target/riscv32imac-unknown-none-elf/debug/${workspaceFolderBasename}",
+          "rttEnabled": true,
         }
       ]
     }
