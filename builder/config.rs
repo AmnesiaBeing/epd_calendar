@@ -54,7 +54,7 @@ pub struct BuildConfig {
     /// 天气图标配置，定义天气图标的生成规则
     pub weather_icon_config: WeatherIconConfig,
     /// 主布局配置文件路径，定义界面布局结构
-    pub main_layout_path: PathBuf,
+    pub _main_layout_path: PathBuf,
 }
 
 impl BuildConfig {
@@ -100,7 +100,7 @@ impl BuildConfig {
                 width: 64,
                 height: 64,
             },
-            main_layout_path: PathBuf::from("assets/layout/main.html"),
+            _main_layout_path: PathBuf::from("assets/layout/main.html"),
         })
     }
 
