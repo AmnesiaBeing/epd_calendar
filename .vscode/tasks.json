@@ -2,8 +2,13 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "build-debug",
-      "command": "cargo build",
+      "label": "besp",
+      "command": "cargo besp",
+      "type": "shell"
+    },
+    {
+      "label": "bsg",
+      "command": "cargo bsg",
       "type": "shell"
     }
   ]

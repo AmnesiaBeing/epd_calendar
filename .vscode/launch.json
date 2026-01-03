@@ -4,9 +4,9 @@
     {
       "type": "probe-rs-debug",
       "request": "launch",
-      "name": "Launch",
+      "name": "Launch Esp",
       "cwd": "${workspaceFolder}",
-      "preLaunchTask": "build-debug",
+      "preLaunchTask": "besp",
       "chip": "esp32c6",
       "flashingConfig": {
         "flashingEnabled": true,
@@ -19,23 +19,19 @@
         {
           "coreIndex": 0,
           "programBinary": "target/riscv32imac-unknown-none-elf/debug/${workspaceFolderBasename}",
-          "rttEnabled": true,
+          "rttEnabled": true
         }
       ]
     },
     {
-      "type": "probe-rs-debug",
-      "request": "attach",
-      "name": "Attach",
+      "type": "lldb",
+      "request": "launch",
+      "name": "Native Debug",
+      "program": "${workspaceFolder}/target/x86_64-unknown-linux-gnu/debug/${workspaceFolderBasename}",
+      "args": [],
       "cwd": "${workspaceFolder}",
-      "chip": "esp32c6",
-      "coreConfigs": [
-        {
-          "coreIndex": 0,
-          "programBinary": "target/riscv32imac-unknown-none-elf/debug/${workspaceFolderBasename}",
-          "rttEnabled": true,
-        }
-      ]
+      "preLaunchTask": "bsg",
+      "stopOnEntry": true
     }
   ]
 }
