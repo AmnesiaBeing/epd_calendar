@@ -213,7 +213,11 @@ impl TimeDataSource {
             CACHE_KEY_DAY,
             DynamicValue::Integer(day as i32),
         )?;
-        self.write_global_cache(cache_guard, CACHE_KEY_WEEKDAY, DynamicValue::Integer(weekday))?;
+        self.write_global_cache(
+            cache_guard,
+            CACHE_KEY_WEEKDAY,
+            DynamicValue::Integer(weekday),
+        )?;
 
         Ok(())
     }

@@ -229,6 +229,9 @@ pub enum AppError {
     #[error("Power driver error")]
     PowerError,
 
+    #[error("Actuator driver error")]
+    ActuatorError,
+
     #[error("Invalid date")]
     InvalidDate,
 
@@ -243,6 +246,9 @@ pub enum AppError {
 
     #[error("Render failed")]
     RenderFailed,
+
+    #[error("LED error")]
+    LedError,
 }
 
 /// 应用程序结果类型别名

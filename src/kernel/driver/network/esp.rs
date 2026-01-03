@@ -94,10 +94,7 @@ impl NetworkDriver for EspNetworkDriver {
         }
 
         // 取出设备用于创建网络栈
-        let device = self
-            .device
-            .take()
-            .ok_or(AppError::NetworkStackInitFailed)?;
+        let device = self.device.take().ok_or(AppError::NetworkStackInitFailed)?;
 
         // 配置网络 - 使用DHCP
         let config = Config::dhcpv4(Default::default());

@@ -45,19 +45,19 @@ impl RenderEngine {
                 DynamicValue::String(s) => {
                     log::debug!("缓存键 {} 为字符串类型: {}", key, s);
                     Ok(s.to_string())
-                },
+                }
                 DynamicValue::Integer(i) => {
                     log::debug!("缓存键 {} 为整数类型，转换为字符串: {}", key, i);
                     Ok(i.to_string())
-                },
+                }
                 DynamicValue::Float(f) => {
                     log::debug!("缓存键 {} 为浮点数类型，转换为字符串: {}", key, f);
                     Ok(f.to_string())
-                },
+                }
                 DynamicValue::Boolean(b) => {
                     log::debug!("缓存键 {} 为布尔类型，转换为字符串: {}", key, b);
                     Ok(b.to_string())
-                },
+                }
             })
     }
 
@@ -74,23 +74,28 @@ impl RenderEngine {
                 DynamicValue::Integer(i) => {
                     log::debug!("缓存键 {} 为整数类型: {}", key, i);
                     Ok(*i)
-                },
+                }
                 DynamicValue::String(s) => {
                     log::debug!("缓存键 {} 为字符串类型，尝试转换为整数: {}", key, s);
                     i32::from_str(s.as_str()).map_err(|_| {
                         log::error!("字符串转整数失败: {}", s);
                         AppError::ConvertError
                     })
-                },
+                }
                 DynamicValue::Float(f) => {
-                    log::debug!("缓存键 {} 为浮点数类型，转换为整数: {} -> {}", key, f, *f as i32);
+                    log::debug!(
+                        "缓存键 {} 为浮点数类型，转换为整数: {} -> {}",
+                        key,
+                        f,
+                        *f as i32
+                    );
                     Ok(*f as i32)
-                },
+                }
                 DynamicValue::Boolean(b) => {
                     let result = if *b { 1 } else { 0 };
                     log::debug!("缓存键 {} 为布尔类型，转换为整数: {} -> {}", key, b, result);
                     Ok(result)
-                },
+                }
             })
     }
 
@@ -285,7 +290,13 @@ impl RenderEngine {
         // 绘制水平分割线，左右两边有5px边距
         let divider = Line::new(Point::new(5, 110), Point::new((width - 5) as i32, 110))
             .into_styled(PrimitiveStyle::with_stroke(QuadColor::Black, 1));
-        log::debug!("分割线1位置: 起点({}, {}), 终点({}, {}), 粗细: 1", 5, 110, width - 5, 110);
+        log::debug!(
+            "分割线1位置: 起点({}, {}), 终点({}, {}), 粗细: 1",
+            5,
+            110,
+            width - 5,
+            110
+        );
 
         divider.draw(target).map_err(|_| AppError::RenderError)?;
         log::info!("分割线1绘制完成");
@@ -310,7 +321,11 @@ impl RenderEngine {
         // 计算左侧和右侧区域宽度
         let left_width = width / 2;
         let right_width = width - left_width;
-        log::debug!("左侧区域宽度: {}, 右侧区域宽度: {}", left_width, right_width);
+        log::debug!(
+            "左侧区域宽度: {}, 右侧区域宽度: {}",
+            left_width,
+            right_width
+        );
 
         // 绘制农历
         log::debug!("开始绘制农历信息");
@@ -324,8 +339,14 @@ impl RenderEngine {
             Point::new(left_width as i32, 300),
         )
         .into_styled(PrimitiveStyle::with_stroke(QuadColor::Black, 1));
-        log::debug!("竖直分割线位置: 起点({}, {}), 终点({}, {})
-            , 粗细: 1", left_width, 120, left_width, 300);
+        log::debug!(
+            "竖直分割线位置: 起点({}, {}), 终点({}, {})
+            , 粗细: 1",
+            left_width,
+            120,
+            left_width,
+            300
+        );
 
         vertical_divider
             .draw(target)
@@ -355,7 +376,8 @@ impl RenderEngine {
         text_renderer: &TextRenderer,
         cache: &CacheKeyValueMap,
         width: i16,
-    ) -> Result<()> where
+    ) -> Result<()>
+    where
         DT: DrawTarget<Color = QuadColor>,
         DT::Error: Debug,
     {
@@ -365,7 +387,7 @@ impl RenderEngine {
         let month = self.get_cache_string(cache, "datetime.lunar.month")?;
         let jieqi = self.get_cache_string(cache, "datetime.lunar.jieqi")?;
         let festival = self.get_cache_string(cache, "datetime.lunar.festival")?;
-        
+
         // 获取农历日
         let day = self.get_cache_string(cache, "datetime.lunar.day")?;
 
@@ -510,7 +532,13 @@ impl RenderEngine {
         // 绘制水平分割线，左右两边有5px边距
         let divider = Line::new(Point::new(5, 320), Point::new((width - 5) as i32, 320))
             .into_styled(PrimitiveStyle::with_stroke(QuadColor::Black, 1));
-        log::debug!("分割线2位置: 起点({}, {}), 终点({}, {}), 粗细: 1", 5, 320, width - 5, 320);
+        log::debug!(
+            "分割线2位置: 起点({}, {}), 终点({}, {}), 粗细: 1",
+            5,
+            320,
+            width - 5,
+            320
+        );
 
         divider.draw(target).map_err(|_| AppError::RenderError)?;
         log::info!("分割线2绘制完成");

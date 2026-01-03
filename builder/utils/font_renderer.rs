@@ -7,8 +7,7 @@ use freetype::bitmap::PixelMode;
 use std::collections::BTreeMap;
 
 /// 单个字符的字形度量参数（存储偏移 + 几何参数）
-#[derive(Debug, Clone, Copy)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct GlyphMetrics {
     /// 字符在bin文件中的起始偏移（字节）
     pub offset: u32,
@@ -23,7 +22,6 @@ pub struct GlyphMetrics {
     /// 水平Advance（AdvanceX）：字符渲染后的X轴移动距离（像素）
     pub advance_x: i32,
 }
-
 
 /// 字体渲染配置
 #[derive(Debug, Clone)]

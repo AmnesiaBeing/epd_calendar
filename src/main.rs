@@ -40,6 +40,7 @@ use crate::kernel::data::sources::config::ConfigDataSource;
 use crate::kernel::data::sources::time::TimeDataSource;
 use crate::kernel::data::sources::weather::WeatherDataSource;
 use crate::kernel::driver::display::DefaultDisplayDriver;
+use crate::kernel::driver::led::DefaultLedDriver;
 use crate::kernel::driver::network::{DefaultNetworkDriver, NetworkDriver};
 use crate::kernel::driver::ntp_source::SntpService;
 use crate::kernel::driver::power::DefaultPowerDriver;
@@ -164,6 +165,12 @@ async fn cold_start(spawner: &Spawner) -> Result<()> {
     #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
     let power_driver = DefaultPowerDriver::new();
 
+    // 初始化执行器驱动
+    #[cfg(feature = "embedded_esp")]
+    let mut led_driver = DefaultLedDriver::new(&peripherals).unwrap();
+    #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
+    let mut led_driver = DefaultLedDriver::new();
+
     // 初始化显示驱动
     #[cfg(feature = "embedded_esp")]
     let display_driver = DefaultDisplayDriver::new(&peripherals).await.unwrap();
@@ -179,6 +186,7 @@ async fn cold_start(spawner: &Spawner) -> Result<()> {
         network_driver_mutex,
         storage_driver,
         DefaultSensorDriver::new(),
+        led_driver,
         display_driver_mutex,
     )));
 

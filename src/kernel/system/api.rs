@@ -8,6 +8,7 @@ use crate::common::GlobalMutex;
 use crate::common::error::{AppError, Result};
 use crate::kernel::data::{DataSourceRegistry, DynamicValue};
 use crate::kernel::driver::display::DefaultDisplayDriver;
+use crate::kernel::driver::led::{DefaultLedDriver, LedDriver, LedState};
 use crate::kernel::driver::network::{DefaultNetworkDriver, NetworkDriver};
 use crate::kernel::driver::power::{DefaultPowerDriver, PowerDriver};
 use crate::kernel::driver::sensor::{DefaultSensorDriver, SensorDriver};
@@ -48,6 +49,9 @@ pub trait HardwareApi {
 
     /// 刷新屏幕显示
     async fn update_screen(&self) -> Result<()>;
+
+    /// 设置LED状态
+    async fn set_led_state(&self, status: LedState) -> Result<()>;
 }
 
 /// 网络客户端API接口
@@ -104,6 +108,8 @@ pub struct DefaultSystemApi {
     config_storage_driver: GlobalMutex<DefaultConfigStorageDriver>,
     /// 传感器驱动实例
     sensor_driver: GlobalMutex<DefaultSensorDriver>,
+    /// 执行器驱动实例
+    led_driver: GlobalMutex<DefaultLedDriver>,
     /// 数据源注册表（全局互斥锁保护）
     data_source_registry: Option<&'static GlobalMutex<DataSourceRegistry>>,
     /// 屏幕驱动实例
@@ -117,6 +123,7 @@ impl DefaultSystemApi {
         network_driver: &'static GlobalMutex<DefaultNetworkDriver>,
         storage_driver: DefaultConfigStorageDriver,
         sensor_driver: DefaultSensorDriver,
+        led_driver: DefaultLedDriver,
         display_driver: &'static GlobalMutex<DefaultDisplayDriver>,
     ) -> Self {
         Self {
@@ -124,6 +131,7 @@ impl DefaultSystemApi {
             network_driver,
             config_storage_driver: GlobalMutex::new(storage_driver),
             sensor_driver: GlobalMutex::new(sensor_driver),
+            led_driver: GlobalMutex::new(led_driver),
             data_source_registry: None,
             display_driver,
         }
@@ -235,6 +243,11 @@ impl HardwareApi for DefaultSystemApi {
     /// 刷新屏幕显示
     async fn update_screen(&self) -> Result<()> {
         unimplemented!()
+    }
+
+    /// 设置LED状态
+    async fn set_led_state(&self, state: LedState) -> Result<()> {
+        self.led_driver.lock().await.set_led_state(state)
     }
 }
 
