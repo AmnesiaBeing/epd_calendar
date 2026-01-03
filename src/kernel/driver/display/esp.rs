@@ -41,12 +41,12 @@ impl EspEpdDriver {
     /// 创建新的EPD驱动实例
     ///
     /// 使用固定引脚配置：
-    /// - SCK: GPIO6
-    /// - SDA/MOSI: GPIO7
-    /// - CS: GPIO5
-    /// - BUSY: GPIO2
-    /// - DC: GPIO3
-    /// - RST: GPIO4
+    /// - SCK: GPIO22
+    /// - SDA/MOSI: GPIO23
+    /// - CS: GPIO21
+    /// - BUSY: GPIO18
+    /// - DC: GPIO20
+    /// - RST: GPIO19
     ///
     /// # 参数
     /// - `peripherals`: ESP32外设实例
@@ -57,26 +57,26 @@ impl EspEpdDriver {
         log::info!("Initializing ESP EPD driver with fixed pin configuration");
 
         // 配置 SPI 引脚
-        let sck = unsafe { peripherals.GPIO6.clone_unchecked() };
-        let sda = unsafe { peripherals.GPIO7.clone_unchecked() };
+        let sck = unsafe { peripherals.GPIO22.clone_unchecked() };
+        let sda = unsafe { peripherals.GPIO23.clone_unchecked() };
         let cs = Output::new(
-            unsafe { peripherals.GPIO5.clone_unchecked() },
+            unsafe { peripherals.GPIO21.clone_unchecked() },
             Level::High,
             OutputConfig::default(),
         );
 
         // 配置 EPD 控制引脚
         let busy = Input::new(
-            unsafe { peripherals.GPIO2.clone_unchecked() },
+            unsafe { peripherals.GPIO18.clone_unchecked() },
             InputConfig::default().with_pull(Pull::Up),
         );
         let dc = Output::new(
-            unsafe { peripherals.GPIO3.clone_unchecked() },
+            unsafe { peripherals.GPIO20.clone_unchecked() },
             Level::High,
             OutputConfig::default(),
         );
         let rst = Output::new(
-            unsafe { peripherals.GPIO4.clone_unchecked() },
+            unsafe { peripherals.GPIO19.clone_unchecked() },
             Level::High,
             OutputConfig::default(),
         );
