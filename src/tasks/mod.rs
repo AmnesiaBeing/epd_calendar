@@ -4,9 +4,7 @@
 //!
 //! 该模块包含显示任务、时间任务、天气任务、名言任务和状态任务等系统核心异步任务。
 
-pub mod display_task;
-
-pub use display_task::display_task;
+pub mod main_task;
 
 use embassy_sync::channel::Channel;
 

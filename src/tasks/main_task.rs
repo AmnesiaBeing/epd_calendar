@@ -19,7 +19,7 @@ static DISPLAY_BUFFER: StaticCell<GlobalMutex<Display7in5>> = StaticCell::new();
 
 /// 显示任务主函数
 #[embassy_executor::task]
-pub async fn display_task(
+pub async fn main_task(
     display_driver: &'static GlobalMutex<DefaultDisplayDriver>,
     data_source_registry: &'static GlobalMutex<DataSourceRegistry>,
 ) {

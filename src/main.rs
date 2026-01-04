@@ -49,7 +49,7 @@ use crate::kernel::driver::sensor::DefaultSensorDriver;
 use crate::kernel::driver::storage::DefaultConfigStorageDriver;
 use crate::kernel::driver::time_driver::DefaultTimeDriver;
 use crate::kernel::system::api::DefaultSystemApi;
-use crate::tasks::display_task;
+use crate::tasks::main_task::main_task;
 
 /// 全局驱动状态管理
 static DISPLAY_DRIVER: StaticCell<GlobalMutex<DefaultDisplayDriver>> = StaticCell::new();
@@ -163,9 +163,14 @@ async fn cold_start(spawner: &Spawner) -> Result<()> {
 
     // 初始化其他驱动和服务
     #[cfg(feature = "embedded_esp")]
-    let power_driver = DefaultPowerDriver::new();
+    let power_driver = DefaultPowerDriver::new(&peripherals)?;
     #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
     let power_driver = DefaultPowerDriver::new();
+
+    #[cfg(feature = "embedded_esp")]
+    let sensor_driver = DefaultSensorDriver::new(&peripherals)?;
+    #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
+    let sensor_driver = DefaultSensorDriver::new();
 
     // 初始化执行器驱动
     #[cfg(feature = "embedded_esp")]
@@ -187,14 +192,14 @@ async fn cold_start(spawner: &Spawner) -> Result<()> {
         power_driver,
         network_driver_mutex,
         storage_driver,
-        DefaultSensorDriver::new(),
+        sensor_driver,
         led_driver,
         display_driver_mutex,
     )));
 
     // 初始化并启动显示任务
     spawner
-        .spawn(display_task(display_driver_mutex, data_source_registry))
+        .spawn(main_task(display_driver_mutex, data_source_registry))
         .unwrap();
 
     // 设置数据源注册表到系统API
@@ -220,17 +225,16 @@ async fn cold_start(spawner: &Spawner) -> Result<()> {
         .await?;
 
     // 注册天气数据源
-    let weather_source_mutex = 
+    let weather_source_mutex =
         WEATHER_SOURCE.init(Mutex::new(WeatherDataSource::new(system_api).await?));
     data_source_registry
         .lock()
         .await
         .register_source(weather_source_mutex, system_api)
         .await?;
-    
+
     // 注册格言数据源
-    let motto_source_mutex = 
-        MOTTO_SOURCE.init(Mutex::new(MottoDataSource::new()?));
+    let motto_source_mutex = MOTTO_SOURCE.init(Mutex::new(MottoDataSource::new()?));
     data_source_registry
         .lock()
         .await

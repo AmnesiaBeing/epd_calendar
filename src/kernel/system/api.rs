@@ -10,7 +10,7 @@ use crate::kernel::data::{DataSourceRegistry, DynamicValue};
 use crate::kernel::driver::display::DefaultDisplayDriver;
 use crate::kernel::driver::led::{DefaultLedDriver, LedDriver, LedState};
 use crate::kernel::driver::network::{DefaultNetworkDriver, NetworkDriver};
-use crate::kernel::driver::power::{DefaultPowerDriver, PowerDriver};
+use crate::kernel::driver::power::{BatteryLevel, DefaultPowerDriver, PowerDriver};
 use crate::kernel::driver::sensor::{DefaultSensorDriver, SensorDriver};
 use crate::kernel::driver::storage::{ConfigStorage, DefaultConfigStorageDriver};
 
@@ -27,16 +27,16 @@ use reqwless::request::RequestBuilder;
 #[async_trait(?Send)]
 pub trait HardwareApi {
     /// 获取电池电量
-    async fn get_battery_level(&self) -> Result<u8>;
+    async fn get_battery_level(&self) -> Result<BatteryLevel>;
 
     /// 获取充电状态
     async fn is_charging(&self) -> Result<bool>;
 
     /// 获取湿度
-    async fn get_humidity(&self) -> Result<u8>;
+    async fn get_humidity(&self) -> Result<i32>;
 
     /// 获取温度
-    async fn get_temperature(&self) -> Result<u8>;
+    async fn get_temperature(&self) -> Result<i32>;
 
     /// 检查WiFi连接状态
     async fn is_wifi_connected(&self) -> Result<bool>;
@@ -187,7 +187,7 @@ impl SystemApi for DefaultSystemApi {
 // 硬件API实现
 #[async_trait(?Send)]
 impl HardwareApi for DefaultSystemApi {
-    async fn get_battery_level(&self) -> Result<u8> {
+    async fn get_battery_level(&self) -> Result<BatteryLevel> {
         self.power_driver
             .lock()
             .await
@@ -206,7 +206,7 @@ impl HardwareApi for DefaultSystemApi {
     }
 
     /// 获取湿度
-    async fn get_humidity(&self) -> Result<u8> {
+    async fn get_humidity(&self) -> Result<i32> {
         self.sensor_driver
             .lock()
             .await
@@ -216,7 +216,7 @@ impl HardwareApi for DefaultSystemApi {
     }
 
     /// 获取温度
-    async fn get_temperature(&self) -> Result<u8> {
+    async fn get_temperature(&self) -> Result<i32> {
         self.sensor_driver
             .lock()
             .await

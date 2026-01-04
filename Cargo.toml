@@ -61,6 +61,7 @@ embedded_esp = [
     "getrandom",
     "rtt-target",
     "panic-rtt-target",
+    "sht25",
 ]
 embedded_graphics_simulator = ["epd-waveshare/simulator"]
 spi_bitbang = ["bitbang-hal"]
@@ -161,6 +162,9 @@ getrandom = { version = "0.3", optional = true, default-features = false }
 
 # 电子墨水屏驱动
 epd-waveshare = { path = "./../epd-waveshare/", features = [] }
+
+# 温度传感器驱动
+sht25 = { version = "0.2.0", optional = true }
 
 # 中国阳历阴历转换
 sxtwl-rs = { path = "./../sxtwl-rs/", features = ["holiday", "festival"] }

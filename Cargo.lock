@@ -1219,6 +1219,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
+ "sht25",
  "sntpc",
  "static_cell",
  "sxtwl-rs",
@@ -3429,6 +3430,15 @@ name = "shlex"
 version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
+
+[[package]]
+name = "sht25"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "59d5de0e984deb4300d202d006cd4439248508f3e0a3c41ed9f6b186b49c341b"
+dependencies = [
+ "embedded-hal 1.0.0",
+]
 
 [[package]]
 name = "simd-adler32"
