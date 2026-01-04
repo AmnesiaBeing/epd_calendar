@@ -235,8 +235,8 @@ impl RenderEngine {
         DT::Error: Debug,
     {
         let y = 10 + 128 + 40;
-        // 绘制水平分割线，左右两边有35px边距
-        let divider = Line::new(Point::new(35, y), Point::new((width - 35) as i32, y))
+        // 绘制水平分割线，左右两边有15px边距
+        let divider = Line::new(Point::new(15, y), Point::new((width - 15) as i32, y))
             .into_styled(PrimitiveStyle::with_stroke(QuadColor::Black, 1));
 
         divider.draw(target).map_err(|_| AppError::RenderError)?;
@@ -267,8 +267,8 @@ impl RenderEngine {
 
         // 绘制竖直分割线
         let vertical_divider = Line::new(
-            Point::new(left_width as i32, 120),
-            Point::new(left_width as i32, 300),
+            Point::new(left_width as i32, 10 + 128 + 40 + 10),
+            Point::new(left_width as i32, 480 - 120 - 10),
         )
         .into_styled(PrimitiveStyle::with_stroke(QuadColor::Black, 1));
 
@@ -340,7 +340,7 @@ impl RenderEngine {
         log::debug!("开始绘制农历");
         // 获取农历数据
         let ganzhi = self.get_cache_string(cache, "datetime.lunar.ganzhi")?;
-        let _zodiac = self.get_cache_string(cache, "datetime.lunar.zodiac")?;
+        let zodiac = self.get_cache_string(cache, "datetime.lunar.zodiac")?;
         let month = self.get_cache_string(cache, "datetime.lunar.month")?;
         let jieqi = self.get_cache_string(cache, "datetime.lunar.jieqi")?;
         let festival = self.get_cache_string(cache, "datetime.lunar.festival")?;
@@ -349,10 +349,10 @@ impl RenderEngine {
         let day = self.get_cache_string(cache, "datetime.lunar.day")?;
 
         // 绘制农历年份和月份
-        let lunar_year_month = format!("{}年{}", ganzhi, month);
+        let lunar_year_month = format!("{}{}年{}月", ganzhi, zodiac, month);
         text_renderer.render(
             target,
-            [10, 120, width - 20, 25],
+            [10, 10 + 128 + 40, width - 20, 24],
             &lunar_year_month,
             TextAlignment::Center,
             VerticalAlignment::Center,
@@ -364,7 +364,7 @@ impl RenderEngine {
         // 绘制农历日
         text_renderer.render(
             target,
-            [10, 150, width - 20, 35],
+            [10, 10 + 128 + 40 + 24, width - 20, 40],
             &day,
             TextAlignment::Center,
             VerticalAlignment::Center,
@@ -377,7 +377,7 @@ impl RenderEngine {
         if !jieqi.is_empty() {
             text_renderer.render(
                 target,
-                [10, 190, width - 20, 20],
+                [10 + 40, 10 + 128 + 40 + 24, width - 20, 20],
                 &jieqi,
                 TextAlignment::Center,
                 VerticalAlignment::Center,
@@ -388,7 +388,7 @@ impl RenderEngine {
         } else if !festival.is_empty() {
             text_renderer.render(
                 target,
-                [10, 190, width - 20, 20],
+                [10 + 40, 10 + 128 + 40 + 24, width - 20, 20],
                 &festival,
                 TextAlignment::Center,
                 VerticalAlignment::Center,
@@ -429,9 +429,9 @@ impl RenderEngine {
         // 绘制位置
         text_renderer.render(
             target,
-            [left_offset + 10, 120, width - 20, 25],
+            [left_offset + 10, 10 + 128 + 40, width - 20, 25],
             &location,
-            TextAlignment::Center,
+            TextAlignment::Left,
             VerticalAlignment::Center,
             None,
             None,
@@ -442,13 +442,13 @@ impl RenderEngine {
         let temp_humidity = format!("温度：{}°C，湿度：{}%", temperature, humidity);
         text_renderer.render(
             target,
-            [left_offset + 10, 150, width - 20, 30],
+            [left_offset + 10, 10 + 128 + 40, width - 20, 25],
             &temp_humidity,
-            TextAlignment::Left,
-            VerticalAlignment::Top,
+            TextAlignment::Right,
+            VerticalAlignment::Center,
             None,
             None,
-            FontSize::Small,
+            FontSize::Medium,
         )?;
 
         if valid {
@@ -498,9 +498,10 @@ impl RenderEngine {
         DT: DrawTarget<Color = QuadColor>,
         DT::Error: Debug,
     {
+        let y = 480 - 120 - 10;
         log::debug!("开始绘制分割线2");
-        // 绘制水平分割线，左右两边有5px边距
-        let divider = Line::new(Point::new(5, 320), Point::new((width - 5) as i32, 320))
+        // 绘制水平分割线，左右两边有15px边距
+        let divider = Line::new(Point::new(15, y), Point::new((width - 15) as i32, y))
             .into_styled(PrimitiveStyle::with_stroke(QuadColor::Black, 1));
 
         divider.draw(target).map_err(|_| AppError::RenderError)?;
