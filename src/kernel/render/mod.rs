@@ -159,7 +159,7 @@ impl RenderEngine {
 
         // 计算起始X坐标（水平居中）
         let start_x = (width - total_width) / 2;
-        let y = 20; // 顶部边距
+        let y = 10; // 顶部边距
 
         // 绘制时间图标
         icon_renderer.render(
@@ -216,7 +216,7 @@ impl RenderEngine {
         // 绘制日期（水平居中）
         text_renderer.render(
             target,
-            [0, 20 + 128, width, 40],
+            [0, 10 + 128, width, 40],
             &date_str,
             TextAlignment::Center,
             VerticalAlignment::Center,
@@ -234,7 +234,7 @@ impl RenderEngine {
         DT: DrawTarget<Color = QuadColor>,
         DT::Error: Debug,
     {
-        let y = 20 + 128 + 40;
+        let y = 10 + 128 + 40;
         // 绘制水平分割线，左右两边有35px边距
         let divider = Line::new(Point::new(35, y), Point::new((width - 35) as i32, y))
             .into_styled(PrimitiveStyle::with_stroke(QuadColor::Black, 1));

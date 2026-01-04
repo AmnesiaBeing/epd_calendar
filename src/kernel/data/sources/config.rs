@@ -114,7 +114,7 @@ impl ConfigDataSource {
         let config_api = system_api_guard.get_config_api();
         config_api.write_config(&data).await.map_err(|e| {
             log::error!("Failed to write config to storage: {:?}", e);
-            AppError::StorageWriteFailed
+            AppError::StorageError
         })?;
         drop(system_api_guard);
 
@@ -199,12 +199,12 @@ impl DataSource for ConfigDataSource {
     async fn refresh_with_cache(
         &mut self,
         _system_api: &'static GlobalMutex<DefaultSystemApi>,
-        cache_guard: &mut GlobalRwLockWriteGuard<CacheKeyValueMap>,
+        _cache_guard: &mut GlobalRwLockWriteGuard<CacheKeyValueMap>,
     ) -> Result<()> {
-        if self.dirty {
-            let cache_read_guard = cache_guard.read();
-            self.save_config_to_storage(&cache_read_guard).await?;
-        }
+        // if self.dirty {
+        //     let cache_read_guard = self.system_api.lock().await.get_config_api();
+        //     self.save_cache_to_storage(&cache_read_guard).await?;
+        // }
         Ok(())
     }
 }

@@ -47,60 +47,60 @@ pub async fn main_task(
 }
 
 /// 渲染WiFi配对二维码
-async fn render_wifi_pairing_qr(
-    display_driver: &'static GlobalMutex<DefaultDisplayDriver>,
-    display_buffer: &'static GlobalMutex<Display7in5>,
-) {
-    log::info!("Rendering WiFi pairing QR code");
+// async fn render_wifi_pairing_qr(
+//     display_driver: &'static GlobalMutex<DefaultDisplayDriver>,
+//     display_buffer: &'static GlobalMutex<Display7in5>,
+// ) {
+//     log::info!("Rendering WiFi pairing QR code");
 
-    let mut buffer_guard = display_buffer.lock().await;
+//     let mut buffer_guard = display_buffer.lock().await;
 
-    // 清除显示缓冲区
-    if let Err(e) = buffer_guard.clear(QuadColor::White) {
-        log::error!("Failed to clear display buffer: {:?}", e);
-        return;
-    }
+//     // 清除显示缓冲区
+//     if let Err(e) = buffer_guard.clear(QuadColor::White) {
+//         log::error!("Failed to clear display buffer: {:?}", e);
+//         return;
+//     }
 
-    // 生成WiFi配对二维码
-    let qr_code = match qrcode::QrCode::new("WIFI:T:WPA;S:EPD_Calendar;P:12345678;;") {
-        Ok(qr) => qr,
-        Err(e) => {
-            log::error!("Failed to generate QR code: {:?}", e);
-            return;
-        }
-    };
+//     // 生成WiFi配对二维码
+//     let qr_code = match qrcode::QrCode::new("WIFI:T:WPA;S:EPD_Calendar;P:12345678;;") {
+//         Ok(qr) => qr,
+//         Err(e) => {
+//             log::error!("Failed to generate QR code: {:?}", e);
+//             return;
+//         }
+//     };
 
-    let qr_image = qr_code
-        .render::<QuadColor>()
-        .dark_color(QuadColor::Black)
-        .light_color(QuadColor::White)
-        .build();
+//     let qr_image = qr_code
+//         .render::<QuadColor>()
+//         .dark_color(QuadColor::Black)
+//         .light_color(QuadColor::White)
+//         .build();
 
-    // 将二维码绘制到缓冲区
-    let qr_size = qr_image.len();
-    let offset_x = (buffer_guard.width() - qr_size as u32) / 2;
-    let offset_y = (buffer_guard.height() - qr_size as u32) / 2;
+//     // 将二维码绘制到缓冲区
+//     let qr_size = qr_image.len();
+//     let offset_x = (buffer_guard.width() - qr_size as u32) / 2;
+//     let offset_y = (buffer_guard.height() - qr_size as u32) / 2;
 
-    for (y, row) in qr_image.iter().enumerate() {
-        for (x, &color) in row.iter().enumerate() {
-            buffer_guard.set_pixel(Pixel(
-                Point::new(offset_x + x as u32, offset_y + y as u32),
-                color,
-            ));
-        }
-    }
+//     for (y, row) in qr_image.iter().enumerate() {
+//         for (x, &color) in row.iter().enumerate() {
+//             buffer_guard.set_pixel(Pixel(
+//                 Point::new(offset_x + x as u32, offset_y + y as u32),
+//                 color,
+//             ));
+//         }
+//     }
 
-    // 更新显示
-    let mut display_guard = display_driver.lock().await;
-    if let Err(e) = display_guard.update_frame(buffer_guard.buffer()) {
-        log::error!("Failed to update frame: {:?}", e);
-        return;
-    }
+//     // 更新显示
+//     let mut display_guard = display_driver.lock().await;
+//     if let Err(e) = display_guard.update_frame(buffer_guard.buffer()) {
+//         log::error!("Failed to update frame: {:?}", e);
+//         return;
+//     }
 
-    if let Err(e) = display_guard.display_frame() {
-        log::error!("Failed to display frame: {:?}", e);
-    }
-}
+//     if let Err(e) = display_guard.display_frame() {
+//         log::error!("Failed to display frame: {:?}", e);
+//     }
+// }
 
 /// 渲染布局到显示屏
 async fn render_layout(
@@ -111,14 +111,14 @@ async fn render_layout(
     log::info!("Rendering layout");
 
     // 检查WiFi配对状态
-    let config = crate::kernel::data::sources::config::SystemConfig::get_instance().await;
-    let is_wifi_paired = config.get("wifi_ssid").is_some();
+    // let config = crate::kernel::data::sources::config::SystemConfig::get_instance().await;
+    // let is_wifi_paired = config.get("wifi_ssid").is_some();
 
-    if !is_wifi_paired {
-        // 显示WiFi配对二维码
-        render_wifi_pairing_qr(display_driver, display_buffer).await;
-        return;
-    }
+    // if !is_wifi_paired {
+    //     // 显示WiFi配对二维码
+    //     render_wifi_pairing_qr(display_driver, display_buffer).await;
+    //     return;
+    // }
     log::info!("Rendering layout");
 
     // 显示时钟页面

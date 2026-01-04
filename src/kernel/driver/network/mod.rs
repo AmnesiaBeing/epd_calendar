@@ -30,7 +30,7 @@ pub trait NetworkDriver {
     ///
     /// # 返回值
     /// - `Result<()>`: 连接结果
-    async fn connect(&mut self) -> Result<()>;
+    async fn connect(&mut self, ssid: &str, password: &str) -> Result<()>;
 
     /// 断开网络连接
     ///

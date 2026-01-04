@@ -213,10 +213,21 @@ impl TimeDataSource {
             CACHE_KEY_DAY,
             DynamicValue::Integer(day as i32),
         )?;
+
+        const WEEKDAY_NAMES: &[&str] = &[
+            "Sunday",
+            "Monday",
+            "Tuesday",
+            "Wednesday",
+            "Thursday",
+            "Friday",
+            "Saturday",
+        ];
+
         self.write_global_cache(
             cache_guard,
             CACHE_KEY_WEEKDAY,
-            DynamicValue::Integer(weekday),
+            DynamicValue::String(alloc_string_to_heapless(WEEKDAY_NAMES[weekday as usize])?),
         )?;
 
         Ok(())

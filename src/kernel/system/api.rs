@@ -238,14 +238,14 @@ impl HardwareApi for DefaultSystemApi {
 
     async fn connect_wifi(&self, ssid: &str, password: &str) -> Result<()> {
         // 保存WiFi凭据到配置
-        let mut config = crate::kernel::data::sources::config::SystemConfig::get_instance().await;
-        config.set("wifi_ssid", ssid.to_string()).await?;
-        config.set("wifi_password", password.to_string()).await?;
-        config.save().await?;
+        // let mut config = crate::kernel::data::sources::config::SystemConfig::get_instance().await;
+        // config.set("wifi_ssid", ssid.to_string()).await?;
+        // config.set("wifi_password", password.to_string()).await?;
+        // config.save().await?;
 
         // 连接WiFi
         let mut network_driver = self.network_driver.lock().await;
-        network_driver.connect().await
+        network_driver.connect(ssid, password).await
     }
 
     async fn disconnect_wifi(&self) -> Result<()> {
@@ -269,12 +269,18 @@ impl HardwareApi for DefaultSystemApi {
     /// 刷新屏幕显示
     async fn update_screen(&self) -> Result<()> {
         // 调用渲染任务更新屏幕
-        let display_driver = self.display_driver.lock().await;
-        let display_buffer = self.display_buffer.lock().await;
-        let data_source_registry = self.data_source_registry.lock().await;
-        
-        crate::tasks::main_task::render_layout(&display_driver, &display_buffer, &data_source_registry).await;
-        Ok(())
+        // let display_driver = self.display_driver.lock().await;
+        // let display_buffer = self.display_buffer.lock().await;
+        // let data_source_registry = self.data_source_registry.lock().await;
+
+        // crate::tasks::main_task::render_layout(
+        //     &display_driver,
+        //     &display_buffer,
+        //     &data_source_registry,
+        // )
+        // .await;
+        // Ok(())
+        unimplemented!()
     }
 
     /// 设置LED状态

@@ -97,7 +97,7 @@ impl NetworkDriver for LinuxNetworkDriver {
     ///
     /// # 返回值
     /// - `Result<()>`: 连接结果
-    async fn connect(&mut self) -> Result<()> {
+    async fn connect(&mut self, _ssid: &str, _password: &str) -> Result<()> {
         todo!()
     }
 

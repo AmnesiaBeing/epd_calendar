@@ -118,8 +118,12 @@ impl EspNetworkDriver {
         };
 
         let mode_config = ModeConfig::AccessPoint(ap_config.clone());
-        controller.set_config(&mode_config)?;
-        controller.start()?;
+        controller
+            .set_config(&mode_config)
+            .map_err(|_| AppError::NetworkStackInitFailed)?;
+        controller
+            .start()
+            .map_err(|_| AppError::NetworkStackInitFailed)?;
 
         self.is_ap_mode = true;
         self.ap_config = Some(ap_config);
@@ -139,7 +143,9 @@ impl EspNetworkDriver {
             .as_mut()
             .ok_or(AppError::NetworkStackInitFailed)?;
 
-        controller.stop()?;
+        controller
+            .stop()
+            .map_err(|_| AppError::NetworkStackInitFailed)?;
         self.is_ap_mode = false;
         self.ap_config = None;
 
@@ -191,7 +197,7 @@ impl NetworkDriver for EspNetworkDriver {
     ///
     /// # 返回值
     /// - `Result<()>`: 连接结果
-    async fn connect(&mut self) -> Result<()> {
+    async fn connect(&mut self, ssid: &str, password: &str) -> Result<()> {
         // 使用控制器配置WiFi连接
         let controller = self
             .controller
@@ -202,11 +208,6 @@ impl NetworkDriver for EspNetworkDriver {
             .stack
             .as_ref()
             .ok_or(AppError::NetworkStackNotInitialized)?;
-
-        // 从配置中获取WiFi凭据
-        let config = crate::kernel::data::sources::config::SystemConfig::get_instance().await;
-        let ssid = config.get("wifi_ssid").ok_or(AppError::ConfigNotFound)?;
-        let password = config.get("wifi_password").ok_or(AppError::ConfigNotFound)?;
 
         // 配置WiFi客户端
         let client_config = ModeConfig::Client(
@@ -275,7 +276,9 @@ impl NetworkDriver for EspNetworkDriver {
             .as_mut()
             .ok_or(AppError::NetworkStackInitFailed)?;
 
-        controller.stop()?;
+        controller
+            .stop()
+            .map_err(|_| AppError::NetworkStackInitFailed)?;
         self.is_ap_mode = false;
 
         log::info!("WiFi disconnected");
