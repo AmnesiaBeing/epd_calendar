@@ -10,7 +10,7 @@ use embassy_net::{Config, StackResources};
 use embassy_time::{Duration, Timer};
 use esp_hal::peripherals::Peripherals;
 use esp_radio::Controller;
-use esp_radio::wifi::{ClientConfig, ModeConfig, WifiController, WifiDevice};
+use esp_radio::wifi::{AccessPointConfig, ClientConfig, ModeConfig, WifiController, WifiDevice};
 use static_cell::StaticCell;
 
 use crate::common::error::AppError;
@@ -41,6 +41,10 @@ pub struct EspNetworkDriver {
     stack: Option<Stack<'static>>,
     /// 初始化状态标志
     is_initialized: bool,
+    /// 是否处于AP模式
+    is_ap_mode: bool,
+    /// AP模式配置
+    ap_config: Option<AccessPointConfig>,
 }
 
 impl EspNetworkDriver {
@@ -71,6 +75,8 @@ impl EspNetworkDriver {
             device: Some(device),
             stack: None,
             is_initialized: false,
+            is_ap_mode: false,
+            ap_config: None,
         })
     }
 }
@@ -79,6 +85,68 @@ impl EspNetworkDriver {
 const WIFI_SSID: &str = "WIFI_SSID";
 /// WiFi网络密码
 const WIFI_PASSWORD: &str = "WIFI_PASSWORD";
+
+impl EspNetworkDriver {
+    /// 启动AP模式
+    ///
+    /// # 参数
+    /// - `ssid`: 热点名称
+    /// - `password`: 热点密码（可选，None表示开放热点）
+    ///
+    /// # 返回值
+    /// - `Result<()>`: 启动结果
+    pub async fn start_ap(&mut self, ssid: &str, password: Option<&str>) -> Result<()> {
+        if !self.is_initialized {
+            return Err(AppError::NetworkStackNotInitialized);
+        }
+
+        let controller = self
+            .controller
+            .as_mut()
+            .ok_or(AppError::NetworkStackInitFailed)?;
+
+        // 配置AP模式
+        let ap_config = AccessPointConfig::default()
+            .with_ssid(ssid.into())
+            .with_channel(1)
+            .with_max_connections(4);
+
+        let ap_config = if let Some(password) = password {
+            ap_config.with_password(password.into())
+        } else {
+            ap_config
+        };
+
+        let mode_config = ModeConfig::AccessPoint(ap_config.clone());
+        controller.set_config(&mode_config)?;
+        controller.start()?;
+
+        self.is_ap_mode = true;
+        self.ap_config = Some(ap_config);
+
+        log::info!("AP mode started with SSID: {}", ssid);
+        Ok(())
+    }
+
+    /// 停止AP模式
+    pub async fn stop_ap(&mut self) -> Result<()> {
+        if !self.is_initialized || !self.is_ap_mode {
+            return Ok(());
+        }
+
+        let controller = self
+            .controller
+            .as_mut()
+            .ok_or(AppError::NetworkStackInitFailed)?;
+
+        controller.stop()?;
+        self.is_ap_mode = false;
+        self.ap_config = None;
+
+        log::info!("AP mode stopped");
+        Ok(())
+    }
+}
 
 impl NetworkDriver for EspNetworkDriver {
     /// 初始化网络栈
@@ -135,11 +203,16 @@ impl NetworkDriver for EspNetworkDriver {
             .as_ref()
             .ok_or(AppError::NetworkStackNotInitialized)?;
 
+        // 从配置中获取WiFi凭据
+        let config = crate::kernel::data::sources::config::SystemConfig::get_instance().await;
+        let ssid = config.get("wifi_ssid").ok_or(AppError::ConfigNotFound)?;
+        let password = config.get("wifi_password").ok_or(AppError::ConfigNotFound)?;
+
         // 配置WiFi客户端
         let client_config = ModeConfig::Client(
             ClientConfig::default()
-                .with_ssid(WIFI_SSID.into())
-                .with_password(WIFI_PASSWORD.into()),
+                .with_ssid(ssid.into())
+                .with_password(password.into()),
         );
 
         let _ = controller.set_config(&client_config);
@@ -189,5 +262,23 @@ impl NetworkDriver for EspNetworkDriver {
     /// - `Option<&Stack>`: 网络栈引用
     fn get_stack(&self) -> Option<&Stack<'_>> {
         self.stack.as_ref()
+    }
+
+    /// 断开WiFi连接
+    async fn disconnect(&mut self) -> Result<()> {
+        if !self.is_initialized {
+            return Ok(());
+        }
+
+        let controller = self
+            .controller
+            .as_mut()
+            .ok_or(AppError::NetworkStackInitFailed)?;
+
+        controller.stop()?;
+        self.is_ap_mode = false;
+
+        log::info!("WiFi disconnected");
+        Ok(())
     }
 }

@@ -32,6 +32,34 @@ pub trait NetworkDriver {
     /// - `Result<()>`: 连接结果
     async fn connect(&mut self) -> Result<()>;
 
+    /// 断开网络连接
+    ///
+    /// # 返回值
+    /// - `Result<()>`: 断开结果
+    async fn disconnect(&mut self) -> Result<()> {
+        Ok(())
+    }
+
+    /// 启动AP模式
+    ///
+    /// # 参数
+    /// - `ssid`: AP名称
+    /// - `password`: AP密码（可选）
+    ///
+    /// # 返回值
+    /// - `Result<()>`: 启动结果
+    async fn start_ap(&mut self, ssid: &str, password: Option<&str>) -> Result<()> {
+        Ok(())
+    }
+
+    /// 停止AP模式
+    ///
+    /// # 返回值
+    /// - `Result<()>`: 停止结果
+    async fn stop_ap(&mut self) -> Result<()> {
+        Ok(())
+    }
+
     /// 检查网络连接状态
     ///
     /// # 返回值

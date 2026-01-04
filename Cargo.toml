@@ -215,3 +215,4 @@ esp-sync = { version = "0.1.1", optional = true, features = ["esp32c6"] }
 esp-storage = { version = "0.8.1", optional = true, features = ["esp32c6"] }
 panic-rtt-target = { version = "0.2.0", optional = true }
 rtt-target = { version = "0.6.2", optional = true, features = ["log"] }
+qrcode = { version = "0.14.1", default-features = false }

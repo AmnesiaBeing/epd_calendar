@@ -47,6 +47,12 @@ pub trait HardwareApi {
     /// 断开WiFi连接
     async fn disconnect_wifi(&self) -> Result<()>;
 
+    /// 启动WiFi配对模式
+    async fn start_wifi_pairing(&self) -> Result<()>;
+
+    /// 停止WiFi配对模式
+    async fn stop_wifi_pairing(&self) -> Result<()>;
+
     /// 刷新屏幕显示
     async fn update_screen(&self) -> Result<()>;
 
@@ -230,19 +236,45 @@ impl HardwareApi for DefaultSystemApi {
         Ok(self.network_driver.lock().await.is_connected())
     }
 
-    async fn connect_wifi(&self, _ssid: &str, _password: &str) -> Result<()> {
-        // 连接到WiFi
-        unimplemented!()
+    async fn connect_wifi(&self, ssid: &str, password: &str) -> Result<()> {
+        // 保存WiFi凭据到配置
+        let mut config = crate::kernel::data::sources::config::SystemConfig::get_instance().await;
+        config.set("wifi_ssid", ssid.to_string()).await?;
+        config.set("wifi_password", password.to_string()).await?;
+        config.save().await?;
+
+        // 连接WiFi
+        let mut network_driver = self.network_driver.lock().await;
+        network_driver.connect().await
     }
 
     async fn disconnect_wifi(&self) -> Result<()> {
         // 断开WiFi连接
-        unimplemented!()
+        let mut network_driver = self.network_driver.lock().await;
+        network_driver.disconnect().await
+    }
+
+    /// 启动WiFi配对模式
+    async fn start_wifi_pairing(&self) -> Result<()> {
+        let mut network_driver = self.network_driver.lock().await;
+        network_driver.start_ap("EPD_Calendar", None).await
+    }
+
+    /// 停止WiFi配对模式
+    async fn stop_wifi_pairing(&self) -> Result<()> {
+        let mut network_driver = self.network_driver.lock().await;
+        network_driver.stop_ap().await
     }
 
     /// 刷新屏幕显示
     async fn update_screen(&self) -> Result<()> {
-        unimplemented!()
+        // 调用渲染任务更新屏幕
+        let display_driver = self.display_driver.lock().await;
+        let display_buffer = self.display_buffer.lock().await;
+        let data_source_registry = self.data_source_registry.lock().await;
+        
+        crate::tasks::main_task::render_layout(&display_driver, &display_buffer, &data_source_registry).await;
+        Ok(())
     }
 
     /// 设置LED状态

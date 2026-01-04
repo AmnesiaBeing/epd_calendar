@@ -178,6 +178,12 @@ async fn cold_start(spawner: &Spawner) -> Result<()> {
     #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
     let led_driver = DefaultLedDriver::new();
 
+    // 初始化按键驱动
+    #[cfg(feature = "embedded_esp")]
+    let button_driver = EspButtonDriver::new(&peripherals, ButtonConfig::default()).unwrap();
+    #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
+    let button_driver = DefaultButtonDriver::new();
+
     // 初始化显示驱动
     #[cfg(feature = "embedded_esp")]
     let display_driver = DefaultDisplayDriver::new(&peripherals).await.unwrap();
@@ -201,6 +207,9 @@ async fn cold_start(spawner: &Spawner) -> Result<()> {
     spawner
         .spawn(main_task(display_driver_mutex, data_source_registry))
         .unwrap();
+
+    // 启动WiFi配对服务
+    spawner.spawn(wifi_pairing_service(system_api)).unwrap();
 
     // 设置数据源注册表到系统API
     let mut system_api_guard = system_api.lock().await;
@@ -297,4 +306,95 @@ async fn log_system_health() {
     // 例如：内存使用情况、任务状态等
 
     log::debug!("System health check completed");
+}
+
+/// 按键事件处理任务
+#[embassy_executor::task]
+async fn button_event_task(
+    system: crate::common::GlobalMutex<crate::kernel::system::api::DefaultSystemApi>,
+) {
+    use crate::kernel::driver::button::ButtonEvent;
+    loop {
+        if let Ok(event) = crate::kernel::driver::button::BUTTON_EVENT_CHANNEL
+            .recv()
+            .await
+        {
+            match event {
+                ButtonEvent::LongPress15s => {
+                    // 强制进入配对模式
+                    log::info!("Forcing WiFi pairing mode");
+                    let mut config =
+                        crate::kernel::data::sources::config::SystemConfig::get_instance().await;
+                    config.remove("wifi_ssid").await;
+                    config.remove("wifi_password").await;
+                    if let Err(e) = config.save().await {
+                        log::error!("Failed to save config: {:?}", e);
+                    }
+
+                    // 启动AP模式
+                    let mut system_guard = system.lock().await;
+                    if let Err(e) = system_guard.start_wifi_pairing().await {
+                        log::error!("Failed to start WiFi pairing: {:?}", e);
+                    }
+
+                    // 更新屏幕显示配对二维码
+                    if let Err(e) = system_guard.update_screen().await {
+                        log::error!("Failed to update screen: {:?}", e);
+                    }
+                    drop(system_guard);
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+/// WiFi配对服务
+#[embassy_executor::task]
+async fn wifi_pairing_service(
+    system: &'static crate::common::GlobalMutex<crate::kernel::system::api::DefaultSystemApi>,
+) {
+    loop {
+        // 检查WiFi配对状态
+        let config = crate::kernel::data::sources::config::SystemConfig::get_instance().await;
+        let is_wifi_paired = config.get("wifi_ssid").is_some();
+
+        if !is_wifi_paired {
+            // 启动AP模式
+            let mut system_guard = system.lock().await;
+            if let Err(e) = system_guard.start_wifi_pairing().await {
+                log::error!("Failed to start WiFi pairing: {:?}", e);
+            }
+            drop(system_guard);
+
+            // 等待WiFi配对完成
+            loop {
+                let config =
+                    crate::kernel::data::sources::config::SystemConfig::get_instance().await;
+                if config.get("wifi_ssid").is_some() {
+                    break;
+                }
+                embassy_time::Timer::after(Duration::from_secs(1)).await;
+            }
+
+            // 停止AP模式
+            let mut system_guard = system.lock().await;
+            if let Err(e) = system_guard.stop_wifi_pairing().await {
+                log::error!("Failed to stop WiFi pairing: {:?}", e);
+            }
+
+            // 连接WiFi
+            let config = crate::kernel::data::sources::config::SystemConfig::get_instance().await;
+            if let (Some(ssid), Some(password)) =
+                (config.get("wifi_ssid"), config.get("wifi_password"))
+            {
+                if let Err(e) = system_guard.connect_wifi(&ssid, &password).await {
+                    log::error!("Failed to connect WiFi: {:?}", e);
+                }
+            }
+            drop(system_guard);
+        }
+
+        embassy_time::Timer::after(Duration::from_secs(10)).await;
+    }
 }

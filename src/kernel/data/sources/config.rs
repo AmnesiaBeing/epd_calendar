@@ -105,19 +105,25 @@ impl ConfigDataSource {
         }
 
         // 序列化并写入存储
-        let data = postcard::to_allocvec(&config).map_err(|_| {
-            log::error!("Failed to serialize config for storage");
+        let data = postcard::to_allocvec(&config).map_err(|e| {
+            log::error!("Failed to serialize config for storage: {:?}", e);
             AppError::InvalidConfigData
         })?;
 
         let system_api_guard = self.system_api.lock().await;
         let config_api = system_api_guard.get_config_api();
-        config_api.write_config(&data).await?;
+        config_api.write_config(&data).await.map_err(|e| {
+            log::error!("Failed to write config to storage: {:?}", e);
+            AppError::StorageWriteFailed
+        })?;
         drop(system_api_guard);
 
         // 清除脏标记
         self.dirty = false;
-        log::debug!("Config saved to storage ({} fields)", config.len());
+        log::debug!(
+            "Config saved to storage ({} fields) and verified",
+            config.len()
+        );
         Ok(())
     }
 
@@ -130,7 +136,14 @@ impl ConfigDataSource {
         value: DynamicValue,
     ) -> Result<()> {
         // 写入全局缓存
-        let cache_key = self.build_cache_key(field)?;
+        let cache_key = self.build_cache_key(field).map_err(|e| {
+            log::error!(
+                "Failed to build cache key for invalid field '{}': {:?}",
+                field,
+                e
+            );
+            e
+        })?;
         cache_guard.insert(cache_key, value.clone());
         self.dirty = true;
 
@@ -153,6 +166,20 @@ impl ConfigDataSource {
 
         Ok(value)
     }
+
+    /// 移除配置字段（从全局缓存删除）
+    pub async fn remove_config_field(
+        &mut self,
+        cache_guard: &mut GlobalRwLockWriteGuard<'_, CacheKeyValueMap>,
+        field: &str,
+    ) -> Result<()> {
+        let cache_key = self.build_cache_key(field)?;
+        if cache_guard.remove(&cache_key).is_some() {
+            self.dirty = true;
+            log::debug!("Config field removed: field={}", field);
+        }
+        Ok(())
+    }
 }
 
 // ======================== DataSource Trait 实现 ========================
@@ -172,12 +199,12 @@ impl DataSource for ConfigDataSource {
     async fn refresh_with_cache(
         &mut self,
         _system_api: &'static GlobalMutex<DefaultSystemApi>,
-        _cache_guard: &mut GlobalRwLockWriteGuard<CacheKeyValueMap>,
+        cache_guard: &mut GlobalRwLockWriteGuard<CacheKeyValueMap>,
     ) -> Result<()> {
-        // if self.dirty {
-        //     let cache_read_guard = self.system_api.lock().await.get_config_api();
-        //     self.save_cache_to_storage(&cache_read_guard).await?;
-        // }
+        if self.dirty {
+            let cache_read_guard = cache_guard.read();
+            self.save_config_to_storage(&cache_read_guard).await?;
+        }
         Ok(())
     }
 }

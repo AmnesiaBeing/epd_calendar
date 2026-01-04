@@ -20,6 +20,8 @@ pub enum ButtonEvent {
     Press,
     /// 长按（持续按下超过指定时间）
     LongPress,
+    /// 长按15秒（强制配对模式）
+    LongPress15s,
     /// 释放
     Release,
 }
@@ -120,9 +122,11 @@ impl EspButtonDriver {
                         if let Some(start_time) = press_start_time {
                             let press_duration = esp_rtos::time::now().as_millis() as u64 - start_time;
                             
-                            if press_duration >= config.long_press_ms as u64 {
-                                let _ = BUTTON_EVENT_CHANNEL.send(ButtonEvent::LongPress).await;
-                            }
+                            if press_duration >= 15000 {
+                    let _ = BUTTON_EVENT_CHANNEL.send(ButtonEvent::LongPress15s).await;
+                } else if press_duration >= config.long_press_ms as u64 {
+                    let _ = BUTTON_EVENT_CHANNEL.send(ButtonEvent::LongPress).await;
+                }
                             
                             press_start_time = None;
                         }
@@ -133,14 +137,14 @@ impl EspButtonDriver {
             }
             
             // 检查长按
-            if let Some(start_time) = press_start_time {
-                let press_duration = esp_rtos::time::now().as_millis() as u64 - start_time;
-                
-                if press_duration >= config.long_press_ms as u64 {
-                    // 已达到长按阈值，清除开始时间避免重复触发
-                    press_start_time = None;
-                }
-            }
+                    if let Some(start_time) = press_start_time {
+                        let press_duration = esp_rtos::time::now().as_millis() as u64 - start_time;
+                        
+                        if press_duration >= 15000 || press_duration >= config.long_press_ms as u64 {
+                            // 已达到长按阈值，清除开始时间避免重复触发
+                            press_start_time = None;
+                        }
+                    }
             
             esp_rtos::time::sleep(Rate::from_millis(10)).await;
         }

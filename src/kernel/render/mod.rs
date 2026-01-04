@@ -153,9 +153,9 @@ impl RenderEngine {
         let minute_ones = self.get_cache_integer(cache, "datetime.minute_ones")?;
 
         // 计算时间图标的总宽度
-        let icon_width = 40; // 假设每个数字图标宽度为40px
-        let colon_width = 20; // 假设冒号图标宽度为20px
-        let total_width = icon_width * 4 + colon_width * 2;
+        let icon_width = 72;
+        let icon_height = 128;
+        let total_width = icon_width * 5;
 
         // 计算起始X坐标（水平居中）
         let start_x = (width - total_width) / 2;
@@ -164,37 +164,27 @@ impl RenderEngine {
         // 绘制时间图标
         icon_renderer.render(
             target,
-            [start_x, y, icon_width, icon_width],
+            [start_x, y, icon_width, icon_height],
             &format!("digit_{}", hour_tens),
         )?;
         icon_renderer.render(
             target,
-            [start_x + icon_width, y, icon_width, icon_width],
+            [start_x + icon_width, y, icon_width, icon_height],
             &format!("digit_{}", hour_ones),
         )?;
         icon_renderer.render(
             target,
-            [start_x + icon_width * 2, y, colon_width, icon_width],
+            [start_x + icon_width * 2, y, icon_width, icon_height],
             "digit_colon",
         )?;
         icon_renderer.render(
             target,
-            [
-                start_x + icon_width * 2 + colon_width,
-                y,
-                icon_width,
-                icon_width,
-            ],
+            [start_x + icon_width * 3, y, icon_width, icon_height],
             &format!("digit_{}", minute_tens),
         )?;
         icon_renderer.render(
             target,
-            [
-                start_x + icon_width * 3 + colon_width,
-                y,
-                icon_width,
-                icon_width,
-            ],
+            [start_x + icon_width * 4, y, icon_width, icon_height],
             &format!("digit_{}", minute_ones),
         )?;
 
@@ -226,7 +216,7 @@ impl RenderEngine {
         // 绘制日期（水平居中）
         text_renderer.render(
             target,
-            [0, 70, width, 30],
+            [0, 20 + 128, width, 40],
             &date_str,
             TextAlignment::Center,
             VerticalAlignment::Center,
@@ -244,8 +234,9 @@ impl RenderEngine {
         DT: DrawTarget<Color = QuadColor>,
         DT::Error: Debug,
     {
-        // 绘制水平分割线，左右两边有5px边距
-        let divider = Line::new(Point::new(5, 110), Point::new((width - 5) as i32, 110))
+        let y = 20 + 128 + 40;
+        // 绘制水平分割线，左右两边有35px边距
+        let divider = Line::new(Point::new(35, y), Point::new((width - 35) as i32, y))
             .into_styled(PrimitiveStyle::with_stroke(QuadColor::Black, 1));
 
         divider.draw(target).map_err(|_| AppError::RenderError)?;
