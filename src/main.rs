@@ -175,9 +175,11 @@ async fn cold_start(spawner: &Spawner) -> Result<()> {
 
     // 初始化执行器驱动
     #[cfg(feature = "embedded_esp")]
-    let led_driver = DefaultLedDriver::new(&peripherals, &spawner).unwrap();
+    let mut led_driver = DefaultLedDriver::new(&peripherals, &spawner).unwrap();
     #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
-    let led_driver = DefaultLedDriver::new();
+    let mut led_driver = DefaultLedDriver::new();
+
+    kernel::driver::led::LedDriver::set_led_state(&mut led_driver, kernel::driver::led::LedState::FastBlink).unwrap();
 
     // 初始化按键驱动
     #[cfg(feature = "embedded_esp")]

@@ -9,7 +9,7 @@ use epd_waveshare::{epd7in5_yrd0750ryf665f60::Epd7in5, prelude::WaveshareDisplay
 use esp_hal::{
     Blocking,
     delay::Delay,
-    gpio::{Input, InputConfig, Level, Output, OutputConfig, Pull},
+    gpio::{Input, InputConfig, Level, Output, OutputConfig},
     peripherals::Peripherals,
     spi::{
         Mode,
@@ -68,7 +68,7 @@ impl EspEpdDriver {
         // 配置 EPD 控制引脚
         let busy = Input::new(
             unsafe { peripherals.GPIO18.clone_unchecked() },
-            InputConfig::default().with_pull(Pull::Up),
+            InputConfig::default(),
         );
         let dc = Output::new(
             unsafe { peripherals.GPIO20.clone_unchecked() },
@@ -88,7 +88,7 @@ impl EspEpdDriver {
         let spi_bus = Spi::new(
             spi2,
             Config::default()
-                .with_frequency(Rate::from_khz(100))
+                .with_frequency(Rate::from_mhz(10))
                 .with_mode(Mode::_0),
         )
         .map_err(|e| {

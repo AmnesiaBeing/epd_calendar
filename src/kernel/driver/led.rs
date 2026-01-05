@@ -107,59 +107,71 @@ impl LedDriver for EspLedDriver {
 #[cfg(feature = "embedded_esp")]
 #[embassy_executor::task]
 async fn led_task(mut led_pin: Output<'static>) {
-    use embassy_time::{Duration, Instant, Timer};
-    // 记录LED当前电平状态（用于闪烁切换）
-    let mut current_level = Level::Low;
-    // 记录上次闪烁切换时间（用于不同频率控制）
-    let mut last_toggle = Instant::now();
+    use embassy_time::{Duration, Timer};
 
-    // 主循环：每500ms判断一次状态
     loop {
-        // 等待500ms（固定轮询间隔）
-        Timer::after(Duration::from_millis(500)).await;
-
-        // 加载当前LED状态
         let state = LedState::from_usize(LED_STATE.load(Ordering::SeqCst));
 
         match state {
             LedState::Off => {
-                // 关闭LED：强制置低
-                if current_level != Level::Low {
-                    led_pin.set_level(Level::Low);
-                    current_level = Level::Low;
-                    log::debug!("LED状态: Off");
+                led_pin.set_low();
+                // 等待状态变化
+                loop {
+                    Timer::after(Duration::from_millis(10)).await;
+                    let new_state = LedState::from_usize(LED_STATE.load(Ordering::SeqCst));
+                    if new_state != LedState::Off {
+                        break;
+                    }
                 }
             }
 
             LedState::On => {
-                // 打开LED：强制置高
-                if current_level != Level::High {
-                    led_pin.set_level(Level::High);
-                    current_level = Level::High;
-                    log::debug!("LED状态: On");
+                led_pin.set_high();
+                // 等待状态变化
+                loop {
+                    Timer::after(Duration::from_millis(10)).await;
+                    let new_state = LedState::from_usize(LED_STATE.load(Ordering::SeqCst));
+                    if new_state != LedState::On {
+                        break;
+                    }
                 }
             }
 
             LedState::FastBlink => {
-                // 快速闪烁：每500ms切换一次（轮询间隔正好500ms，直接切换）
-                current_level = match current_level {
-                    Level::Low => Level::High,
-                    Level::High => Level::Low,
-                };
-                led_pin.set_level(current_level);
-                log::debug!("FastBlink: LED {:?}", current_level);
+                // 2Hz = 250ms高 + 250ms低
+                loop {
+                    let new_state = LedState::from_usize(LED_STATE.load(Ordering::SeqCst));
+                    if new_state != LedState::FastBlink {
+                        break;
+                    }
+                    led_pin.set_high();
+                    Timer::after(Duration::from_millis(250)).await;
+
+                    let new_state = LedState::from_usize(LED_STATE.load(Ordering::SeqCst));
+                    if new_state != LedState::FastBlink {
+                        break;
+                    }
+                    led_pin.set_low();
+                    Timer::after(Duration::from_millis(250)).await;
+                }
             }
 
             LedState::SlowBlink => {
-                // 慢速闪烁：每1000ms切换一次（需判断是否到时间）
-                if last_toggle.elapsed() >= Duration::from_millis(1000) {
-                    current_level = match current_level {
-                        Level::Low => Level::High,
-                        Level::High => Level::Low,
-                    };
-                    led_pin.set_level(current_level);
-                    last_toggle = Instant::now();
-                    log::debug!("SlowBlink: LED {:?}", current_level);
+                // 0.5Hz = 1000ms高 + 1000ms低
+                loop {
+                    let new_state = LedState::from_usize(LED_STATE.load(Ordering::SeqCst));
+                    if new_state != LedState::SlowBlink {
+                        break;
+                    }
+                    led_pin.set_high();
+                    Timer::after(Duration::from_millis(1000)).await;
+
+                    let new_state = LedState::from_usize(LED_STATE.load(Ordering::SeqCst));
+                    if new_state != LedState::SlowBlink {
+                        break;
+                    }
+                    led_pin.set_low();
+                    Timer::after(Duration::from_millis(1000)).await;
                 }
             }
         }

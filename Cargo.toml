@@ -77,8 +77,7 @@ debug-assertions = false
 incremental = false      # 禁用增量编译
 
 [profile.dev]
-opt-level = 's'
-debug = 2
+opt-level = 2
 # incremental = false # 禁用增量编译
 # panic = 'abort'
 
@@ -172,6 +171,9 @@ sxtwl-rs = { path = "./../sxtwl-rs/", features = ["holiday", "festival"] }
 # 时间相关
 jiff = { version = "0.2.16", default-features = false, features = ["alloc"] }
 
+# 二维码生成，注意只有最新版本才支持no_std
+qrcode = { git = "https://github.com/kennytm/qrcode-rust", default-features = false }
+
 # PC端依赖
 embedded-hal-mock = { path = "./../embedded-hal-mock/", optional = true }
 embedded-storage-std-async-mock = { path = "./../embedded-storage-std-mock/embedded-storage-std-async-mock", optional = true }
@@ -215,4 +217,3 @@ esp-sync = { version = "0.1.1", optional = true, features = ["esp32c6"] }
 esp-storage = { version = "0.8.1", optional = true, features = ["esp32c6"] }
 panic-rtt-target = { version = "0.2.0", optional = true }
 rtt-target = { version = "0.6.2", optional = true, features = ["log"] }
-qrcode = { git = "https://github.com/kennytm/qrcode-rust", default-features = false }

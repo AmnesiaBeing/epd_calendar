@@ -268,7 +268,7 @@ impl RenderEngine {
         // 绘制竖直分割线
         let vertical_divider = Line::new(
             Point::new(left_width as i32, 10 + 128 + 40 + 10),
-            Point::new(left_width as i32, 480 - 120 - 10),
+            Point::new(left_width as i32, 480 - 120 - 10 - 10),
         )
         .into_styled(PrimitiveStyle::with_stroke(QuadColor::Black, 1));
 
@@ -313,7 +313,7 @@ impl RenderEngine {
         // 绘制格言（垂直居中）
         text_renderer.render(
             target,
-            [10, 340, width - 20, 120],
+            [10, 480 - 120, width - 20, 120],
             &motto_text,
             TextAlignment::Center,
             VerticalAlignment::Center,
@@ -435,7 +435,7 @@ impl RenderEngine {
             VerticalAlignment::Center,
             None,
             None,
-            FontSize::Medium,
+            FontSize::Small,
         )?;
 
         // 绘制当前温湿度
@@ -448,7 +448,7 @@ impl RenderEngine {
             VerticalAlignment::Center,
             None,
             None,
-            FontSize::Medium,
+            FontSize::Small,
         )?;
 
         if valid {
