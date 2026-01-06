@@ -7,6 +7,7 @@
 use crate::common::GlobalMutex;
 use crate::common::error::{AppError, Result};
 use crate::kernel::data::{DataSourceRegistry, DynamicValue};
+use crate::kernel::driver::buzzer::{DefaultBuzzerDriver, BuzzerDriver};
 use crate::kernel::driver::display::DefaultDisplayDriver;
 use crate::kernel::driver::led::{DefaultLedDriver, LedDriver, LedState};
 use crate::kernel::driver::network::{DefaultNetworkDriver, NetworkDriver};
@@ -58,6 +59,15 @@ pub trait HardwareApi {
 
     /// 设置LED状态
     async fn set_led_state(&self, status: LedState) -> Result<()>;
+
+    /// 播放蜂鸣器音调
+    async fn play_tone(&self, frequency: u32, duration: u32) -> Result<()>;
+
+    /// 播放音乐
+    async fn play_music(&self, music_id: u8) -> Result<()>;
+
+    /// 停止蜂鸣器
+    async fn stop_buzzer(&self) -> Result<()>;
 }
 
 /// 网络客户端API接口
@@ -116,6 +126,8 @@ pub struct DefaultSystemApi {
     sensor_driver: GlobalMutex<DefaultSensorDriver>,
     /// 执行器驱动实例
     led_driver: GlobalMutex<DefaultLedDriver>,
+    /// 蜂鸣器驱动实例
+    buzzer_driver: &'static GlobalMutex<DefaultBuzzerDriver>,
     /// 数据源注册表（全局互斥锁保护）
     data_source_registry: Option<&'static GlobalMutex<DataSourceRegistry>>,
     /// 屏幕驱动实例
@@ -130,6 +142,7 @@ impl DefaultSystemApi {
         storage_driver: DefaultConfigStorageDriver,
         sensor_driver: DefaultSensorDriver,
         led_driver: DefaultLedDriver,
+        buzzer_driver: &'static GlobalMutex<DefaultBuzzerDriver>,
         display_driver: &'static GlobalMutex<DefaultDisplayDriver>,
     ) -> Self {
         Self {
@@ -138,6 +151,7 @@ impl DefaultSystemApi {
             config_storage_driver: GlobalMutex::new(storage_driver),
             sensor_driver: GlobalMutex::new(sensor_driver),
             led_driver: GlobalMutex::new(led_driver),
+            buzzer_driver: buzzer_driver,
             data_source_registry: None,
             display_driver,
         }
@@ -286,6 +300,21 @@ impl HardwareApi for DefaultSystemApi {
     /// 设置LED状态
     async fn set_led_state(&self, state: LedState) -> Result<()> {
         self.led_driver.lock().await.set_led_state(state)
+    }
+
+    /// 播放蜂鸣器音调
+    async fn play_tone(&self, frequency: u32, duration: u32) -> Result<()> {
+        self.buzzer_driver.lock().await.tone(frequency, duration).await
+    }
+
+    /// 播放音乐
+    async fn play_music(&self, music_id: u8) -> Result<()> {
+        self.buzzer_driver.lock().await.play_music(music_id).await
+    }
+
+    /// 停止蜂鸣器
+    async fn stop_buzzer(&self) -> Result<()> {
+        self.buzzer_driver.lock().await.stop().await
     }
 }
 

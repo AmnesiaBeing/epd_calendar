@@ -4,16 +4,16 @@
 ///
 /// 本模块定义了电子墨水屏（EPD）驱动的通用接口和平台特定实现
 /// 支持ESP32、Linux和模拟器三种平台的显示驱动
-use crate::common::error::Result;
+use crate::{common::error::Result, platform::Platform};
 
 #[cfg(feature = "simulator")]
 mod simulator;
 
-#[cfg(feature = "embedded_linux")]
+#[cfg(feature = "tspi")]
 mod linux;
 
-#[cfg(feature = "embedded_esp")]
-mod esp;
+#[cfg(feature = "esp32")]
+mod esp32;
 
 /// 条件编译导入平台特定驱动
 ///
@@ -21,23 +21,26 @@ mod esp;
 #[cfg(feature = "simulator")]
 pub type DefaultDisplayDriver = simulator::SimulatorEpdDriver;
 
-#[cfg(feature = "embedded_linux")]
+#[cfg(feature = "tspi")]
 pub type DefaultDisplayDriver = linux::LinuxEpdDriver;
 
-#[cfg(feature = "embedded_esp")]
-pub type DefaultDisplayDriver = esp::EspEpdDriver;
+#[cfg(feature = "esp32")]
+pub type DefaultDisplayDriver<'a> = esp32::Esp32EpdDriver<'a>;
 
 /// 电子墨水屏驱动trait
 ///
 /// 定义电子墨水屏设备的通用操作接口
-pub trait DisplayDriver {
+pub trait DisplayDriver<'a> {
+    type P: Platform;
     /// 初始化显示设备
     ///
     /// 唤醒EPD显示设备，准备接收数据
     ///
     /// # 返回值
     /// - `Result<()>`: 初始化结果
-    fn init(&mut self) -> Result<()>;
+    fn new(peripherals: &'a mut <Self::P as Platform>::Peripherals) -> Result<Self>
+    where
+        Self: Sized;
 
     /// 更新帧缓冲区
     ///

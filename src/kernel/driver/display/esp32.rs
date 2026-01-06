@@ -10,7 +10,6 @@ use esp_hal::{
     Blocking,
     delay::Delay,
     gpio::{Input, InputConfig, Level, Output, OutputConfig},
-    peripherals::Peripherals,
     spi::{
         Mode,
         master::{Config, Spi},
@@ -19,25 +18,29 @@ use esp_hal::{
 };
 
 use super::DisplayDriver;
-use crate::common::error::{AppError, Result};
+use crate::{
+    common::error::{AppError, Result},
+    platform::{Platform, esp32::Esp32Platform},
+};
 
 /// ESP32 SPI设备类型别名
 ///
 /// 使用ExclusiveDevice包装SPI总线，提供独占访问
 /// 确保SPI通信的原子性和可靠性
-type EspSpiDevice = ExclusiveDevice<Spi<'static, Blocking>, Output<'static>, Delay>;
+type Esp32SpiDevice<'a> = ExclusiveDevice<Spi<'a, Blocking>, Output<'a>, Delay>;
 
 /// ESP32电子墨水屏驱动结构体
 ///
 /// 封装ESP32平台的EPD驱动功能
-pub struct EspEpdDriver {
+pub struct Esp32EpdDriver<'a> {
     /// SPI设备实例
-    spi: EspSpiDevice,
+    spi: Esp32SpiDevice<'a>,
     /// EPD显示设备实例
-    epd: Epd7in5<EspSpiDevice, Input<'static>, Output<'static>, Output<'static>, Delay>,
+    epd: Epd7in5<Esp32SpiDevice<'a>, Input<'a>, Output<'a>, Output<'a>, Delay>,
 }
 
-impl EspEpdDriver {
+impl<'a> DisplayDriver<'a> for Esp32EpdDriver<'a> {
+    type P = Esp32Platform;
     /// 创建新的EPD驱动实例
     ///
     /// 使用固定引脚配置：
@@ -52,39 +55,39 @@ impl EspEpdDriver {
     /// - `peripherals`: ESP32外设实例
     ///
     /// # 返回值
-    /// - `Result<EspEpdDriver>`: 新的EPD驱动实例
-    pub async fn new(peripherals: &Peripherals) -> Result<Self> {
+    /// - `Result<Esp32EpdDriver>`: 新的EPD驱动实例
+    fn new(peripherals: &'a mut <Self::P as Platform>::Peripherals) -> Result<Self> {
         log::info!("Initializing ESP EPD driver with fixed pin configuration");
 
         // 配置 SPI 引脚
-        let sck = unsafe { peripherals.GPIO22.clone_unchecked() };
-        let sda = unsafe { peripherals.GPIO23.clone_unchecked() };
+        let sck = peripherals.GPIO22.reborrow();
+        let sda = peripherals.GPIO23.reborrow();
         let cs = Output::new(
-            unsafe { peripherals.GPIO21.clone_unchecked() },
+            peripherals.GPIO21.reborrow(),
             Level::High,
             OutputConfig::default(),
         );
 
         // 配置 EPD 控制引脚
         let busy = Input::new(
-            unsafe { peripherals.GPIO18.clone_unchecked() },
+            peripherals.GPIO18.reborrow(),
             InputConfig::default(),
         );
         let dc = Output::new(
-            unsafe { peripherals.GPIO20.clone_unchecked() },
+            peripherals.GPIO20.reborrow(),
             Level::High,
             OutputConfig::default(),
         );
         let rst = Output::new(
-            unsafe { peripherals.GPIO19.clone_unchecked() },
+            peripherals.GPIO19.reborrow(),
             Level::High,
             OutputConfig::default(),
         );
 
         // 获取 SPI2 实例
-        let spi2 = unsafe { peripherals.SPI2.clone_unchecked() };
+        let spi2 = peripherals.SPI2.reborrow();
 
-        // 创建 SPI 总线（SpiBus 实现）
+        // 创建 SPI 总线
         let spi_bus = Spi::new(
             spi2,
             Config::default()
@@ -127,24 +130,6 @@ impl EspEpdDriver {
             spi: spi_device,
             epd,
         })
-    }
-}
-
-impl DisplayDriver for EspEpdDriver {
-    /// 初始化显示设备
-    ///
-    /// 唤醒EPD显示设备，准备接收数据
-    ///
-    /// # 返回值
-    /// - `Result<()>`: 初始化结果
-    fn init(&mut self) -> Result<()> {
-        let mut delay = Delay::new();
-        self.epd.wake_up(&mut self.spi, &mut delay).map_err(|e| {
-            log::error!("Failed to wake up EPD: {:?}", e);
-            AppError::DisplayInit
-        })?;
-        log::debug!("EPD initialized");
-        Ok(())
     }
 
     /// 进入休眠模式

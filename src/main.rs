@@ -1,38 +1,26 @@
-// src/main.rs
-//! EPD日历应用主入口模块
-
-#![cfg_attr(feature = "embedded_esp", no_std)]
-#![cfg_attr(feature = "embedded_esp", no_main)]
+#![cfg_attr(feature = "esp32", no_std)]
+#![cfg_attr(feature = "esp32", no_main)]
 #![cfg_attr(
-    feature = "embedded_esp",
+    feature = "esp32",
     deny(
         clippy::mem_forget,
         reason = "mem::forget is generally not safe to do with esp_hal types, especially those \
-    holding buffers for the duration of a data transfer."
+    holding buffers for duration of a data transfer."
     )
 )]
-#![cfg_attr(feature = "embedded_esp", deny(clippy::large_stack_frames))]
+#![cfg_attr(feature = "esp32", deny(clippy::large_stack_frames))]
 
 extern crate alloc;
 
 use embassy_executor::Spawner;
-use embassy_sync::mutex::Mutex;
-use embassy_time::{Duration, Instant, Timer};
-use static_cell::StaticCell;
-
-#[cfg(feature = "embedded_esp")]
-use esp_hal::clock::CpuClock;
-#[cfg(feature = "embedded_esp")]
-use esp_hal::peripherals::Peripherals;
-#[cfg(feature = "embedded_esp")]
-use esp_hal::timer::timg::TimerGroup;
 
 mod assets;
 mod common;
 mod kernel;
+mod platform;
+mod system;
 mod tasks;
 
-use crate::common::GlobalMutex;
 use crate::common::error::Result;
 use crate::kernel::data::DataSourceRegistry;
 use crate::kernel::data::generic_scheduler_task;
@@ -41,363 +29,129 @@ use crate::kernel::data::sources::motto::MottoDataSource;
 use crate::kernel::data::sources::time::TimeDataSource;
 use crate::kernel::data::sources::weather::WeatherDataSource;
 use crate::kernel::driver::button::DefaultButtonDriver;
+use crate::kernel::driver::buzzer::DefaultBuzzerDriver;
 use crate::kernel::driver::display::DefaultDisplayDriver;
+use crate::kernel::driver::display::DisplayDriver;
 use crate::kernel::driver::led::DefaultLedDriver;
-use crate::kernel::driver::network::{DefaultNetworkDriver, NetworkDriver};
+use crate::kernel::driver::network::DefaultNetworkDriver;
+use crate::kernel::driver::network::NetworkDriver;
 use crate::kernel::driver::ntp_source::SntpService;
 use crate::kernel::driver::power::DefaultPowerDriver;
 use crate::kernel::driver::sensor::DefaultSensorDriver;
 use crate::kernel::driver::storage::DefaultConfigStorageDriver;
 use crate::kernel::driver::time_driver::DefaultTimeDriver;
 use crate::kernel::system::api::DefaultSystemApi;
+use crate::platform::{DefaultPlatform, Platform};
+use crate::system::MessageBus;
 use crate::tasks::main_task::main_task;
 
-/// 全局驱动状态管理
-static DISPLAY_DRIVER: StaticCell<GlobalMutex<DefaultDisplayDriver>> = StaticCell::new();
-static NETWORK_DRIVER: StaticCell<GlobalMutex<DefaultNetworkDriver>> = StaticCell::new();
-static TIME_DRIVER: StaticCell<GlobalMutex<DefaultTimeDriver>> = StaticCell::new();
-static SYSTEM_API: StaticCell<GlobalMutex<DefaultSystemApi>> = StaticCell::new();
-
-/// 全局数据源管理
-static CONFIG_SOURCE: StaticCell<GlobalMutex<ConfigDataSource>> = StaticCell::new();
-static TIME_SOURCE: StaticCell<GlobalMutex<TimeDataSource>> = StaticCell::new();
-static WEATHER_SOURCE: StaticCell<GlobalMutex<WeatherDataSource>> = StaticCell::new();
-static MOTTO_SOURCE: StaticCell<GlobalMutex<MottoDataSource>> = StaticCell::new();
-
-#[cfg(feature = "embedded_esp")]
-esp_bootloader_esp_idf::esp_app_desc!();
-
-#[cfg(feature = "embedded_esp")]
-use panic_rtt_target as _;
-
-#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
+#[cfg(any(feature = "simulator", feature = "tspi"))]
 use embassy_executor::main as platform_main;
 
-#[cfg(feature = "embedded_esp")]
+#[cfg(feature = "esp32")]
 use esp_rtos::main as platform_main;
 
-/// 应用程序主入口
-///
-/// # 参数
-/// - `spawner`: 任务生成器，用于启动异步任务
-///
-/// # 功能
-/// - 冷启动初始化系统组件
-/// - 启动所有后台任务
-/// - 进入主循环进行系统监控
 #[platform_main]
 async fn main(spawner: Spawner) {
-    // 冷启动初始化
-    let _ = cold_start(&spawner).await;
+    let message_bus = MessageBus::new();
 
-    // 主循环
-    let mut last_system_check = Instant::now();
-    const SYSTEM_CHECK_INTERVAL: Duration = Duration::from_secs(60);
+    let mut platform = DefaultPlatform::init().unwrap();
 
-    log::info!("Entering main loop");
+    platform.init_logging();
 
-    loop {
-        // 定期检查系统状态
-        if last_system_check.elapsed() > SYSTEM_CHECK_INTERVAL {
-            log_system_health().await;
-            last_system_check = Instant::now();
-        }
+    platform.init_rtos();
 
-        // 主循环休眠，让任务运行
-        Timer::after(Duration::from_secs(30)).await;
-    }
+    run_system(platform, message_bus, &spawner).await;
 }
 
-/// 冷启动初始化系统组件
-///
-/// # 参数
-/// - `spawner`: 任务生成器
-///
-/// # 初始化步骤
-/// 1. 初始化日志系统
-/// 2. 初始化存储驱动和配置服务
-/// 3. 初始化网络驱动
-/// 4. 初始化时间源和SNTP服务
-/// 5. 初始化显示驱动和渲染引擎
-/// 6. 启动所有后台任务
-async fn cold_start(spawner: &Spawner) -> Result<()> {
-    // 初始化日志系统
-    init_logging().await;
-    log::info!("EPD Calendar starting...");
+async fn run_system(
+    mut platform: DefaultPlatform,
+    message_bus: MessageBus,
+    spawner: &Spawner,
+) -> Result<()> {
+    let display_driver = DefaultDisplayDriver::new(platform.peripherals_mut())?;
+    let mut network_driver = DefaultNetworkDriver::new(platform.peripherals_mut())?;
+    network_driver.new(spawner).await.unwrap();
+    let buzzer_driver = platform.create_buzzer_driver().unwrap();
+    let time_driver = platform.create_time_driver().unwrap();
+    let storage_driver = platform.create_storage_driver().unwrap();
+    let power_driver = platform.create_power_driver().unwrap();
+    let sensor_driver = platform.create_sensor_driver().unwrap();
+    let led_driver = platform.create_led_driver(spawner).unwrap();
+    let button_driver = platform.create_button_driver().unwrap();
 
-    log::info!("Cold start initializing system...");
+    let display_driver_static = common::GlobalMutex::new(display_driver);
+    let network_driver_static = common::GlobalMutex::new(network_driver);
+    let buzzer_driver_static = common::GlobalMutex::new(buzzer_driver);
+    let time_driver_static = common::GlobalMutex::new(time_driver);
 
-    #[cfg(feature = "embedded_esp")]
-    let peripherals = esp_hal::init(esp_hal::Config::default().with_cpu_clock(CpuClock::max()));
+    SntpService::initialize(spawner, &network_driver_static, &time_driver_static);
 
-    #[cfg(feature = "embedded_esp")]
-    esp_alloc::heap_allocator!(#[esp_hal::ram(reclaimed)] size: 65536);
-
-    #[cfg(feature = "embedded_esp")]
-    init_rtos(&peripherals);
-
-    // 初始化存储驱动与配置服务
-    #[cfg(feature = "embedded_esp")]
-    let storage_driver = DefaultConfigStorageDriver::new(&peripherals).unwrap();
-    #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
-    let storage_driver = DefaultConfigStorageDriver::new("flash.bin", 4096).unwrap();
-
-    #[cfg(feature = "embedded_esp")]
-    let mut network_driver = DefaultNetworkDriver::new(&peripherals).unwrap();
-    #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
-    let mut network_driver = DefaultNetworkDriver::new();
-
-    network_driver.initialize(spawner).await?;
-
-    // 初始化网络驱动
-    let network_driver_mutex = NETWORK_DRIVER.init(Mutex::new(network_driver));
-
-    // 初始化时间驱动
-    #[cfg(feature = "embedded_esp")]
-    let time_driver = DefaultTimeDriver::new(&peripherals);
-    #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
-    let time_driver = DefaultTimeDriver::new();
-    let time_driver_mutex = TIME_DRIVER.init(Mutex::new(time_driver));
-
-    // 初始化SNTP更新时间驱动
-    SntpService::initialize(spawner, network_driver_mutex, time_driver_mutex);
-
-    // 初始化其他驱动和服务
-    #[cfg(feature = "embedded_esp")]
-    let power_driver = DefaultPowerDriver::new(&peripherals)?;
-    #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
-    let power_driver = DefaultPowerDriver::new();
-
-    #[cfg(feature = "embedded_esp")]
-    let sensor_driver = DefaultSensorDriver::new(&peripherals)?;
-    #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
-    let sensor_driver = DefaultSensorDriver::new();
-
-    // 初始化执行器驱动
-    #[cfg(feature = "embedded_esp")]
-    let mut led_driver = DefaultLedDriver::new(&peripherals, &spawner).unwrap();
-    #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
-    let mut led_driver = DefaultLedDriver::new();
-
-    kernel::driver::led::LedDriver::set_led_state(&mut led_driver, kernel::driver::led::LedState::FastBlink).unwrap();
-
-    // 初始化按键驱动
-    #[cfg(feature = "embedded_esp")]
-    let button_driver = DefaultButtonDriver::new(&peripherals).unwrap();
-    #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
-    let button_driver = DefaultButtonDriver::new();
-
-    // 初始化显示驱动
-    #[cfg(feature = "embedded_esp")]
-    let display_driver = DefaultDisplayDriver::new(&peripherals).await.unwrap();
-    #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
-    let display_driver = DefaultDisplayDriver::new().await.unwrap();
-
-    let display_driver_mutex = DISPLAY_DRIVER.init(Mutex::new(display_driver));
-
-    let data_source_registry = DataSourceRegistry::init();
-
-    let system_api = SYSTEM_API.init(Mutex::new(DefaultSystemApi::new(
+    let system_api = DefaultSystemApi::new(
         power_driver,
-        network_driver_mutex,
+        &network_driver_static,
         storage_driver,
         sensor_driver,
         led_driver,
-        display_driver_mutex,
-    )));
+        &buzzer_driver_static,
+        &display_driver_static,
+    );
 
-    // 初始化并启动显示任务
-    spawner
-        .spawn(main_task(display_driver_mutex, data_source_registry))
-        .unwrap();
+    let data_source_registry = DataSourceRegistry::init();
 
-    // 启动WiFi配对服务
-    // spawner.spawn(wifi_pairing_service(system_api)).unwrap();
-
-    // 设置数据源注册表到系统API
-    let mut system_api_guard = system_api.lock().await;
-    system_api_guard.set_data_source_registry(data_source_registry);
-    drop(system_api_guard);
-
-    // 注册配置数据源
     let config_source_mutex =
-        CONFIG_SOURCE.init(Mutex::new(ConfigDataSource::new(system_api).await?));
+        common::GlobalMutex::new(ConfigDataSource::new(&system_api).await.unwrap());
     data_source_registry
         .lock()
         .await
-        .register_source(config_source_mutex, system_api)
-        .await?;
-
-    // 注册时间数据源
-    let time_source_mutex = TIME_SOURCE.init(Mutex::new(TimeDataSource::new(time_driver_mutex)?));
-    data_source_registry
-        .lock()
+        .register_source(&config_source_mutex, &system_api)
         .await
-        .register_source(time_source_mutex, system_api)
-        .await?;
-
-    // 注册天气数据源
-    let weather_source_mutex =
-        WEATHER_SOURCE.init(Mutex::new(WeatherDataSource::new(system_api).await?));
-    data_source_registry
-        .lock()
-        .await
-        .register_source(weather_source_mutex, system_api)
-        .await?;
-
-    // 注册格言数据源
-    let motto_source_mutex = MOTTO_SOURCE.init(Mutex::new(MottoDataSource::new()?));
-    data_source_registry
-        .lock()
-        .await
-        .register_source(motto_source_mutex, system_api)
-        .await?;
-
-    spawner
-        .spawn(generic_scheduler_task(data_source_registry, system_api))
         .unwrap();
 
-    log::info!("EPD Calendar started successfully");
+    let time_source_mutex =
+        common::GlobalMutex::new(TimeDataSource::new(&time_driver_static).unwrap());
+    data_source_registry
+        .lock()
+        .await
+        .register_source(&time_source_mutex, &system_api)
+        .await
+        .unwrap();
+
+    let weather_source_mutex =
+        common::GlobalMutex::new(WeatherDataSource::new(&system_api).await.unwrap());
+    data_source_registry
+        .lock()
+        .await
+        .register_source(&weather_source_mutex, &system_api)
+        .await
+        .unwrap();
+
+    let motto_source_mutex = common::GlobalMutex::new(MottoDataSource::new().unwrap());
+    data_source_registry
+        .lock()
+        .await
+        .register_source(&motto_source_mutex, &system_api)
+        .await
+        .unwrap();
+
+    let system_api_static = common::GlobalMutex::new(system_api);
+    let data_source_registry_static = data_source_registry;
+
+    spawner
+        .spawn(main_task(
+            &display_driver_static,
+            data_source_registry_static,
+        ))
+        .unwrap();
+
+    spawner
+        .spawn(generic_scheduler_task(
+            data_source_registry_static,
+            &system_api_static,
+        ))
+        .unwrap();
+
+    embassy_time::Timer::after(embassy_time::Duration::from_secs(3600)).await;
 
     Ok(())
 }
-
-/// 初始化日志系统
-///
-/// # 功能
-/// - 根据平台配置不同的日志系统
-/// - 嵌入式ESP32使用RTT日志
-/// - Linux模拟器使用env_logger
-async fn init_logging() {
-    #[cfg(any(feature = "simulator", feature = "embedded_linux"))]
-    {
-        env_logger::init();
-        log::info!("Initialized env_logger for simulator/embedded_linux");
-    }
-
-    #[cfg(feature = "embedded_esp")]
-    {
-        rtt_target::rtt_init_log!();
-        log::info!("Initializing logger for ESP32");
-    }
-}
-
-/// 初始化ESP-RTOS
-/// # 功能
-/// - 嵌入式ESP32初始化中断及定时器
-/// - Linux模拟器无作用
-#[cfg(feature = "embedded_esp")]
-fn init_rtos(peripherals: &Peripherals) {
-    let timg0 = TimerGroup::new(unsafe { peripherals.TIMG0.clone_unchecked() });
-
-    let sw_interrupt = esp_hal::interrupt::software::SoftwareInterruptControl::new(unsafe {
-        peripherals.SW_INTERRUPT.clone_unchecked()
-    });
-
-    esp_rtos::start(timg0.timer0, sw_interrupt.software_interrupt0);
-}
-
-/// 记录系统健康状态
-///
-/// # 功能
-/// - 定期记录系统运行状态
-/// - 可用于监控系统健康状况
-async fn log_system_health() {
-    log::debug!("System health check");
-
-    // 这里可以添加更多的系统健康检查
-    // 例如：内存使用情况、任务状态等
-
-    log::debug!("System health check completed");
-}
-
-// /// 按键事件处理任务
-// #[embassy_executor::task]
-// async fn button_event_task(
-//     system: crate::common::GlobalMutex<crate::kernel::system::api::DefaultSystemApi>,
-// ) {
-//     use crate::kernel::driver::button::ButtonEvent;
-//     loop {
-//         if let Ok(event) = crate::kernel::driver::button::BUTTON_EVENT_CHANNEL
-//             .recv()
-//             .await
-//         {
-//             match event {
-//                 ButtonEvent::LongPress15s => {
-//                     // 强制进入配对模式
-//                     log::info!("Forcing WiFi pairing mode");
-//                     let mut config =
-//                         crate::kernel::data::sources::config::SystemConfig::get_instance().await;
-//                     config.remove("wifi_ssid").await;
-//                     config.remove("wifi_password").await;
-//                     if let Err(e) = config.save().await {
-//                         log::error!("Failed to save config: {:?}", e);
-//                     }
-
-//                     // 启动AP模式
-//                     let mut system_guard = system.lock().await;
-//                     if let Err(e) = system_guard.start_wifi_pairing().await {
-//                         log::error!("Failed to start WiFi pairing: {:?}", e);
-//                     }
-
-//                     // 更新屏幕显示配对二维码
-//                     if let Err(e) = system_guard.update_screen().await {
-//                         log::error!("Failed to update screen: {:?}", e);
-//                     }
-//                     drop(system_guard);
-//                 }
-//                 _ => {}
-//             }
-//         }
-//     }
-// }
-
-// /// WiFi配对服务
-// #[embassy_executor::task]
-// async fn wifi_pairing_service(
-//     system: &'static crate::common::GlobalMutex<crate::kernel::system::api::DefaultSystemApi>,
-// ) {
-//     loop {
-//         // 检查WiFi配对状态
-//         let config = crate::kernel::data::sources::config::SystemConfig::get_instance().await;
-//         let is_wifi_paired = config.get("wifi_ssid").is_some();
-
-//         if !is_wifi_paired {
-//             // 启动AP模式
-//             let mut system_guard = system.lock().await;
-//             if let Err(e) = system_guard.start_wifi_pairing().await {
-//                 log::error!("Failed to start WiFi pairing: {:?}", e);
-//             }
-//             drop(system_guard);
-
-//             // 等待WiFi配对完成
-//             loop {
-//                 let config =
-//                     crate::kernel::data::sources::config::SystemConfig::get_instance().await;
-//                 if config.get("wifi_ssid").is_some() {
-//                     break;
-//                 }
-//                 embassy_time::Timer::after(Duration::from_secs(1)).await;
-//             }
-
-//             // 停止AP模式
-//             let mut system_guard = system.lock().await;
-//             if let Err(e) = system_guard.stop_wifi_pairing().await {
-//                 log::error!("Failed to stop WiFi pairing: {:?}", e);
-//             }
-
-//             // 连接WiFi
-//             let config = crate::kernel::data::sources::config::SystemConfig::get_instance().await;
-//             if let (Some(ssid), Some(password)) =
-//                 (config.get("wifi_ssid"), config.get("wifi_password"))
-//             {
-//                 if let Err(e) = system_guard.connect_wifi(&ssid, &password).await {
-//                     log::error!("Failed to connect WiFi: {:?}", e);
-//                 }
-//             }
-//             drop(system_guard);
-//         }
-
-//         embassy_time::Timer::after(Duration::from_secs(10)).await;
-//     }
-// }

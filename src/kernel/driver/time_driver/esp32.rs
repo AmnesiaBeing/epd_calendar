@@ -4,7 +4,6 @@
 //!
 //! 提供ESP32平台的硬件RTC时间功能，基于esp-hal库实现
 
-#[cfg(feature = "embedded_esp")]
 use esp_hal::peripherals::Peripherals;
 use esp_hal::rtc_cntl::Rtc;
 use jiff::Timestamp;
@@ -15,16 +14,12 @@ use crate::kernel::driver::time_driver::TimeDriver;
 /// ESP32 RTC时间源结构体
 ///
 /// 使用ESP32硬件RTC提供系统时间功能
-#[cfg(feature = "embedded_esp")]
-pub struct RtcTimeDriver {
+pub struct RtcTimeDriver<'a> {
     /// ESP32 RTC实例
-    rtc: Rtc<'static>,
-    /// 是否已同步（通过外部接口更新时间后设为true）
-    synchronized: bool,
+    rtc: Rtc<'a>,
 }
 
-#[cfg(feature = "embedded_esp")]
-impl RtcTimeDriver {
+impl<'a> RtcTimeDriver<'a> {
     /// 创建新的ESP32 RTC时间源实例
     ///
     /// # 参数
@@ -32,20 +27,17 @@ impl RtcTimeDriver {
     ///
     /// # 返回值
     /// - `Self`: 时间源实例
-    pub fn new(peripherals: &Peripherals) -> Self {
+    pub fn new(peripherals: &'a mut Peripherals) -> Result<Self> {
         log::info!("Initializing RtcTimeSource with hardware RTC");
 
-        let rtc = Rtc::new(unsafe { peripherals.LPWR.clone_unchecked() });
+        let rtc = Rtc::new(peripherals.LPWR.reborrow());
 
-        Self {
-            rtc,
-            synchronized: false,
-        }
+        Ok(Self { rtc })
     }
 }
 
-#[cfg(feature = "embedded_esp")]
-impl TimeDriver for RtcTimeDriver {
+#[cfg(feature = "esp32")]
+impl<'a> TimeDriver for RtcTimeDriver<'a> {
     /// 获取当前时间
     ///
     /// # 返回值
@@ -69,7 +61,6 @@ impl TimeDriver for RtcTimeDriver {
         let timestamp_us = new_time.as_microsecond();
         log::debug!("Setting RTC time to: {}", timestamp_us);
         self.rtc.set_current_time_us(timestamp_us as u64);
-        self.synchronized = true;
         Ok(())
     }
 }

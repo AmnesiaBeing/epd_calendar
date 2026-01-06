@@ -88,6 +88,36 @@ pub enum AppError {
     #[error("TLS handshake failed")]
     TlsHandshakeFailed,
 
+    #[error("Network not initialized")]
+    NetworkNotInitialized,
+
+    #[error("Network peripheral already used")]
+    NetworkPeripheralAlreadyUsed,
+
+    #[error("Network radio initialization failed")]
+    NetworkRadioInitFailed,
+
+    #[error("Network controller creation failed")]
+    NetworkControllerCreateFailed,
+
+    #[error("Network task spawn failed")]
+    NetworkTaskSpawnFailed,
+
+    #[error("Network stack acquisition failed")]
+    NetworkStackAcquireFailed,
+
+    #[error("Network STA wake failed")]
+    NetworkStaWakeFailed,
+
+    #[error("Network AP start failed")]
+    NetworkApStartFailed,
+
+    #[error("Network AP stop failed")]
+    NetworkApStopFailed,
+
+    #[error("Network AP timeout")]
+    NetworkApTimeout,
+
     // ===== 显示相关错误 =====
     #[error("Display initialization failed")]
     DisplayInit,

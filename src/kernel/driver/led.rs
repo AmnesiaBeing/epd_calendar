@@ -3,7 +3,7 @@ use crate::common::error::{AppError, Result};
 use core::sync::atomic::{AtomicUsize, Ordering};
 use embassy_executor::Spawner;
 
-#[cfg(feature = "embedded_esp")]
+#[cfg(feature = "esp32")]
 use esp_hal::{
     gpio::{Level, Output, OutputConfig},
     peripherals::Peripherals,
@@ -44,12 +44,12 @@ pub trait LedDriver {
 }
 
 // ======================== 模拟驱动实现（Linux/模拟器） ========================
-#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
+#[cfg(any(feature = "simulator", feature = "tspi"))]
 pub struct MockLedDriver {
     led_state: LedState,
 }
 
-#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
+#[cfg(any(feature = "simulator", feature = "tspi"))]
 impl MockLedDriver {
     /// 创建并初始化模拟LED驱动
     pub fn new() -> Self {
@@ -59,7 +59,7 @@ impl MockLedDriver {
     }
 }
 
-#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
+#[cfg(any(feature = "simulator", feature = "tspi"))]
 impl LedDriver for MockLedDriver {
     fn set_led_state(&mut self, state: LedState) -> Result<()> {
         self.led_state = state;
@@ -70,10 +70,10 @@ impl LedDriver for MockLedDriver {
 }
 
 // ======================== ESP32C6驱动实现 ========================
-#[cfg(feature = "embedded_esp")]
+#[cfg(feature = "esp32")]
 pub struct EspLedDriver;
 
-#[cfg(feature = "embedded_esp")]
+#[cfg(feature = "esp32")]
 impl EspLedDriver {
     /// 初始化LED驱动（含LEDC配置+任务启动）
     pub fn new(peripherals: &Peripherals, spawner: &Spawner) -> Result<Self> {
@@ -93,7 +93,7 @@ impl EspLedDriver {
     }
 }
 
-#[cfg(feature = "embedded_esp")]
+#[cfg(feature = "esp32")]
 impl LedDriver for EspLedDriver {
     /// 设置LED状态（含亮度+闪烁控制）
     fn set_led_state(&mut self, state: LedState) -> Result<()> {
@@ -104,7 +104,7 @@ impl LedDriver for EspLedDriver {
 }
 
 // ======================== LED任务（embassy executor） ========================
-#[cfg(feature = "embedded_esp")]
+#[cfg(feature = "esp32")]
 #[embassy_executor::task]
 async fn led_task(mut led_pin: Output<'static>) {
     use embassy_time::{Duration, Timer};
@@ -179,8 +179,8 @@ async fn led_task(mut led_pin: Output<'static>) {
 }
 
 // ======================== 默认驱动类型别名 ========================
-#[cfg(feature = "embedded_esp")]
+#[cfg(feature = "esp32")]
 pub type DefaultLedDriver = EspLedDriver;
 
-#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
+#[cfg(any(feature = "simulator", feature = "tspi"))]
 pub type DefaultLedDriver = MockLedDriver;

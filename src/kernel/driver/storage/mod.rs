@@ -40,12 +40,12 @@ pub trait ConfigStorage {
 }
 
 // 默认存储驱动选择
-#[cfg(feature = "embedded_esp")]
-mod esp;
-#[cfg(feature = "embedded_esp")]
-pub use esp::EspConfigStorageDriver as DefaultConfigStorageDriver;
+#[cfg(feature = "esp32")]
+mod esp32;
+#[cfg(feature = "esp32")]
+pub use esp32::EspConfigStorageDriver as DefaultConfigStorageDriver;
 
-#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
+#[cfg(any(feature = "simulator", feature = "tspi"))]
 mod linux;
-#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
+#[cfg(any(feature = "simulator", feature = "tspi"))]
 pub use linux::FileConfigStorage as DefaultConfigStorageDriver;

@@ -1,7 +1,7 @@
 // src/driver/sensor.rs
 use crate::common::error::{AppError, Result};
 
-#[cfg(feature = "embedded_esp")]
+#[cfg(feature = "esp32")]
 use esp_hal::peripherals::Peripherals;
 
 pub trait SensorDriver {
@@ -13,13 +13,13 @@ pub trait SensorDriver {
 }
 
 /// 模拟传感器驱动
-#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
+#[cfg(any(feature = "simulator", feature = "tspi"))]
 pub struct MockSensorDriver {
     temperature: i32,
     humidity: i32,
 }
 
-#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
+#[cfg(any(feature = "simulator", feature = "tspi"))]
 impl MockSensorDriver {
     pub fn new() -> Self {
         Self {
@@ -29,7 +29,7 @@ impl MockSensorDriver {
     }
 }
 
-#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
+#[cfg(any(feature = "simulator", feature = "tspi"))]
 impl SensorDriver for MockSensorDriver {
     async fn get_humidity(&mut self) -> Result<i32> {
         Ok(self.humidity)
@@ -41,13 +41,13 @@ impl SensorDriver for MockSensorDriver {
 }
 
 /// ESP32传感器驱动（读取SHT20温湿度传感器）
-#[cfg(feature = "embedded_esp")]
+#[cfg(feature = "esp32")]
 pub struct EspSensorDriver {
     sht20:
         sht25::Sht25<esp_hal::i2c::master::I2c<'static, esp_hal::Blocking>, esp_hal::delay::Delay>,
 }
 
-#[cfg(feature = "embedded_esp")]
+#[cfg(feature = "esp32")]
 impl EspSensorDriver {
     /// 创建新的ESP32传感器驱动实例
     ///
@@ -84,7 +84,7 @@ impl EspSensorDriver {
     }
 }
 
-#[cfg(feature = "embedded_esp")]
+#[cfg(feature = "esp32")]
 impl SensorDriver for EspSensorDriver {
     async fn get_humidity(&mut self) -> Result<i32> {
         use embassy_time::Timer;
@@ -125,8 +125,8 @@ impl SensorDriver for EspSensorDriver {
     }
 }
 
-#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
+#[cfg(any(feature = "simulator", feature = "tspi"))]
 pub type DefaultSensorDriver = MockSensorDriver;
 
-#[cfg(feature = "embedded_esp")]
+#[cfg(feature = "esp32")]
 pub type DefaultSensorDriver = EspSensorDriver;

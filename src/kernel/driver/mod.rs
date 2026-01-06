@@ -16,5 +16,5 @@ pub mod storage;
 pub mod time_driver;
 
 /// ESP平台下的随机数生成器模块
-#[cfg(feature = "embedded_esp")]
+#[cfg(feature = "esp32")]
 pub mod rng;

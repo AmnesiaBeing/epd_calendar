@@ -43,14 +43,14 @@ pub trait TimeDriver {
 }
 
 // 默认时间源选择
-#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
+#[cfg(any(feature = "simulator", feature = "tspi"))]
 mod linux;
 
-#[cfg(feature = "embedded_esp")]
-mod esp;
+#[cfg(feature = "esp32")]
+mod esp32;
 
-#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
+#[cfg(any(feature = "simulator", feature = "tspi"))]
 pub type DefaultTimeDriver = linux::SimulatedRtc;
 
-#[cfg(feature = "embedded_esp")]
-pub type DefaultTimeDriver = esp::RtcTimeDriver;
+#[cfg(feature = "esp32")]
+pub type DefaultTimeDriver<'a> = esp32::RtcTimeDriver<'a>;

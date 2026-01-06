@@ -15,15 +15,11 @@ use crate::kernel::driver::time_driver::TimeDriver;
 /// 模拟器RTC时间源结构体
 ///
 /// 模拟ESP32的RTC行为，使用原子操作实现线程安全的时间管理
-#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
 pub struct SimulatedRtc {
     /// 模拟ESP32 RTC的64位微秒时间戳
     timestamp_us: AtomicU64,
-    /// 是否已同步（通过外部接口更新时间后设为true）
-    synchronized: bool,
 }
 
-#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
 impl SimulatedRtc {
     /// 创建新的模拟RTC时间源实例
     ///
@@ -34,12 +30,10 @@ impl SimulatedRtc {
         let timestamp_us = now.as_second() * 1_000_000 + now.subsec_microsecond() as i64;
         Self {
             timestamp_us: AtomicU64::new(timestamp_us as u64),
-            synchronized: false,
         }
     }
 }
 
-#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
 impl TimeDriver for SimulatedRtc {
     /// 获取当前时间
     ///
@@ -66,7 +60,6 @@ impl TimeDriver for SimulatedRtc {
         log::debug!("Setting RTC time to: {}", timestamp_us);
         self.timestamp_us
             .store(timestamp_us as u64, Ordering::Release);
-        self.synchronized = true;
         Ok(())
     }
 }

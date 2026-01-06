@@ -5,7 +5,7 @@
 /// 本模块定义了电源监控功能，支持不同平台的电源状态检测
 /// 包括电池电量监控、电源状态变化检测等
 use crate::common::error::Result;
-#[cfg(feature = "embedded_esp")]
+#[cfg(feature = "esp32")]
 use esp_hal::{
     Async,
     analog::adc::{Adc, AdcPin},
@@ -48,7 +48,7 @@ pub trait PowerDriver {
 /// Mock电源驱动实现
 ///
 /// 用于测试和模拟环境的电源驱动实现
-#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
+#[cfg(any(feature = "simulator", feature = "tspi"))]
 pub struct MockPowerDriver {
     /// 模拟电池电量
     battery_level: BatteryLevel,
@@ -56,7 +56,7 @@ pub struct MockPowerDriver {
     charging: bool,
 }
 
-#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
+#[cfg(any(feature = "simulator", feature = "tspi"))]
 impl MockPowerDriver {
     pub fn new() -> Self {
         Self {
@@ -66,7 +66,7 @@ impl MockPowerDriver {
     }
 }
 
-#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
+#[cfg(any(feature = "simulator", feature = "tspi"))]
 impl PowerDriver for MockPowerDriver {
     async fn battery_level(&mut self) -> Result<BatteryLevel> {
         Ok(self.battery_level)
@@ -78,14 +78,14 @@ impl PowerDriver for MockPowerDriver {
 }
 
 /// ESP32平台电源驱动实现
-#[cfg(feature = "embedded_esp")]
+#[cfg(feature = "esp32")]
 pub struct EspPowerDriver {
     power_adc: Adc<'static, esp_hal::peripherals::ADC1<'static>, Async>,
     power_adc_pin: AdcPin<GPIO2<'static>, esp_hal::peripherals::ADC1<'static>>,
     charging_pin: Input<'static>,
 }
 
-#[cfg(feature = "embedded_esp")]
+#[cfg(feature = "esp32")]
 impl EspPowerDriver {
     /// 创建新的ESP32电源驱动实例
     ///
@@ -123,7 +123,7 @@ impl EspPowerDriver {
     }
 }
 
-#[cfg(feature = "embedded_esp")]
+#[cfg(feature = "esp32")]
 impl PowerDriver for EspPowerDriver {
     /// 获取ESP32电池电量
     ///
@@ -182,8 +182,8 @@ impl PowerDriver for EspPowerDriver {
 /// 默认电源驱动类型别名
 ///
 /// 根据平台特性选择不同的电源驱动实现
-#[cfg(feature = "embedded_esp")]
+#[cfg(feature = "esp32")]
 pub type DefaultPowerDriver = EspPowerDriver;
 
-#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
+#[cfg(any(feature = "simulator", feature = "tspi"))]
 pub type DefaultPowerDriver = MockPowerDriver;

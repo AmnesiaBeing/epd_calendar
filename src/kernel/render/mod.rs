@@ -3,6 +3,7 @@
 
 pub mod icon_renderer;
 pub mod text_renderer;
+pub mod qr_renderer;
 
 use core::fmt::Debug;
 use core::str::FromStr;

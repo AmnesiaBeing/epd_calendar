@@ -11,7 +11,7 @@ doctest = false
 bench = false
 
 [features]
-default = ["embedded_esp"]
+default = ["esp32"]
 simulator = [
     "critical-section/std",
     "embedded-hal-mock",
@@ -30,7 +30,7 @@ simulator = [
     "env_logger",
     "heapless_08",
 ]
-embedded_linux = [
+tspi = [
     "critical-section/std",
     "linux-embedded-hal",
     "embedded-storage-std-async-mock",
@@ -48,7 +48,7 @@ embedded_linux = [
     "env_logger",
     "heapless_08",
 ]
-embedded_esp = [
+esp32 = [
     "esp-rtos",
     "esp-radio",
     "esp-hal",
@@ -107,6 +107,7 @@ async-trait = "0.1.89"
 # 嵌入式相关依赖
 embedded-hal = "=1.0"
 embedded-hal-bus = "0.3.0"
+embedded-hal-async = "1.0.0"
 embedded-graphics = "0.8"
 embedded-io = "0.7"
 embedded-io-async = "0.7"

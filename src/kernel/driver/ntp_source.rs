@@ -23,7 +23,7 @@ const SNTP_TIMEOUT_SECONDS: u64 = 5;
 /// SNTP同步间隔时间（秒）
 /// - 嵌入式平台：12小时
 /// - 模拟器：60秒（便于测试）
-#[cfg(any(feature = "embedded_esp", feature = "embedded_linux"))]
+#[cfg(any(feature = "esp32", feature = "tspi"))]
 const SNTP_SYNC_INTERVAL_SECONDS: u64 = 12 * 60 * 60;
 #[cfg(feature = "simulator")]
 const SNTP_SYNC_INTERVAL_SECONDS: u64 = 60;

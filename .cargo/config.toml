@@ -25,8 +25,8 @@ build-std = ["alloc", "core"]
 
 [alias]
 # Linux相关命令
-bel = "build --target aarch64-unknown-linux-gnu --no-default-features --features embedded_linux"
-belr = "build --release --target aarch64-unknown-linux-gnu --no-default-features --features embedded_linux"
+bel = "build --target aarch64-unknown-linux-gnu --no-default-features --features tspi"
+belr = "build --release --target aarch64-unknown-linux-gnu --no-default-features --features tspi"
 
 # 模拟器相关命令
 bs = "build --target x86_64-unknown-linux-gnu --no-default-features --features simulator"
@@ -45,5 +45,5 @@ rsg = "run --target x86_64-unknown-linux-gnu --no-default-features --features si
 rsgr = "run --target x86_64-unknown-linux-gnu --no-default-features --release --features simulator --features embedded_graphics_simulator"
 
 # ESP32C6相关命令
-besp = "build --target riscv32imac-unknown-none-elf --no-default-features --features embedded_esp"
-bespr = "build --release --target riscv32imac-unknown-none-elf --no-default-features --features embedded_esp"
+besp = "build --target riscv32imac-unknown-none-elf --no-default-features --features esp32"
+bespr = "build --release --target riscv32imac-unknown-none-elf --no-default-features --features esp32"

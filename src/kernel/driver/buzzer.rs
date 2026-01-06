@@ -5,10 +5,10 @@
 //! 支持播放单个声音和预设音乐
 
 use crate::common::error::{AppError, Result};
-use embassy_executor::Spawner;
+
 use embassy_time::{Duration, Timer};
 
-#[cfg(feature = "embedded_esp")]
+#[cfg(feature = "esp32")]
 use esp_hal::peripherals::Peripherals;
 
 /// 蜂鸣器驱动trait
@@ -25,21 +25,21 @@ pub trait BuzzerDriver {
     /// 播放内置音乐
     /// 
     /// # 参数
-    /// - `music`: 音乐名称，支持 "twinkle" (小星星) 和 "orchid" (兰花草)
-    async fn play_music(&mut self, music: &str) -> Result<()>;
+    /// - `music_id`: 音乐序号，0 表示小星星，1 表示兰花草
+    async fn play_music(&mut self, music_id: u8) -> Result<()>;
     
     /// 停止播放
     fn stop(&mut self) -> Result<()>;
 }
 
 // ======================== 模拟驱动实现（Linux/模拟器） ========================
-#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
+#[cfg(any(feature = "simulator", feature = "tspi"))]
 pub struct MockBuzzerDriver {
     /// 模拟蜂鸣器状态
     is_playing: bool,
 }
 
-#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
+#[cfg(any(feature = "simulator", feature = "tspi"))]
 impl MockBuzzerDriver {
     /// 创建模拟蜂鸣器驱动实例
     pub fn new() -> Result<Self> {
@@ -49,7 +49,7 @@ impl MockBuzzerDriver {
     }
 }
 
-#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
+#[cfg(any(feature = "simulator", feature = "tspi"))]
 impl BuzzerDriver for MockBuzzerDriver {
     async fn tone(&mut self, frequency: u32, duration: u32) -> Result<()> {
         self.is_playing = true;
@@ -59,9 +59,9 @@ impl BuzzerDriver for MockBuzzerDriver {
         Ok(())
     }
     
-    async fn play_music(&mut self, music: &str) -> Result<()> {
+    async fn play_music(&mut self, music_id: u8) -> Result<()> {
         self.is_playing = true;
-        log::debug!("Mock buzzer playing music: {}", music);
+        log::debug!("Mock buzzer playing music with id: {}", music_id);
         // 模拟播放音乐，持续2秒
         Timer::after(Duration::from_secs(2)).await;
         self.is_playing = false;
@@ -76,18 +76,18 @@ impl BuzzerDriver for MockBuzzerDriver {
 }
 
 // ======================== ESP32C6驱动实现 ========================
-#[cfg(feature = "embedded_esp")]
-use esp_hal::{gpio::Output, ledc::{self, channel::ChannelRef, timer::TimerRef}};
+#[cfg(feature = "esp32")]
+use esp_hal::{gpio::Output, ledc::{self, channel::Number as ChannelNumber, timer::Number as TimerNumber, timer::config::Config as TimerConfig, channel::config::Config as ChannelConfig, LowSpeed, timer::TimerIFace, channel::ChannelIFace}, time::Rate};
 
-#[cfg(feature = "embedded_esp")]
+#[cfg(feature = "esp32")]
 pub struct EspBuzzerDriver {
     /// LEDC通道
-    channel: ChannelRef<'static, ledc::channel::CH0>,
+    channel: ledc::channel::Channel<'static, LowSpeed>,
     /// LEDC定时器
-    timer: TimerRef<'static, ledc::timer::TIMER0>,
+    timer: ledc::timer::Timer<'static, LowSpeed>,
 }
 
-#[cfg(feature = "embedded_esp")]
+#[cfg(feature = "esp32")]
 impl EspBuzzerDriver {
     /// 创建ESP32C6蜂鸣器驱动实例
     /// 
@@ -96,22 +96,30 @@ impl EspBuzzerDriver {
     /// - `buzzer_pin`: 蜂鸣器连接的GPIO引脚
     pub fn new(peripherals: &mut Peripherals, buzzer_pin: Output<'static>) -> Result<Self> {
         // 配置LEDC
-        let mut ledc = ledc::Ledc::new(peripherals.LEDC);
+        let mut ledc = ledc::Ledc::new(unsafe { peripherals.LEDC.clone_unchecked() });
+        
+        // 设置全局慢速时钟源
+        ledc.set_global_slow_clock(ledc::LSGlobalClkSource::APBClk);
         
         // 配置LEDC定时器
-        let timer = ledc.get_timer(ledc::timer::TIMER0).unwrap();
-        timer.set_frequency(50.kHz())?;
-        timer.set_resolution(ledc::Resolution::Bits13)?;
-        timer.enable()?;
+        let mut timer = ledc.timer::<LowSpeed>(TimerNumber::Timer0);
+        timer.configure(TimerConfig {
+            duty: ledc::timer::config::Duty::Duty13Bit,
+            clock_source: ledc::timer::LSClockSource::APBClk,
+            frequency: Rate::from_khz(50),
+        }).map_err(|_| AppError::ActuatorError)?;
         
         // 配置LEDC通道
-        let channel = ledc.get_channel(ledc::channel::CH0).unwrap();
-        channel.attach_pin(buzzer_pin)?;
-        channel.attach_timer(timer)?;
+        let mut channel = ledc.channel::<LowSpeed>(ChannelNumber::Channel0, buzzer_pin);
+        channel.configure(ChannelConfig {
+            timer: &timer,
+            duty_pct: 0,
+            drive_mode: esp_hal::gpio::DriveMode::PushPull,
+        }).map_err(|_| AppError::ActuatorError)?;
         
-        // 设置默认占空比为0（关闭）
-        channel.set_duty(0)?;
-        channel.enable()?;
+        // 我们需要先将channel转换为'static生命周期，然后再移动timer
+        let channel = unsafe { core::mem::transmute(channel) };
+        let timer = unsafe { core::mem::transmute(timer) };
         
         Ok(Self {
             channel,
@@ -120,40 +128,43 @@ impl EspBuzzerDriver {
     }
 }
 
-#[cfg(feature = "embedded_esp")]
+#[cfg(feature = "esp32")]
 impl BuzzerDriver for EspBuzzerDriver {
     async fn tone(&mut self, frequency: u32, duration: u32) -> Result<()> {
-        // 设置频率
-        self.timer.set_frequency(frequency.Hz())?;
+        // 重新配置定时器频率
+        self.timer.configure(TimerConfig {
+            duty: ledc::timer::config::Duty::Duty13Bit,
+            clock_source: ledc::timer::LSClockSource::APBClk,
+            frequency: Rate::from_hz(frequency),
+        }).map_err(|_| AppError::ActuatorError)?;
         
         // 设置50%占空比
-        let max_duty = self.channel.get_max_duty();
-        self.channel.set_duty(max_duty / 2)?;
+        self.channel.set_duty(50).map_err(|_| AppError::ActuatorError)?;
         
         // 等待指定时长
         Timer::after(Duration::from_millis(duration as u64)).await;
         
         // 停止播放
-        self.channel.set_duty(0)?;
+        self.channel.set_duty(0).map_err(|_| AppError::ActuatorError)?;
         
         Ok(())
     }
     
-    async fn play_music(&mut self, music: &str) -> Result<()> {
-        match music.to_lowercase().as_str() {
-            "twinkle" => self.play_twinkle().await,
-            "orchid" => self.play_orchid().await,
-            _ => Err(AppError::InvalidInput("Unsupported music".to_string())),
+    async fn play_music(&mut self, music_id: u8) -> Result<()> {
+        match music_id {
+            0 => self.play_twinkle().await,
+            1 => self.play_orchid().await,
+            _ => Err(AppError::ConfigError("Unsupported music id")),
         }
     }
     
     fn stop(&mut self) -> Result<()> {
-        self.channel.set_duty(0)?;
+        self.channel.set_duty(0).map_err(|_| AppError::ActuatorError)?;
         Ok(())
     }
 }
 
-#[cfg(feature = "embedded_esp")]
+#[cfg(feature = "esp32")]
 impl EspBuzzerDriver {
     /// 播放小星星
     async fn play_twinkle(&mut self) -> Result<()> {
@@ -213,8 +224,8 @@ impl EspBuzzerDriver {
 }
 
 // ======================== 默认驱动类型别名 ========================
-#[cfg(feature = "embedded_esp")]
+#[cfg(feature = "esp32")]
 pub type DefaultBuzzerDriver = EspBuzzerDriver;
 
-#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
+#[cfg(any(feature = "simulator", feature = "tspi"))]
 pub type DefaultBuzzerDriver = MockBuzzerDriver;

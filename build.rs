@@ -7,7 +7,7 @@ use anyhow::{Ok, Result};
 fn main() -> Result<()> {
     builder::run()?;
 
-    #[cfg(feature = "embedded_esp")]
+    #[cfg(feature = "esp32")]
     {
         linker_be_nice();
         println!("cargo:rustc-link-arg=-Tlinkall.x");
@@ -16,7 +16,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-#[cfg(feature = "embedded_esp")]
+#[cfg(feature = "esp32")]
 fn linker_be_nice() {
     let args: Vec<String> = std::env::args().collect();
     if args.len() > 1 {

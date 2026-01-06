@@ -53,13 +53,13 @@ static BUTTON_PRESSED: AtomicBool = AtomicBool::new(false);
 static BUTTON_EVENT_CHANNEL: Channel<CriticalSectionRawMutex, ButtonEvent, 8> = Channel::new();
 
 /// ESP32C6按键驱动实现
-#[cfg(feature = "embedded_esp")]
+#[cfg(feature = "esp32")]
 pub struct EspButtonDriver {}
 
-#[cfg(feature = "embedded_esp")]
+#[cfg(feature = "esp32")]
 impl EspButtonDriver {
     /// 创建新的按键驱动实例
-    pub fn new(peripherals: &esp_hal::peripherals::Peripherals) -> Result<Self> {
+    pub fn new(_peripherals: &esp_hal::peripherals::Peripherals) -> Result<Self> {
         log::info!("Initializing ESP button driver on GPIO9");
 
         // 配置GPIO9为输入，外部上拉
@@ -146,7 +146,7 @@ impl EspButtonDriver {
 }
 
 /// GPIO中断处理函数
-// #[cfg(feature = "embedded_esp")]
+// #[cfg(feature = "esp32")]
 // fn gpio_interrupt_handler() {
 //     let peripherals = unsafe { Peripherals::steal() };
 //     let gpio = &peripherals.GPIO;
@@ -161,7 +161,7 @@ impl EspButtonDriver {
 //     }
 // }
 
-#[cfg(feature = "embedded_esp")]
+#[cfg(feature = "esp32")]
 impl ButtonDriver for EspButtonDriver {
     async fn get_event(&mut self) -> Result<ButtonEvent> {
         // BUTTON_EVENT_CHANNEL.recv().await.map_err(|e| {
@@ -177,17 +177,17 @@ impl ButtonDriver for EspButtonDriver {
 }
 
 /// 模拟按键驱动（用于Linux和模拟器）
-#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
+#[cfg(any(feature = "simulator", feature = "tspi"))]
 pub struct MockButtonDriver;
 
-#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
+#[cfg(any(feature = "simulator", feature = "tspi"))]
 impl MockButtonDriver {
     pub fn new() -> Self {
         Self
     }
 }
 
-#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
+#[cfg(any(feature = "simulator", feature = "tspi"))]
 impl ButtonDriver for MockButtonDriver {
     async fn get_event(&mut self) -> Result<ButtonEvent> {
         unimplemented!()
@@ -199,8 +199,8 @@ impl ButtonDriver for MockButtonDriver {
 }
 
 /// 默认按键驱动类型别名
-#[cfg(feature = "embedded_esp")]
+#[cfg(feature = "esp32")]
 pub type DefaultButtonDriver = EspButtonDriver;
 
-#[cfg(any(feature = "simulator", feature = "embedded_linux"))]
+#[cfg(any(feature = "simulator", feature = "tspi"))]
 pub type DefaultButtonDriver = MockButtonDriver;
