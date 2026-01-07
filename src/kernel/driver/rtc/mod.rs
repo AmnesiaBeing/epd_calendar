@@ -20,12 +20,24 @@
 
 use jiff::Timestamp;
 
-use crate::common::error::Result;
+use crate::{common::error::Result, platform::Platform};
 
 /// 时间源驱动接口定义
 ///
 /// 提供系统时间的获取和设置功能
 pub trait TimeDriver {
+    type P: Platform;
+    /// 创建新的时间源实例
+    ///
+    /// # 参数
+    /// - `peripherals`: 平台特定的外设引用
+    ///
+    /// # 返回值
+    /// - `Self`: 时间源实例
+    fn create(peripherals: &mut <Self::P as Platform>::Peripherals) -> Result<Self>
+    where
+        Self: Sized;
+
     /// 获取当前时间（UTC时间戳）
     ///
     /// # 返回值
@@ -44,13 +56,13 @@ pub trait TimeDriver {
 
 // 默认时间源选择
 #[cfg(any(feature = "simulator", feature = "tspi"))]
-mod linux;
+mod simulator;
 
 #[cfg(feature = "esp32")]
 mod esp32;
 
 #[cfg(any(feature = "simulator", feature = "tspi"))]
-pub type DefaultTimeDriver = linux::SimulatedRtc;
+pub type DefaultTimeDriver = simulator::SimulatedRtc;
 
 #[cfg(feature = "esp32")]
-pub type DefaultTimeDriver<'a> = esp32::RtcTimeDriver<'a>;
+pub type DefaultTimeDriver = esp32::RtcTimeDriver;

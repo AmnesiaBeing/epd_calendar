@@ -13,7 +13,7 @@ use crate::common::GlobalMutex;
 use crate::kernel::data::DataSourceRegistry;
 use crate::kernel::driver::display::{DefaultDisplayDriver, DisplayDriver};
 use crate::kernel::render::DEFAULT_ENGINE;
-use crate::tasks::{DISPLAY_EVENTS, DisplayEvent};
+use crate::bak::{DISPLAY_EVENTS, DisplayEvent};
 
 static DISPLAY_BUFFER: StaticCell<GlobalMutex<Display7in5>> = StaticCell::new();
 

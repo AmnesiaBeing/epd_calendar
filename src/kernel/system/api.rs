@@ -8,7 +8,7 @@ use crate::common::GlobalMutex;
 use crate::common::error::{AppError, Result};
 use crate::kernel::data::{DataSourceRegistry, DynamicValue};
 use crate::kernel::driver::buzzer::{DefaultBuzzerDriver, BuzzerDriver};
-use crate::kernel::driver::display::DefaultDisplayDriver;
+use crate::kernel::driver::epd::DefaultDisplayDriver;
 use crate::kernel::driver::led::{DefaultLedDriver, LedDriver, LedState};
 use crate::kernel::driver::network::{DefaultNetworkDriver, NetworkDriver};
 use crate::kernel::driver::power::{BatteryLevel, DefaultPowerDriver, PowerDriver};

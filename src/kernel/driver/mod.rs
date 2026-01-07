@@ -6,14 +6,14 @@
 /// 包含显示、网络、时间、电源、传感器等硬件驱动组件
 pub mod button;
 pub mod buzzer;
-pub mod display;
+pub mod epd;
 pub mod led;
 pub mod network;
 pub mod ntp_source;
 pub mod power;
 pub mod sensor;
 pub mod storage;
-pub mod time_driver;
+pub mod rtc;
 
 /// ESP平台下的随机数生成器模块
 #[cfg(feature = "esp32")]

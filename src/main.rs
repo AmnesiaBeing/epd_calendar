@@ -18,8 +18,6 @@ mod assets;
 mod common;
 mod kernel;
 mod platform;
-mod system;
-mod tasks;
 
 use crate::common::error::Result;
 use crate::kernel::data::DataSourceRegistry;
@@ -30,8 +28,8 @@ use crate::kernel::data::sources::time::TimeDataSource;
 use crate::kernel::data::sources::weather::WeatherDataSource;
 use crate::kernel::driver::button::DefaultButtonDriver;
 use crate::kernel::driver::buzzer::DefaultBuzzerDriver;
-use crate::kernel::driver::display::DefaultDisplayDriver;
-use crate::kernel::driver::display::DisplayDriver;
+use crate::kernel::driver::epd::DefaultDisplayDriver;
+use crate::kernel::driver::epd::DisplayDriver;
 use crate::kernel::driver::led::DefaultLedDriver;
 use crate::kernel::driver::network::DefaultNetworkDriver;
 use crate::kernel::driver::network::NetworkDriver;
@@ -39,11 +37,9 @@ use crate::kernel::driver::ntp_source::SntpService;
 use crate::kernel::driver::power::DefaultPowerDriver;
 use crate::kernel::driver::sensor::DefaultSensorDriver;
 use crate::kernel::driver::storage::DefaultConfigStorageDriver;
-use crate::kernel::driver::time_driver::DefaultTimeDriver;
+use crate::kernel::driver::rtc::DefaultTimeDriver;
 use crate::kernel::system::api::DefaultSystemApi;
 use crate::platform::{DefaultPlatform, Platform};
-use crate::system::MessageBus;
-use crate::tasks::main_task::main_task;
 
 #[cfg(any(feature = "simulator", feature = "tspi"))]
 use embassy_executor::main as platform_main;
@@ -69,7 +65,7 @@ async fn run_system(
     message_bus: MessageBus,
     spawner: &Spawner,
 ) -> Result<()> {
-    let display_driver = DefaultDisplayDriver::new(platform.peripherals_mut())?;
+    let display_driver = DefaultDisplayDriver::create(platform.peripherals_mut())?;
     let mut network_driver = DefaultNetworkDriver::new(platform.peripherals_mut())?;
     network_driver.new(spawner).await.unwrap();
     let buzzer_driver = platform.create_buzzer_driver().unwrap();

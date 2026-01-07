@@ -16,8 +16,8 @@ simulator = [
     "critical-section/std",
     "embedded-hal-mock",
     "embedded-storage-std-async-mock",
-    "embassy-sync/log",
-    "embassy-sync/std",
+    "embassy-sync_07/log",
+    "embassy-sync_07/std",
     "embassy-executor/arch-std",
     "embassy-executor/executor-thread",
     "embassy-executor/log",
@@ -28,14 +28,13 @@ simulator = [
     "getrandom/std",
     "jiff/std",
     "env_logger",
-    "heapless_08",
 ]
 tspi = [
     "critical-section/std",
     "linux-embedded-hal",
     "embedded-storage-std-async-mock",
-    "embassy-sync/log",
-    "embassy-sync/std",
+    "embassy-sync_07/log",
+    "embassy-sync_07/std",
     "embassy-executor/arch-std",
     "embassy-executor/executor-thread",
     "embassy-executor/log",
@@ -46,7 +45,6 @@ tspi = [
     "getrandom/std",
     "jiff/std",
     "env_logger",
-    "heapless_08",
 ]
 esp32 = [
     "esp-rtos",
@@ -119,10 +117,10 @@ embedded-svc = { version = "0.28", default-features = false }
 static_cell = "2.1"
 critical-section = "1.2"
 heapless = { version = "0.9", default-features = false, features = ["serde"] }
-heapless_08 = { package = "heapless", default-features = false, optional = true, version = "0.8" }
+heapless_08 = { package = "heapless", default-features = false, version = "0.8" }
 
 # Embassy框架
-embassy-sync = { version = "0.7", default-features = false }
+embassy-sync_07 = { package = "embassy-sync", version = "0.7", default-features = false }
 embassy-executor = { version = "0.9", default-features = false }
 embassy-time = { version = "0.5", default-features = false }
 embassy-net = { version = "0.7", default-features = false, features = [
@@ -218,3 +216,4 @@ esp-sync = { version = "0.1.1", optional = true, features = ["esp32c6"] }
 esp-storage = { version = "0.8.1", optional = true, features = ["esp32c6"] }
 panic-rtt-target = { version = "0.2.0", optional = true }
 rtt-target = { version = "0.6.2", optional = true, features = ["log"] }
+enumset = "1.1.10"

@@ -14,8 +14,8 @@ use crate::common::GlobalMutex;
 use crate::common::error::AppError;
 use crate::common::error::Result;
 use crate::kernel::driver::network::{DefaultNetworkDriver, NetworkDriver};
-use crate::kernel::driver::time_driver::DefaultTimeDriver;
-use crate::kernel::driver::time_driver::TimeDriver;
+use crate::kernel::driver::rtc::DefaultTimeDriver;
+use crate::kernel::driver::rtc::TimeDriver;
 
 /// SNTP请求超时时间（秒）
 const SNTP_TIMEOUT_SECONDS: u64 = 5;

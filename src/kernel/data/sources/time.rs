@@ -17,7 +17,7 @@ use crate::kernel::data::types::{
     CacheStringValue, HeaplessString, KEY_LENGTH, alloc_string_to_heapless,
 };
 use crate::kernel::data::{DataSource, DynamicValue, types::CacheKeyValueMap};
-use crate::kernel::driver::time_driver::{DefaultTimeDriver, TimeDriver};
+use crate::kernel::driver::rtc::{DefaultTimeDriver, TimeDriver};
 use crate::kernel::system::api::DefaultSystemApi;
 
 // --------------- 常量定义 ---------------

@@ -62,8 +62,6 @@ pub enum DynamicValue {
     Boolean(bool),
     /// 整数
     Integer(i32),
-    /// 浮点数
-    Float(f32),
     /// 字符串
     String(CacheStringValue),
 }

@@ -2,9 +2,9 @@
 
 pub mod error;
 
-use embassy_sync::rwlock::RwLockWriteGuard;
-use embassy_sync::rwlock::{RwLock, RwLockReadGuard};
-use embassy_sync::{channel::Channel, mutex::Mutex};
+use embassy_sync_07::rwlock::RwLockWriteGuard;
+use embassy_sync_07::rwlock::{RwLock, RwLockReadGuard};
+use embassy_sync_07::{channel::Channel, mutex::Mutex};
 
 #[cfg(any(feature = "simulator", feature = "tspi"))]
 use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;

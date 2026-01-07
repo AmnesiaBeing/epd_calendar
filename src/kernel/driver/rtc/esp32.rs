@@ -9,17 +9,19 @@ use esp_hal::rtc_cntl::Rtc;
 use jiff::Timestamp;
 
 use crate::common::error::{AppError, Result};
-use crate::kernel::driver::time_driver::TimeDriver;
+use crate::kernel::driver::rtc::TimeDriver;
+use crate::platform::esp32::Esp32Platform;
 
 /// ESP32 RTC时间源结构体
 ///
 /// 使用ESP32硬件RTC提供系统时间功能
-pub struct RtcTimeDriver<'a> {
-    /// ESP32 RTC实例
-    rtc: Rtc<'a>,
+pub struct RtcTimeDriver {
+    /// ESP32 RTC实例，生命周期为static，不会被释放
+    rtc: Rtc<'static>,
 }
 
-impl<'a> RtcTimeDriver<'a> {
+impl TimeDriver for RtcTimeDriver {
+    type P = Esp32Platform;
     /// 创建新的ESP32 RTC时间源实例
     ///
     /// # 参数
@@ -27,17 +29,12 @@ impl<'a> RtcTimeDriver<'a> {
     ///
     /// # 返回值
     /// - `Self`: 时间源实例
-    pub fn new(peripherals: &'a mut Peripherals) -> Result<Self> {
-        log::info!("Initializing RtcTimeSource with hardware RTC");
-
+    fn create(peripherals: &mut Peripherals) -> Result<Self> {
         let rtc = Rtc::new(peripherals.LPWR.reborrow());
-
-        Ok(Self { rtc })
+        Ok(Self {
+            rtc: unsafe { core::mem::transmute(rtc) }, // 虽然peripherals会被drop，但是能够确保rtc这个外设只有这里会用，问题不大
+        })
     }
-}
-
-#[cfg(feature = "esp32")]
-impl<'a> TimeDriver for RtcTimeDriver<'a> {
     /// 获取当前时间
     ///
     /// # 返回值

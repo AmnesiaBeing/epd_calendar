@@ -22,7 +22,6 @@ use crate::common::{GlobalMutex, GlobalRwLock, GlobalRwLockReadGuard, GlobalRwLo
 use crate::kernel::data::types::{CacheKeyValueMap, HeaplessVec};
 use crate::kernel::data::{DataSource, DynamicValue};
 use crate::kernel::system::api::DefaultSystemApi;
-use crate::tasks::{DISPLAY_EVENTS, DisplayEvent};
 
 // ========== 常量定义（提升可维护性与可读性） ==========
 /// 默认最小刷新间隔（秒）- 无数据源时的兜底值
