@@ -17,11 +17,6 @@ use crate::{
     platform::{Platform, simulator::SimulatorPlatform},
 };
 
-/// SPI 类型别名
-///
-/// 使用嵌入式HAL模拟库的SPI设备类型
-type SpiType = SPIDevice<u8>;
-
 /// 模拟器电子墨水屏驱动结构体
 ///
 /// 封装模拟器环境的EPD驱动功能（简化结构体，仅保留标识作用）

@@ -1,6 +1,5 @@
 use embassy_executor::Spawner;
 use embassy_net::{self, Config, Stack, StackResources};
-use embassy_sync::once_lock::OnceLock;
 use embedded_svc::wifi::asynch::Wifi;
 use enumset::EnumSet;
 use esp_radio::wifi::{WifiController, WifiDevice};
@@ -12,16 +11,15 @@ use crate::platform::Platform;
 use crate::platform::esp32::Esp32Platform;
 
 // ========== 全局静态资源（核心：所有资源均为 'static） ==========
-/// ESP-RADIO控制器（全局唯一，'static）
-static ESP_RADIO_CTRL: StaticCell<esp_radio::Controller> = StaticCell::new();
-/// 网络栈实例（全局唯一，'static）
-static NET_STACK: StaticCell<Stack<'static>> = StaticCell::new();
-/// WiFi控制器（全局唯一，'static）
-static WIFI_CONTROLLER: OnceLock<WifiController<'static>> = OnceLock::new();
+static STACK_RESOURCES: StaticCell<StackResources<3>> = StaticCell::new();
 
 // ========== 网络驱动核心结构体（持有静态资源的引用） ==========
 /// 无需生命周期参数：所有资源均为 'static
 pub struct Esp32NetworkDriver {
+    /// 网络栈实例（核心：不再全局存储，由驱动持有）
+    stack: &'static Stack<'static>,
+    /// WiFi控制器
+    wifi_ctrl: WifiController<'static>,
     /// 标记是否初始化完成（避免重复初始化）
     initialized: bool,
 }
@@ -38,52 +36,62 @@ async fn net_task(mut runner: embassy_net::Runner<'static, WifiDevice<'static>>)
 impl NetworkDriver for Esp32NetworkDriver {
     type P = Esp32Platform;
 
-    async fn new(
+    async fn create(
         peripherals: &mut <Self::P as Platform>::Peripherals,
         spawner: &Spawner,
     ) -> Result<Self>
     where
         Self: Sized,
     {
-        // 1. 初始化全局Radio控制器（'static）
+        // 1. 初始化Radio控制器（'static 生命周期）
+        static ESP_RADIO_CTRL: StaticCell<esp_radio::Controller> = StaticCell::new();
         let esp_radio_ctrl =
             ESP_RADIO_CTRL.init(esp_radio::init().map_err(|_| AppError::NetworkStackInitFailed)?);
 
-        // 3. 创建WiFi控制器和设备（绑定到静态Radio/外设，生命周期 'static）
-        let (controller, interfaces) = esp_radio::wifi::new(
+        // 2. 创建WiFi控制器和STA设备（绑定到静态Radio）
+        let (wifi_ctrl, interfaces) = esp_radio::wifi::new(
             esp_radio_ctrl,
-            unsafe { core::mem::transmute(peripherals.WIFI.clone_unchecked()) }, // 拓展生命周期
+            // 安全说明：peripherals.WIFI 是 'static，此处转换适配API
+            unsafe { core::mem::transmute(peripherals.WIFI.clone_unchecked()) },
             Default::default(),
         )
         .map_err(|_| AppError::NetworkStackInitFailed)?;
 
         let sta_device = interfaces.sta;
 
-        // 5. 存储WiFi控制器到全局静态区（'static）
-        WIFI_CONTROLLER
-            .init(controller)
-            .map_err(|_| AppError::NetworkStackInitFailed)?;
-
+        // 3. 网络配置（DHCP，符合官方示例）
         let config = Config::dhcpv4(Default::default());
+
+        // 4. 生成随机种子
         let seed = getrandom::u64().map_err(|_| AppError::NetworkStackInitFailed)?;
 
-        // 初始化网络栈资源
-        static RESOURCES: StaticCell<StackResources<3>> = StaticCell::new();
-        let resources = RESOURCES.init(StackResources::new());
+        // 5. 初始化栈资源（官方示例写法）
+        let resources = STACK_RESOURCES.init(StackResources::new());
 
-        // 创建网络栈
+        // 6. 创建Stack（核心：使用 StaticCell 固定到静态内存）
+        static NET_STACK: StaticCell<Stack<'static>> = StaticCell::new();
         let (stack, runner) = embassy_net::new(sta_device, config, resources, seed as u64);
+        let stack_ref = NET_STACK.init(stack);
 
-        // 6. 初始化全局网络栈（'static）
-        // let stack_resources = NET_STACK_RESOURCES.init(StackResources::new());
-        NET_STACK.init(stack);
-
-        // 7. 生成网络任务（参数为 'static Runner，符合要求）
+        // 7. 派生网络任务（官方示例范式）
         spawner
             .spawn(net_task(runner))
             .map_err(|_| AppError::NetworkTaskSpawnFailed)?;
 
-        Ok(Self { initialized: true })
+        Ok(Self {
+            stack: stack_ref,
+            wifi_ctrl,
+            initialized: true,
+        })
+    }
+
+    /// 获取驱动持有的 Stack 引用（供上层创建 Socket）
+    fn get_stack(&self) -> Option<&embassy_net::Stack> {
+        if self.initialized {
+            Some(self.stack)
+        } else {
+            None
+        }
     }
 }
 

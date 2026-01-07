@@ -66,7 +66,7 @@ async fn run_system(
     spawner: &Spawner,
 ) -> Result<()> {
     let display_driver = DefaultDisplayDriver::create(platform.peripherals_mut())?;
-    let mut network_driver = DefaultNetworkDriver::new(platform.peripherals_mut())?;
+    let mut network_driver = DefaultNetworkDriver::create(platform.peripherals_mut())?;
     network_driver.new(spawner).await.unwrap();
     let buzzer_driver = platform.create_buzzer_driver().unwrap();
     let time_driver = platform.create_time_driver().unwrap();

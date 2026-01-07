@@ -41,7 +41,7 @@ impl EspConfigStorageDriver {
     ///
     /// # 返回值
     /// - `Result<Self>`: 存储实例或错误
-    pub fn new(peripherals: &Peripherals) -> Result<Self> {
+    pub fn create(peripherals: &mut Peripherals) -> Result<Self> {
         // 1. 初始化 FlashStorage 并获取静态引用
         let flash_storage_ref = FLASH_STORAGE.init(FlashStorage::new(unsafe {
             peripherals.FLASH.clone_unchecked()

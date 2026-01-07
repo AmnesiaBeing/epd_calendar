@@ -4,6 +4,7 @@ pub mod error;
 
 use embassy_sync_07::rwlock::RwLockWriteGuard;
 use embassy_sync_07::rwlock::{RwLock, RwLockReadGuard};
+use embassy_sync_07::signal::Signal;
 use embassy_sync_07::{channel::Channel, mutex::Mutex};
 
 #[cfg(any(feature = "simulator", feature = "tspi"))]
@@ -64,3 +65,6 @@ pub type GlobalRwLockReadGuard<'a, T> = RwLockReadGuard<'a, RawMutex, T>;
 pub type GlobalRwLockWriteGuard<'a, T> = RwLockWriteGuard<'a, ThreadModeRawMutex, T>;
 #[cfg(feature = "esp32")]
 pub type GlobalRwLockWriteGuard<'a, T> = RwLockWriteGuard<'a, RawMutex, T>;
+
+/// 全局信号类型别名
+pub type GlobalSignal<T> = Signal<GlobalMutex<T>, T>;

@@ -1,4 +1,4 @@
-/// src/driver/display/mod.rs
+/// src/driver/epd/mod.rs
 /// 电子墨水屏驱动模块
 ///
 /// 本模块定义了电子墨水屏（EPD）驱动的通用接口和平台特定实现
@@ -32,6 +32,10 @@ pub type DefaultDisplayDriver = esp32::Esp32EpdDriver;
 pub trait DisplayDriver<'p> {
     type P: Platform;
 
+    fn create(peripherals: &'p mut <Self::P as Platform>::Peripherals) -> Self
+    where
+        Self: Sized;
+
     /// 更新帧缓冲区
     ///
     /// 将图像数据写入EPD显示缓冲区
@@ -41,9 +45,5 @@ pub trait DisplayDriver<'p> {
     ///
     /// # 返回值
     /// - `Result<()>`: 更新操作结果
-    async fn display_frame(
-        &mut self,
-        peripherals: &'p mut <Self::P as Platform>::Peripherals,
-        buffer: &[u8],
-    ) -> Result<()>;
+    async fn display_frame(&mut self, buffer: &[u8]) -> Result<()>;
 }

@@ -6,7 +6,6 @@ use epd_waveshare::{epd7in5_yrd0750ryf665f60::Epd7in5, prelude::WaveshareDisplay
 /// 本模块实现了ESP32平台下的电子墨水屏（EPD）驱动
 /// 使用Waveshare EPD库和ESP32硬件SPI接口控制7.5英寸电子墨水屏
 use esp_hal::{
-    Blocking,
     delay::Delay,
     gpio::{Input, InputConfig, Level, Output, OutputConfig},
     spi::{
@@ -25,20 +24,24 @@ use crate::{
     platform::{Platform, esp32::Esp32Platform},
 };
 
-/// ESP32 SPI设备类型别名
-///
-/// 使用ExclusiveDevice包装SPI总线，提供独占访问
-/// 确保SPI通信的原子性和可靠性
-// type Esp32SpiDevice<'d> = ExclusiveDevice<Spi<'d, Blocking>, Output<'d>, Delay>;
-type Esp32SpiDevice<'d> = Spi<'d, Blocking>;
-
 /// ESP32电子墨水屏驱动结构体
 ///
 /// 封装ESP32平台的EPD驱动功能
-pub struct Esp32EpdDriver {}
+pub struct Esp32EpdDriver {
+    peripherals: &'static mut <Esp32Platform as Platform>::Peripherals,
+}
 
 impl<'p> DisplayDriver<'p> for Esp32EpdDriver {
     type P = Esp32Platform;
+
+    fn create(peripherals: &'p mut <Self::P as Platform>::Peripherals) -> Self
+    where
+        Self: Sized,
+    {
+        Self {
+            peripherals: unsafe { core::mem::transmute(peripherals) },
+        }
+    }
 
     /// 更新帧缓冲区
     ///
@@ -49,35 +52,31 @@ impl<'p> DisplayDriver<'p> for Esp32EpdDriver {
     ///
     /// # 返回值
     /// - `Result<()>`: 更新操作结果
-    async fn display_frame(
-        &mut self,
-        peripherals: &'p mut <Self::P as Platform>::Peripherals,
-        buffer: &[u8],
-    ) -> Result<()> {
+    async fn display_frame(&mut self, buffer: &[u8]) -> Result<()> {
         // 配置 SPI 引脚
-        let sck = peripherals.GPIO22.reborrow();
-        let sda = peripherals.GPIO23.reborrow();
+        let sck = self.peripherals.GPIO22.reborrow();
+        let sda = self.peripherals.GPIO23.reborrow();
         let cs: Output<'_> = Output::new(
-            peripherals.GPIO21.reborrow(),
+            self.peripherals.GPIO21.reborrow(),
             Level::High,
             OutputConfig::default(),
         );
 
         // 配置 EPD 控制引脚
-        let busy = Input::new(peripherals.GPIO18.reborrow(), InputConfig::default());
+        let busy = Input::new(self.peripherals.GPIO18.reborrow(), InputConfig::default());
         let dc = Output::new(
-            peripherals.GPIO20.reborrow(),
+            self.peripherals.GPIO20.reborrow(),
             Level::High,
             OutputConfig::default(),
         );
         let rst = Output::new(
-            peripherals.GPIO19.reborrow(),
+            self.peripherals.GPIO19.reborrow(),
             Level::High,
             OutputConfig::default(),
         );
 
         // 获取 SPI2 实例
-        let spi2 = peripherals.SPI2.reborrow();
+        let spi2 = self.peripherals.SPI2.reborrow();
 
         // 创建 SPI 总线
         let spi_bus = Spi::new(

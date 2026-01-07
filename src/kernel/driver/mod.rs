@@ -12,7 +12,7 @@ pub mod network;
 pub mod ntp_source;
 pub mod power;
 pub mod sensor;
-pub mod storage;
+// pub mod storage;
 pub mod rtc;
 
 /// ESP平台下的随机数生成器模块

@@ -27,9 +27,14 @@ pub trait NetworkDriver: Wifi {
     ///
     /// # 返回
     /// - `Result<Self>`: 成功返回驱动实例，失败返回错误
-    async fn new(peripherals: &mut <Self::P as Platform>::Peripherals, spawner: &Spawner) -> Result<Self>
+    async fn create(
+        peripherals: &mut <Self::P as Platform>::Peripherals,
+        spawner: &Spawner,
+    ) -> Result<Self>
     where
         Self: Sized;
+
+    fn get_stack(&self) -> Option<&embassy_net::Stack>;
 }
 
 // 默认网络驱动选择
