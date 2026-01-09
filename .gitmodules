@@ -1,3 +1,6 @@
 [submodule "lxx-calendar-quotes/sentences"]
 	path = lxx-calendar-quotes/sentences
 	url = https://github.com/hitokoto-osc/sentences-bundle.git
+[submodule "lxx-calendar-graphics/WeatherIcons"]
+	path = lxx-calendar-graphics/WeatherIcons
+	url = https://github.com/qwd/Icons.git
