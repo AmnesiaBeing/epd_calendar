@@ -604,9 +604,6 @@ fn generate_file_header(content: &mut String, _all_icons: &[ProcessedIconInfo]) 
 
     // 导入必要的依赖
     content.push_str("#![allow(dead_code, non_camel_case_types, non_upper_case_globals)]\n\n");
-    content.push_str("use embedded_graphics::geometry::Size;\n");
-    content.push_str("use log::debug;\n"); // 新增log依赖导入
-    content.push_str("use crate::common::error::{AppError, Result};\n\n");
 }
 
 /// 生成枚举定义
@@ -663,19 +660,19 @@ fn generate_enums(
             config.weather_icon_config.enum_name
         ));
         content.push_str("    /// 从API字符串获取天气图标\n");
-        content.push_str("    pub fn from_api_str(s: &str) -> Result<Self> {\n");
+        content.push_str("    pub fn from_api_str(s: &str) -> Option<Self> {\n");
         content.push_str("        match s {\n");
 
         for icon in weather_icons {
             if let IconSourceType::Weather { icon_code } = &icon.source_type {
                 content.push_str(&format!(
-                    "            \"{}\" => Ok(WeatherIcon::{}),\n",
+                    "            \"{}\" => Some(WeatherIcon::{}),\n",
                     icon_code, icon.variant_name
                 ));
             }
         }
 
-        content.push_str("            _ => Err(AppError::InvalidWeatherIconCode),\n");
+        content.push_str("            _ => None,\n");
         content.push_str("        }\n");
         content.push_str("    }\n");
         content.push_str("}\n\n");
@@ -752,12 +749,13 @@ fn generate_icon_data_and_methods(
             if let Some(first_icon) = icons.first() {
                 content.push_str(&format!("/// {}图标尺寸\n", category));
                 content.push_str(&format!(
-                    "pub const {}_ICON_SIZE: Size = Size {{\n",
-                    category_upper
+                    "pub const {}_ICON_HEIGHT: usize = {};\n",
+                    category_upper, first_icon.size.height
                 ));
-                content.push_str(&format!("    width: {},\n", first_icon.size.width));
-                content.push_str(&format!("    height: {},\n", first_icon.size.height));
-                content.push_str("};\n\n");
+                content.push_str(&format!(
+                    "pub const {}_ICON_WIDTH: usize = {};\n",
+                    category_upper, first_icon.size.width
+                ));
             }
 
             // 生成图标索引数量（用于后续计算）
@@ -788,10 +786,14 @@ fn generate_icon_data_and_methods(
         // 生成天气图标尺寸
         if let Some(first_icon) = weather_icons.first() {
             content.push_str("/// 天气图标尺寸\n");
-            content.push_str("pub const WEATHER_ICON_SIZE: Size = Size {\n");
-            content.push_str(&format!("    width: {},\n", first_icon.size.width));
-            content.push_str(&format!("    height: {},\n", first_icon.size.height));
-            content.push_str("};\n\n");
+            content.push_str(&format!(
+                "pub const WEATHER_ICON_HEIGHT: usize = {};\n",
+                first_icon.size.height,
+            ));
+            content.push_str(&format!(
+                "pub const WEATHER_ICON_WIDTH: usize = {};\n",
+                first_icon.size.width,
+            ));
         }
 
         // 生成天气图标数量
@@ -890,8 +892,8 @@ fn generate_icon_id_methods(
     content.push_str("    }\n\n");
 
     // size方法
-    content.push_str("    /// 获取图标尺寸\n");
-    content.push_str("    pub fn size(&self) -> Size {\n");
+    content.push_str("    /// 获取图标高度\n");
+    content.push_str("    pub fn height(&self) -> usize {\n");
     content.push_str("        match self {\n");
 
     for (category, icons) in local_icons_by_category {
@@ -899,69 +901,40 @@ fn generate_icon_id_methods(
 
         if !icons.is_empty() {
             content.push_str(&format!(
-                "            IconId::{}(_) => {}_ICON_SIZE,\n",
+                "            IconId::{}(_) => {}_ICON_HEIGHT,\n",
                 category_upper, category_upper
             ));
         }
     }
 
     if !weather_icons.is_empty() {
-        content.push_str("            IconId::Weather(_) => WEATHER_ICON_SIZE,\n");
+        content.push_str("            IconId::Weather(_) => WEATHER_ICON_HEIGHT,\n");
     }
 
     content.push_str("        }\n");
     content.push_str("    }\n\n");
 
-    // 新增：get_icon_data方法
-    content.push_str("    /// 获取图标数据\n");
-    content.push_str("    pub fn get_icon_data(icon_id: &str) -> Option<Self> {\n");
-    content.push_str("        debug!(\"Looking up icon data for '{}'\", icon_id);\n");
-    content.push_str("        match icon_id {\n");
+    content.push_str("    /// 获取图标宽度\n");
+    content.push_str("    pub fn width(&self) -> usize {\n");
+    content.push_str("        match self {\n");
 
-    // 处理本地图标：类型::命名 格式
     for (category, icons) in local_icons_by_category {
-        if let Some(category_config) = config
-            .icon_categories
-            .iter()
-            .find(|c| c.category == *category)
-        {
-            let category_lower = category.to_ascii_lowercase();
-            let enum_name = &category_config.enum_name;
-            let category_upper = category.to_ascii_uppercase();
+        let category_upper = category.to_ascii_uppercase();
 
-            for icon in icons {
-                let icon_filename = match &icon.source_type {
-                    IconSourceType::Local { filename, .. } => filename,
-                    _ => &icon.id,
-                };
-                // 生成匹配分支："digit:digit_0" => Some(IconId::DIGIT(DigitIcon::Digit0)),
-                content.push_str(&format!(
-                    "            \"{}:{}\" => Some(IconId::{}({}::{})),\n",
-                    category_lower, icon_filename, category_upper, enum_name, icon.variant_name
-                ));
-            }
+        if !icons.is_empty() {
+            content.push_str(&format!(
+                "            IconId::{}(_) => {}_ICON_WIDTH,\n",
+                category_upper, category_upper
+            ));
         }
     }
 
-    // 处理天气图标：以icon_开头的情况
     if !weather_icons.is_empty() {
-        content.push_str("            _ if icon_id.starts_with(\"icon_\") => {\n");
-        content.push_str("                let weather_code = &icon_id[5..];\n");
-        content.push_str("                WeatherIcon::from_api_str(weather_code)\n");
-        content.push_str("                    .ok()\n");
-        content.push_str("                    .map(Self::Weather)\n");
-        content.push_str("            }\n");
-        // 直接处理天气图标code的情况
-        content.push_str(
-            "            _ => WeatherIcon::from_api_str(icon_id).ok().map(Self::Weather),\n",
-        );
-    } else {
-        // 无天气图标时的默认分支
-        content.push_str("            _ => None,\n");
+        content.push_str("            IconId::Weather(_) => WEATHER_ICON_WIDTH,\n");
     }
 
     content.push_str("        }\n");
-    content.push_str("    }\n");
+    content.push_str("    }\n\n");
 
     content.push_str("}\n");
 }

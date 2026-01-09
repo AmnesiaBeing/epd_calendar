@@ -203,22 +203,6 @@ fn write_font_bitmap(bitmap: &FontBitmap, path: &Path) -> Result<()> {
     fs::write(path, &bitmap.glyph_data)
         .with_context(|| format!("写入字体文件失败: {}", path.display()))?;
 
-    // 计算统计信息
-    // let total_size_kb = bitmap.glyph_data.len() as f64 / 1024.0;
-    // let avg_char_size = if bitmap.char_count > 0 {
-    //     bitmap.glyph_data.len() as f64 / bitmap.char_count as f64
-    // } else {
-    //     0.0
-    // };
-
-    // println!(
-    //     "cargo:warning=  生成字体文件: {} | 大小: {:.2}KB | 字符数: {} | 平均字符大小: {:.2}字节/字符",
-    //     path.display(),
-    //     total_size_kb,
-    //     bitmap.char_count,
-    //     avg_char_size
-    // );
-
     Ok(())
 }
 
@@ -238,8 +222,6 @@ fn generate_fonts_rs(
     content.push_str("\n\n");
     content.push_str("#![allow(dead_code)]\n");
     content.push_str("#![allow(clippy::unreadable_literal)]\n\n");
-
-    content.push_str("use serde::{Deserialize, Serialize};\n\n");
 
     // 定义GlyphMetrics结构体（与渲染器一致）
     content.push_str("// ==================== 核心结构体定义 ====================\n");
@@ -263,10 +245,11 @@ fn generate_fonts_rs(
     // 共享字符表
     content.push_str("// ==================== 共享字符表 ====================\n");
     content.push_str("/// 字符表（已排序，所有字体共享）\n");
+    content.push_str("#[rustfmt::skip]\n");
     content.push_str("pub const CHARS: &[char] = &[\n");
     for (i, &c) in charset.chars.iter().enumerate() {
-        // 每10个字符换行，提高可读性
-        if i % 10 == 0 && i > 0 {
+        // 每12个字符换行，提高可读性
+        if i % 12 == 0 && i > 0 {
             content.push('\n');
         }
         // 转义特殊字符
@@ -350,7 +333,7 @@ fn generate_fonts_rs(
     // 字体尺寸枚举
     content.push_str("// ==================== 字体尺寸枚举 ====================\n");
     content.push_str("/// 字体尺寸选项\n");
-    content.push_str("#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]\n");
+    content.push_str("#[derive(Copy, Clone, Debug, PartialEq, Eq)]\n");
     content.push_str("pub enum FontSize {\n");
     for font_config in font_configs {
         content.push_str(&format!(

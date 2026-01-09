@@ -32,7 +32,6 @@ impl IconRenderer {
             .with_context(|| format!("读取SVG文件失败: {}", config.svg_path))?;
 
         // 解析 SVG
-        use usvg::TreeParsing;
         let options = usvg::Options::default();
         let tree = usvg::Tree::from_data(&svg_data, &options)
             .map_err(|e| anyhow!("解析SVG失败 {}: {}", config.svg_path, e))?;
@@ -41,25 +40,21 @@ impl IconRenderer {
         let mut pixmap = resvg::tiny_skia::Pixmap::new(config.target_width, config.target_height)
             .ok_or_else(|| anyhow!("创建像素图失败"))?;
 
-        // 使用 resvg::Tree 进行渲染
-        let rtree = resvg::Tree::from_usvg(&tree);
-
         // 计算缩放比例
-        let svg_size = rtree.view_box.rect.size();
-        let scale_x = config.target_width as f32 / svg_size.width();
-        let scale_y = config.target_height as f32 / svg_size.height();
+        let pixmap_size = tree.size().to_int_size();
+        let scale_x = config.target_width as f32 / pixmap_size.width() as f32;
+        let scale_y = config.target_height as f32 / pixmap_size.height() as f32;
         let scale = scale_x.min(scale_y); // 保持宽高比
 
         // 计算居中偏移
-        let offset_x = (config.target_width as f32 - svg_size.width() * scale) / 2.0;
-        let offset_y = (config.target_height as f32 - svg_size.height() * scale) / 2.0;
+        let offset_x = (config.target_width as f32 - pixmap_size.width() as f32 * scale) / 2.0;
+        let offset_y = (config.target_height as f32 - pixmap_size.height() as f32 * scale) / 2.0;
 
         // 创建缩放和平移变换
         let transform = resvg::tiny_skia::Transform::from_scale(scale, scale)
             .post_translate(offset_x, offset_y);
 
-        // 渲染到 pixmap
-        rtree.render(transform, &mut pixmap.as_mut());
+        resvg::render(&tree, transform, &mut pixmap.as_mut());
 
         // 转换为 1-bit 位图
         let bitmap_data = Self::convert_to_1bit(&pixmap, config.target_width, config.target_height);

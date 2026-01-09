@@ -3,4 +3,19 @@ name = "lxx-calendar-graphics"
 version = "0.1.0"
 edition = "2024"
 
-[dependencies]
+[build-dependencies]
+anyhow = "1.0.100"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+serde_yaml = "0.9"
+walkdir = "2.5"
+freetype-rs = { version = "*", features = ["bundled"] }
+unicode-normalization = "0.1"
+usvg = "0.45.1"
+resvg = "0.45.1"
+heapless = { version = "0.9", features = ["serde"] }
+postcard = { version = "1.1", features = ["use-std"] }
+rayon = "1.11.0"
+chrono = "0.4.42"
+html_parser = "0.7.0"
+scraper = "0.25.0"

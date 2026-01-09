@@ -41,10 +41,6 @@ pub struct WeatherIconConfig {
 pub struct BuildConfig {
     /// 构建输出目录，所有生成的资源文件都会放到此目录
     pub output_dir: PathBuf,
-    /// 格言文件目录，包含日历中使用的各种格言
-    pub sentences_dir: PathBuf,
-    /// 分类配置文件路径，定义句子的分类信息
-    pub categories_path: PathBuf,
     /// 字体文件路径，用于生成字体位图
     pub font_path: PathBuf,
     /// 字体尺寸配置列表，定义要生成的不同字体大小
@@ -62,8 +58,6 @@ impl BuildConfig {
     pub fn load() -> Result<Self> {
         Ok(Self {
             output_dir: PathBuf::from("src/assets"),
-            sentences_dir: PathBuf::from("../sentences-bundle/sentences"),
-            categories_path: PathBuf::from("../sentences-bundle/categories.json"),
             font_path: PathBuf::from("assets/fonts/MapleMono-NF-CN-Regular.ttf"),
             font_size_configs: vec![
                 FontSizeConfig::new("Small", 16),  // 小号字体 16px
@@ -94,8 +88,8 @@ impl BuildConfig {
                 },
             ],
             weather_icon_config: WeatherIconConfig {
-                dir: PathBuf::from("../Icons"),
-                list_path: PathBuf::from("../Icons/icons-list.json"),
+                dir: PathBuf::from("./WeatherIcons"),
+                list_path: PathBuf::from("./WeatherIcons/icons-list.json"),
                 enum_name: "WeatherIcon".to_string(),
                 width: 64,
                 height: 64,
