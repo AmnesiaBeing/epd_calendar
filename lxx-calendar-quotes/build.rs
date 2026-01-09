@@ -2,8 +2,6 @@
 
 #![allow(unused)]
 
-use crate::builder::config::BuildConfig;
-use crate::builder::utils::{self, progress::ProgressTracker};
 use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::collections::{BTreeSet, HashMap, HashSet};
@@ -35,16 +33,19 @@ pub fn main() -> Result<()> {
     Ok(())
 }
 
-/// 检查格言是否包含有效字符
-fn is_hitokoto_valid(hitokoto: &str, char_set: &HashSet<char>) -> bool {
-    hitokoto.chars().all(|c| char_set.contains(&c))
-}
-
 pub fn parse_categories() -> Result<Vec<HitokotoCategory>> {
     let path = PathBuf::from("sentences").join("categories.json");
     let content = fs::read_to_string(&path)
         .with_context(|| format!("读取分类文件失败: {}", path.display()))?;
     serde_json::from_str(&content).context("解析categories.json失败")
+}
+
+pub fn escape_string(s: &str) -> String {
+    s.replace('\\', "\\\\")
+        .replace('\"', "\\\"")
+        .replace('\n', "\\n")
+        .replace('\r', "\\r")
+        .replace('\t', "\\t")
 }
 
 pub fn parse_all_json_files(categories: &[HitokotoCategory]) -> Result<Vec<(u32, Vec<Hitokoto>)>> {
@@ -54,7 +55,7 @@ pub fn parse_all_json_files(categories: &[HitokotoCategory]) -> Result<Vec<(u32,
     let mut ignored_hitokotos = 0;
 
     for (index, category) in categories.iter().enumerate() {
-        let mut path = PathBuf::from("sentences");
+        let mut path = PathBuf::from("sentences").join("sentences");
         path.push(&category.key);
         path.set_extension("json");
 
@@ -64,26 +65,14 @@ pub fn parse_all_json_files(categories: &[HitokotoCategory]) -> Result<Vec<(u32,
         let hitokotos: Vec<Hitokoto> = serde_json::from_str(&content)
             .with_context(|| format!("解析JSON失败: {}", path.display()))?;
 
-        // 过滤格言
-        let mut valid_hitokotos_in_category = Vec::new();
-        for hitokoto in hitokotos.clone() {
-            total_hitokotos += 1;
-            if is_hitokoto_valid(&hitokoto.hitokoto, char_set) {
-                valid_hitokotos += 1;
-                valid_hitokotos_in_category.push(hitokoto);
-            } else {
-                ignored_hitokotos += 1;
-            }
-        }
-
-        result.push((category.id, valid_hitokotos_in_category));
+        result.push((category.id, hitokotos));
     }
 
     Ok(result)
 }
 
 fn generate_hitokoto_data(hitokotos: &[(u32, Vec<Hitokoto>)]) -> Result<()> {
-    let output_path = std::env::var("OUT_DIR").to_string() + "/generated_hitokoto_data.rs";
+    let output_path = PathBuf::from(std::env::var("OUT_DIR")?).join("generated_hitokoto_data.rs");
 
     let mut from_strings = BTreeSet::new();
     let mut from_who_strings = BTreeSet::new();
@@ -125,20 +114,14 @@ fn generate_hitokoto_data(hitokotos: &[(u32, Vec<Hitokoto>)]) -> Result<()> {
     // 生成 FROM_STRINGS 数组
     content.push_str("pub const FROM_STRINGS: &[&str] = &[\n");
     for from_str in &from_vec {
-        content.push_str(&format!(
-            "    \"{}\",\n",
-            utils::string_utils::escape_string(from_str)
-        ));
+        content.push_str(&format!("    \"{}\",\n", escape_string(from_str)));
     }
     content.push_str("];\n\n");
 
     // 生成 FROM_WHO_STRINGS 数组
     content.push_str("pub const FROM_WHO_STRINGS: &[&str] = &[\n");
     for from_who_str in &from_who_vec {
-        content.push_str(&format!(
-            "    \"{}\",\n",
-            utils::string_utils::escape_string(from_who_str)
-        ));
+        content.push_str(&format!("    \"{}\",\n", escape_string(from_who_str)));
     }
     content.push_str("];\n\n");
 
@@ -164,7 +147,7 @@ fn generate_hitokoto_data(hitokotos: &[(u32, Vec<Hitokoto>)]) -> Result<()> {
         content.push_str("    Hitokoto {\n");
         content.push_str(&format!(
             "        hitokoto: \"{}\",\n",
-            utils::string_utils::escape_string(&hitokoto.hitokoto)
+            escape_string(&hitokoto.hitokoto)
         ));
         content.push_str(&format!("        from: {},\n", from_index));
         content.push_str(&format!("        from_who: {},\n", from_who_index));
@@ -172,7 +155,7 @@ fn generate_hitokoto_data(hitokotos: &[(u32, Vec<Hitokoto>)]) -> Result<()> {
     }
     content.push_str("];\n");
 
-    utils::file_utils::write_string_file(&output_path, &content)?;
+    fs::write(&output_path, content)?;
 
     Ok(())
 }
