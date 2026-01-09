@@ -25,16 +25,14 @@ pub struct HitokotoCategory {
     pub key: String,
 }
 
-/// 加载字符集文件
-fn load_char_set() -> Result<HashSet<char>> {
-    let chars_path = PathBuf::from("assets/fonts/chars.txt");
-    let content = fs::read_to_string(&chars_path)
-        .with_context(|| format!("读取字符集文件失败: {}", chars_path.display()))?;
+/// 构建格言数据
+pub fn main() -> Result<()> {
+    let categories = parse_categories()?;
+    let hitokotos = parse_all_json_files(&categories)?;
 
-    let char_set: HashSet<char> = content.chars().collect();
-    // println!("cargo:warning=  加载字符集: {} 个字符", char_set.len());
+    generate_hitokoto_data(&hitokotos)?;
 
-    Ok(char_set)
+    Ok(())
 }
 
 /// 检查格言是否包含有效字符
@@ -42,46 +40,22 @@ fn is_hitokoto_valid(hitokoto: &str, char_set: &HashSet<char>) -> bool {
     hitokoto.chars().all(|c| char_set.contains(&c))
 }
 
-/// 构建格言数据
-pub fn build(config: &BuildConfig, progress: &ProgressTracker) -> Result<()> {
-    progress.update_progress(0, 4, "加载字符集");
-    let char_set = load_char_set()?;
-
-    progress.update_progress(1, 4, "解析分类");
-    let categories = parse_categories(config)?;
-
-    progress.update_progress(2, 4, "解析格言文件");
-    let hitokotos = parse_all_json_files(config, &categories, &char_set)?;
-
-    progress.update_progress(3, 4, "生成数据文件");
-    generate_hitokoto_data(config, &hitokotos)?;
-
-    // println!(
-    //     "cargo:warning=  格言数据处理完成，共处理 {} 个分类",
-    //     categories.len()
-    // );
-
-    Ok(())
-}
-
-pub fn parse_categories(config: &BuildConfig) -> Result<Vec<HitokotoCategory>> {
-    let content = fs::read_to_string(&config.categories_path)
-        .with_context(|| format!("读取分类文件失败: {}", config.categories_path.display()))?;
+pub fn parse_categories() -> Result<Vec<HitokotoCategory>> {
+    let path = PathBuf::from("sentences").join("categories.json");
+    let content = fs::read_to_string(&path)
+        .with_context(|| format!("读取分类文件失败: {}", path.display()))?;
     serde_json::from_str(&content).context("解析categories.json失败")
 }
 
-pub fn parse_all_json_files(
-    config: &BuildConfig,
-    categories: &[HitokotoCategory],
-    char_set: &HashSet<char>,
-) -> Result<Vec<(u32, Vec<Hitokoto>)>> {
+pub fn parse_all_json_files(categories: &[HitokotoCategory]) -> Result<Vec<(u32, Vec<Hitokoto>)>> {
     let mut result = Vec::new();
     let mut total_hitokotos = 0;
     let mut valid_hitokotos = 0;
     let mut ignored_hitokotos = 0;
 
     for (index, category) in categories.iter().enumerate() {
-        let mut path = config.sentences_dir.join(&category.key);
+        let mut path = PathBuf::from("sentences");
+        path.push(&category.key);
         path.set_extension("json");
 
         let content = fs::read_to_string(&path)
@@ -103,28 +77,13 @@ pub fn parse_all_json_files(
         }
 
         result.push((category.id, valid_hitokotos_in_category));
-
-        // 更新进度
-        // println!(
-        //     "cargo:warning=  已处理分类: {}/{}, 当前分类: 有效{}条, 忽略{}条",
-        //     index + 1,
-        //     categories.len(),
-        //     result.last().unwrap().1.len(),
-        //     hitokotos.len() - result.last().unwrap().1.len()
-        // );
     }
-
-    // 报告统计信息
-    // println!(
-    //     "cargo:warning=  格言统计: 总共{}条, 有效{}条, 忽略{}条",
-    //     total_hitokotos, valid_hitokotos, ignored_hitokotos
-    // );
 
     Ok(result)
 }
 
-fn generate_hitokoto_data(config: &BuildConfig, hitokotos: &[(u32, Vec<Hitokoto>)]) -> Result<()> {
-    let output_path = config.output_dir.join("generated_hitokoto_data.rs");
+fn generate_hitokoto_data(hitokotos: &[(u32, Vec<Hitokoto>)]) -> Result<()> {
+    let output_path = std::env::var("OUT_DIR").to_string() + "/generated_hitokoto_data.rs";
 
     let mut from_strings = BTreeSet::new();
     let mut from_who_strings = BTreeSet::new();
@@ -214,13 +173,6 @@ fn generate_hitokoto_data(config: &BuildConfig, hitokotos: &[(u32, Vec<Hitokoto>
     content.push_str("];\n");
 
     utils::file_utils::write_string_file(&output_path, &content)?;
-
-    // println!(
-    //     "cargo:warning=  生成格言数据: 来源{}个, 作者{}个, 格言{}条",
-    //     from_vec.len(),
-    //     from_who_vec.len(),
-    //     all_hitokotos.len()
-    // );
 
     Ok(())
 }

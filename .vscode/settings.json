@@ -1,5 +1,11 @@
 {
   "rust-analyzer.cargo.allTargets": false,
   "rust-analyzer.cargo.target": "riscv32imac-unknown-none-elf",
-  "rust-analyzer.cargo.features": ["esp32"]
+  "rust-analyzer.cargo.features": [
+    "esp32"
+  ],
+  "rust-analyzer.linkedProjects": [
+    "lxx-calendar-graphics/Cargo.toml",
+    "lxx-calendar-quotes/Cargo.toml"
+  ]
 }
