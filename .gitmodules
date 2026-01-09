@@ -4,3 +4,6 @@
 [submodule "lxx-calendar-graphics/WeatherIcons"]
 	path = lxx-calendar-graphics/WeatherIcons
 	url = https://github.com/qwd/Icons.git
+[submodule "libs/sxtwl-rs"]
+	path = libs/sxtwl-rs
+	url = https://github.com/AmnesiaBeing/sxtwl-rs.git
