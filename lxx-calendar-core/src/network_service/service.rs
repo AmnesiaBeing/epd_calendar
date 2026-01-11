@@ -1,5 +1,5 @@
-use lxx_calendar_common as lxxcc;
-use lxxcc::{SystemResult, SystemError};
+use lxx_calendar_common as lxx_common;
+use lxx_common::{SystemResult, SystemError};
 
 pub struct NetworkService {
     initialized: bool,
@@ -13,34 +13,34 @@ impl NetworkService {
     }
 
     pub async fn initialize(&mut self) -> SystemResult<()> {
-        lxxcc::info!("Initializing network service");
+        lxx_common::info!("Initializing network service");
         self.initialized = true;
         Ok(())
     }
 
-    pub async fn sync(&mut self) -> SystemResult<lxxcc::SyncResult> {
+    pub async fn sync(&mut self) -> SystemResult<lxx_common::SyncResult> {
         if !self.initialized {
-            return Err(lxxcc::SystemError::HardwareError(lxxcc::HardwareError::NotInitialized));
+            return Err(lxx_common::SystemError::HardwareError(lxx_common::HardwareError::NotInitialized));
         }
-        lxxcc::info!("Syncing network");
-        Ok(lxxcc::SyncResult {
+        lxx_common::info!("Syncing network");
+        Ok(lxx_common::SyncResult {
             time_synced: true,
             weather_synced: true,
             sync_duration: embassy_time::Duration::from_secs(5),
         })
     }
 
-    pub async fn get_weather(&self) -> SystemResult<lxxcc::WeatherInfo> {
+    pub async fn get_weather(&self) -> SystemResult<lxx_common::WeatherInfo> {
         if !self.initialized {
-            return Err(lxxcc::SystemError::HardwareError(lxxcc::HardwareError::NotInitialized));
+            return Err(lxx_common::SystemError::HardwareError(lxx_common::HardwareError::NotInitialized));
         }
-        Ok(lxxcc::WeatherInfo {
+        Ok(lxx_common::WeatherInfo {
             location: heapless::String::try_from("上海").unwrap_or_default(),
-            current: lxxcc::CurrentWeather {
+            current: lxx_common::CurrentWeather {
                 temp: 220,
                 feels_like: 218,
                 humidity: 65,
-                condition: lxxcc::WeatherCondition::Cloudy,
+                condition: lxx_common::WeatherCondition::Cloudy,
                 wind_speed: 10,
                 wind_direction: 180,
                 visibility: 10,
@@ -54,7 +54,7 @@ impl NetworkService {
 
     pub async fn is_connected(&self) -> SystemResult<bool> {
         if !self.initialized {
-            return Err(lxxcc::SystemError::HardwareError(lxxcc::HardwareError::NotInitialized));
+            return Err(lxx_common::SystemError::HardwareError(lxx_common::HardwareError::NotInitialized));
         }
         Ok(false)
     }

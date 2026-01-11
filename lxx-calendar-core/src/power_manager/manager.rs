@@ -1,5 +1,5 @@
-use lxx_calendar_common as lxxcc;
-use lxxcc::{SystemResult, SystemError};
+use lxx_calendar_common as lxx_common;
+use lxx_common::{SystemResult, SystemError};
 
 pub struct PowerManager {
     initialized: bool,
@@ -19,46 +19,46 @@ impl PowerManager {
     }
 
     pub async fn initialize(&mut self) -> SystemResult<()> {
-        lxxcc::info!("Initializing power manager");
+        lxx_common::info!("Initializing power manager");
         self.initialized = true;
         Ok(())
     }
 
     pub async fn get_battery_level(&self) -> SystemResult<u8> {
         if !self.initialized {
-            return Err(lxxcc::SystemError::HardwareError(lxxcc::HardwareError::NotInitialized));
+            return Err(lxx_common::SystemError::HardwareError(lxx_common::HardwareError::NotInitialized));
         }
         Ok(self.battery_level)
     }
 
     pub async fn is_low_battery(&self) -> SystemResult<bool> {
         if !self.initialized {
-            return Err(lxxcc::SystemError::HardwareError(lxxcc::HardwareError::NotInitialized));
+            return Err(lxx_common::SystemError::HardwareError(lxx_common::HardwareError::NotInitialized));
         }
         Ok(self.battery_level < 30)
     }
 
     pub async fn is_charging(&self) -> SystemResult<bool> {
         if !self.initialized {
-            return Err(lxxcc::SystemError::HardwareError(lxxcc::HardwareError::NotInitialized));
+            return Err(lxx_common::SystemError::HardwareError(lxx_common::HardwareError::NotInitialized));
         }
         Ok(self.charging)
     }
 
     pub async fn enter_low_power_mode(&mut self) -> SystemResult<()> {
         if !self.initialized {
-            return Err(lxxcc::SystemError::HardwareError(lxxcc::HardwareError::NotInitialized));
+            return Err(lxx_common::SystemError::HardwareError(lxx_common::HardwareError::NotInitialized));
         }
-        lxxcc::warn!("Entering low power mode");
+        lxx_common::warn!("Entering low power mode");
         self.low_power_mode = true;
         Ok(())
     }
 
     pub async fn exit_low_power_mode(&mut self) -> SystemResult<()> {
         if !self.initialized {
-            return Err(lxxcc::SystemError::HardwareError(lxxcc::HardwareError::NotInitialized));
+            return Err(lxx_common::SystemError::HardwareError(lxx_common::HardwareError::NotInitialized));
         }
-        lxxcc::info!("Exiting low power mode");
+        lxx_common::info!("Exiting low power mode");
         self.low_power_mode = false;
         Ok(())
     }

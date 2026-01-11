@@ -1,15 +1,14 @@
-use lxx_calendar_common as lxxcc;
-use lxxcc::{SystemEvent, SystemMode, SystemResult, SystemError};
-use lxxcc::types::async_types::{AsyncRawMutex, ChannelReceiver};
+use lxx_calendar_common as lxx_common;
+use lxx_common::types::async_types::{LxxAsyncRawMutex, LxxChannelReceiver};
+use lxx_common::{SystemEvent, SystemMode, SystemResult};
 
-
-pub struct StateManager<M: AsyncRawMutex + 'static> {
-    event_channel: ChannelReceiver<'static, M, SystemEvent, 32>,
+pub struct StateManager<M: LxxAsyncRawMutex + 'static> {
+    event_channel: LxxChannelReceiver<'static, M, SystemEvent, 32>,
     current_state: SystemMode,
 }
 
-impl<M: AsyncRawMutex> StateManager<M> {
-    pub fn new(event_receiver: ChannelReceiver<'static, M, SystemEvent, 32>) -> Self {
+impl<M: LxxAsyncRawMutex> StateManager<M> {
+    pub fn new(event_receiver: LxxChannelReceiver<'static, M, SystemEvent, 32>) -> Self {
         Self {
             current_state: SystemMode::DeepSleep,
             event_channel: event_receiver,
@@ -17,23 +16,23 @@ impl<M: AsyncRawMutex> StateManager<M> {
     }
 
     pub async fn initialize(&mut self) -> SystemResult<()> {
-        lxxcc::info!("Initializing state manager");
+        lxx_common::info!("Initializing state manager");
         self.current_state = SystemMode::DeepSleep;
         Ok(())
     }
 
     pub async fn start(&mut self) -> SystemResult<()> {
-        lxxcc::info!("Starting state manager");
+        lxx_common::info!("Starting state manager");
         Ok(())
     }
 
     pub async fn stop(&mut self) -> SystemResult<()> {
-        lxxcc::info!("Stopping state manager");
+        lxx_common::info!("Stopping state manager");
         Ok(())
     }
 
     pub async fn handle_event(&mut self, event: SystemEvent) -> SystemResult<()> {
-        lxxcc::info!("Handling event: {:?}", event);
+        lxx_common::info!("Handling event: {:?}", event);
 
         match event {
             SystemEvent::WakeupEvent(evt) => self.handle_wakeup_event(evt).await?,
@@ -52,14 +51,16 @@ impl<M: AsyncRawMutex> StateManager<M> {
     }
 
     pub async fn transition_to(&mut self, mode: SystemMode) -> SystemResult<()> {
-        lxxcc::info!("Transitioning from {:?} to {:?}", self.current_state, mode);
+        lxx_common::info!("Transitioning from {:?} to {:?}", self.current_state, mode);
 
         if !self.can_transition(self.current_state, mode) {
-            return Err(lxxcc::SystemError::HardwareError(lxxcc::HardwareError::InvalidParameter));
+            return Err(lxx_common::SystemError::HardwareError(
+                lxx_common::HardwareError::InvalidParameter,
+            ));
         }
 
         self.current_state = mode;
-        lxxcc::info!("Transitioned to {:?}", mode);
+        lxx_common::info!("Transitioned to {:?}", mode);
 
         Ok(())
     }
@@ -80,117 +81,120 @@ impl<M: AsyncRawMutex> StateManager<M> {
         }
     }
 
-    async fn handle_wakeup_event(&mut self, event: lxxcc::WakeupEvent) -> SystemResult<()> {
+    async fn handle_wakeup_event(&mut self, event: lxx_common::WakeupEvent) -> SystemResult<()> {
         match event {
-            lxxcc::WakeupEvent::WakeFromDeepSleep => {
-                lxxcc::info!("Waking from deep sleep");
+            lxx_common::WakeupEvent::WakeFromDeepSleep => {
+                lxx_common::info!("Waking from deep sleep");
                 self.transition_to(SystemMode::NormalWork).await?;
             }
-            lxxcc::WakeupEvent::WakeByLPU => {
-                lxxcc::info!("Waking by LPU timer");
+            lxx_common::WakeupEvent::WakeByLPU => {
+                lxx_common::info!("Waking by LPU timer");
                 self.transition_to(SystemMode::NormalWork).await?;
             }
-            lxxcc::WakeupEvent::WakeByButton => {
-                lxxcc::info!("Waking by button");
+            lxx_common::WakeupEvent::WakeByButton => {
+                lxx_common::info!("Waking by button");
                 self.transition_to(SystemMode::BleConnection).await?;
             }
-            lxxcc::WakeupEvent::WakeByWDT => {
-                lxxcc::warn!("Waking by watchdog");
+            lxx_common::WakeupEvent::WakeByWDT => {
+                lxx_common::warn!("Waking by watchdog");
                 self.transition_to(SystemMode::NormalWork).await?;
             }
         }
         Ok(())
     }
 
-    async fn handle_user_event(&mut self, event: lxxcc::UserEvent) -> SystemResult<()> {
+    async fn handle_user_event(&mut self, event: lxx_common::UserEvent) -> SystemResult<()> {
         match event {
-            lxxcc::UserEvent::ButtonShortPress => {
-                lxxcc::info!("Button short press");
+            lxx_common::UserEvent::ButtonShortPress => {
+                lxx_common::info!("Button short press");
                 if self.current_state == SystemMode::NormalWork {
                     self.transition_to(SystemMode::BleConnection).await?;
                 }
             }
-            lxxcc::UserEvent::ButtonLongPress => {
-                lxxcc::info!("Button long press");
+            lxx_common::UserEvent::ButtonLongPress => {
+                lxx_common::info!("Button long press");
                 self.transition_to(SystemMode::BleConnection).await?;
             }
-            lxxcc::UserEvent::BLEConfigReceived(_) => {
-                lxxcc::info!("BLE config received");
+            lxx_common::UserEvent::BLEConfigReceived(_) => {
+                lxx_common::info!("BLE config received");
             }
         }
         Ok(())
     }
 
-    async fn handle_time_event(&mut self, event: lxxcc::TimeEvent) -> SystemResult<()> {
+    async fn handle_time_event(&mut self, event: lxx_common::TimeEvent) -> SystemResult<()> {
         match event {
-            lxxcc::TimeEvent::MinuteTick => {
-                lxxcc::debug!("Minute tick");
+            lxx_common::TimeEvent::MinuteTick => {
+                lxx_common::debug!("Minute tick");
             }
-            lxxcc::TimeEvent::HourChimeTrigger => {
-                lxxcc::info!("Hour chime trigger");
+            lxx_common::TimeEvent::HourChimeTrigger => {
+                lxx_common::info!("Hour chime trigger");
             }
-            lxxcc::TimeEvent::AlarmTrigger(_) => {
-                lxxcc::info!("Alarm trigger");
+            lxx_common::TimeEvent::AlarmTrigger(_) => {
+                lxx_common::info!("Alarm trigger");
             }
         }
         Ok(())
     }
 
-    async fn handle_network_event(&mut self, event: lxxcc::NetworkEvent) -> SystemResult<()> {
+    async fn handle_network_event(&mut self, event: lxx_common::NetworkEvent) -> SystemResult<()> {
         match event {
-            lxxcc::NetworkEvent::NetworkSyncRequested => {
-                lxxcc::info!("Network sync requested");
+            lxx_common::NetworkEvent::NetworkSyncRequested => {
+                lxx_common::info!("Network sync requested");
             }
-            lxxcc::NetworkEvent::NetworkSyncComplete(_) => {
-                lxxcc::info!("Network sync complete");
+            lxx_common::NetworkEvent::NetworkSyncComplete(_) => {
+                lxx_common::info!("Network sync complete");
             }
-            lxxcc::NetworkEvent::NetworkSyncFailed(_) => {
-                lxxcc::error!("Network sync failed");
+            lxx_common::NetworkEvent::NetworkSyncFailed(_) => {
+                lxx_common::error!("Network sync failed");
             }
         }
         Ok(())
     }
 
-    async fn handle_system_event(&mut self, event: lxxcc::SystemStateEvent) -> SystemResult<()> {
+    async fn handle_system_event(
+        &mut self,
+        event: lxx_common::SystemStateEvent,
+    ) -> SystemResult<()> {
         match event {
-            lxxcc::SystemStateEvent::EnterDeepSleep => {
-                lxxcc::info!("Entering deep sleep");
+            lxx_common::SystemStateEvent::EnterDeepSleep => {
+                lxx_common::info!("Entering deep sleep");
                 self.transition_to(SystemMode::DeepSleep).await?;
             }
-            lxxcc::SystemStateEvent::EnterBLEMode => {
-                lxxcc::info!("Entering BLE mode");
+            lxx_common::SystemStateEvent::EnterBLEMode => {
+                lxx_common::info!("Entering BLE mode");
                 self.transition_to(SystemMode::BleConnection).await?;
             }
-            lxxcc::SystemStateEvent::EnterNormalMode => {
-                lxxcc::info!("Entering normal mode");
+            lxx_common::SystemStateEvent::EnterNormalMode => {
+                lxx_common::info!("Entering normal mode");
                 self.transition_to(SystemMode::NormalWork).await?;
             }
-            lxxcc::SystemStateEvent::ConfigChanged(_) => {
-                lxxcc::info!("Config changed");
+            lxx_common::SystemStateEvent::ConfigChanged(_) => {
+                lxx_common::info!("Config changed");
             }
-            lxxcc::SystemStateEvent::LowPowerDetected => {
-                lxxcc::warn!("Low power detected");
+            lxx_common::SystemStateEvent::LowPowerDetected => {
+                lxx_common::warn!("Low power detected");
             }
-            lxxcc::SystemStateEvent::OTATriggered => {
-                lxxcc::info!("OTA triggered");
+            lxx_common::SystemStateEvent::OTATriggered => {
+                lxx_common::info!("OTA triggered");
             }
-            lxxcc::SystemStateEvent::OTAUpdateComplete => {
-                lxxcc::info!("OTA update complete");
+            lxx_common::SystemStateEvent::OTAUpdateComplete => {
+                lxx_common::info!("OTA update complete");
             }
         }
         Ok(())
     }
 
-    async fn handle_power_event(&mut self, event: lxxcc::PowerEvent) -> SystemResult<()> {
+    async fn handle_power_event(&mut self, event: lxx_common::PowerEvent) -> SystemResult<()> {
         match event {
-            lxxcc::PowerEvent::BatteryLevelChanged(_level) => {
-                lxxcc::info!("Battery level changed");
+            lxx_common::PowerEvent::BatteryLevelChanged(_level) => {
+                lxx_common::info!("Battery level changed");
             }
-            lxxcc::PowerEvent::ChargingStateChanged(_charging) => {
-                lxxcc::info!("Charging state changed");
+            lxx_common::PowerEvent::ChargingStateChanged(_charging) => {
+                lxx_common::info!("Charging state changed");
             }
-            lxxcc::PowerEvent::LowPowerModeChanged(_enabled) => {
-                lxxcc::info!("Low power mode changed");
+            lxx_common::PowerEvent::LowPowerModeChanged(_enabled) => {
+                lxx_common::info!("Low power mode changed");
             }
         }
         Ok(())

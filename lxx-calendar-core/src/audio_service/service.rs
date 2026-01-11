@@ -1,5 +1,5 @@
-use lxx_calendar_common as lxxcc;
-use lxxcc::{SystemResult, SystemError};
+use lxx_calendar_common as lxx_common;
+use lxx_common::{SystemResult, SystemError};
 
 pub struct AudioService {
     initialized: bool,
@@ -13,32 +13,32 @@ impl AudioService {
     }
 
     pub async fn initialize(&mut self) -> SystemResult<()> {
-        lxxcc::info!("Initializing audio service");
+        lxx_common::info!("Initializing audio service");
         self.initialized = true;
         Ok(())
     }
 
     pub async fn play_hour_chime(&mut self) -> SystemResult<()> {
         if !self.initialized {
-            return Err(lxxcc::SystemError::HardwareError(lxxcc::HardwareError::NotInitialized));
+            return Err(lxx_common::SystemError::HardwareError(lxx_common::HardwareError::NotInitialized));
         }
-        lxxcc::info!("Playing hour chime");
+        lxx_common::info!("Playing hour chime");
         Ok(())
     }
 
-    pub async fn play_alarm(&mut self, melody: lxxcc::Melody) -> SystemResult<()> {
+    pub async fn play_alarm(&mut self, melody: lxx_common::Melody) -> SystemResult<()> {
         if !self.initialized {
-            return Err(lxxcc::SystemError::HardwareError(lxxcc::HardwareError::NotInitialized));
+            return Err(lxx_common::SystemError::HardwareError(lxx_common::HardwareError::NotInitialized));
         }
-        lxxcc::info!("Playing alarm: {:?}", melody);
+        lxx_common::info!("Playing alarm: {:?}", melody);
         Ok(())
     }
 
     pub async fn stop(&mut self) -> SystemResult<()> {
         if !self.initialized {
-            return Err(lxxcc::SystemError::HardwareError(lxxcc::HardwareError::NotInitialized));
+            return Err(lxx_common::SystemError::HardwareError(lxx_common::HardwareError::NotInitialized));
         }
-        lxxcc::info!("Stopping audio");
+        lxx_common::info!("Stopping audio");
         Ok(())
     }
 }

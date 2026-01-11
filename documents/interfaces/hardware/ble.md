@@ -41,7 +41,7 @@ let mut ble = Esp32C6Ble::new(radio);
 ble.initialize().await?;
 ble.start_advertising().await?;
 if ble.is_connected().await? {
-    lxxcc::info!("Device connected");
+    lxx_common::info!("Device connected");
 }
 ```
 

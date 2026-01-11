@@ -1,5 +1,5 @@
-use lxx_calendar_common as lxxcc;
-use lxxcc::{SystemResult, SystemError};
+use lxx_calendar_common as lxx_common;
+use lxx_common::{SystemError, SystemResult};
 
 pub struct DisplayService {
     initialized: bool,
@@ -7,37 +7,41 @@ pub struct DisplayService {
 
 impl DisplayService {
     pub fn new() -> Self {
-        Self {
-            initialized: false,
-        }
+        Self { initialized: false }
     }
 
     pub async fn initialize(&mut self) -> SystemResult<()> {
-        lxxcc::info!("Initializing display service");
+        lxx_common::info!("Initializing display service");
         self.initialized = true;
         Ok(())
     }
 
-    pub async fn update_display(&mut self, data: lxxcc::DisplayData) -> SystemResult<()> {
+    pub async fn update_display(&mut self, data: lxx_common::DisplayData) -> SystemResult<()> {
         if !self.initialized {
-            return Err(lxxcc::SystemError::HardwareError(lxxcc::HardwareError::NotInitialized));
+            return Err(lxx_common::SystemError::HardwareError(
+                lxx_common::HardwareError::NotInitialized,
+            ));
         }
-        lxxcc::info!("Updating display");
+        lxx_common::info!("Updating display");
         Ok(())
     }
 
     pub async fn refresh(&mut self) -> SystemResult<()> {
         if !self.initialized {
-            return Err(lxxcc::SystemError::HardwareError(lxxcc::HardwareError::NotInitialized));
+            return Err(lxx_common::SystemError::HardwareError(
+                lxx_common::HardwareError::NotInitialized,
+            ));
         }
-        lxxcc::info!("Refreshing display");
+        lxx_common::info!("Refreshing display");
         Ok(())
     }
 
-    pub async fn get_refresh_state(&self) -> SystemResult<lxxcc::RefreshState> {
+    pub async fn get_refresh_state(&self) -> SystemResult<lxx_common::RefreshState> {
         if !self.initialized {
-            return Err(lxxcc::SystemError::HardwareError(lxxcc::HardwareError::NotInitialized));
+            return Err(lxx_common::SystemError::HardwareError(
+                lxx_common::HardwareError::NotInitialized,
+            ));
         }
-        Ok(lxxcc::RefreshState::Idle)
+        Ok(lxx_common::RefreshState::Idle)
     }
 }

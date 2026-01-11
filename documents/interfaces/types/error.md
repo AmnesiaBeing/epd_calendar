@@ -32,10 +32,10 @@ pub enum SystemError {
 
 ```rust
 match result {
-    Ok(data) => lxxcc::info!("Success: {:?}", data),
-    Err(SystemError::DriverError(err)) => lxxcc::error!("Driver error: {}", err),
-    Err(SystemError::ServiceError(err)) => lxxcc::error!("Service error: {}", err),
-    Err(err) => lxxcc::error!("System error: {}", err),
+    Ok(data) => lxx_common::info!("Success: {:?}", data),
+    Err(SystemError::DriverError(err)) => lxx_common::error!("Driver error: {}", err),
+    Err(SystemError::ServiceError(err)) => lxx_common::error!("Service error: {}", err),
+    Err(err) => lxx_common::error!("System error: {}", err),
 }
 ```
 

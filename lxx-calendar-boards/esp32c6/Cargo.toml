@@ -1,10 +1,9 @@
 [package]
-name = "esp32c6"
+name = "lxx-calendar-boards-esp32c6"
 version = "0.1.0"
 edition.workspace = true
 
 [dependencies]
-lxx-calendar-core = { path = "../../lxx-calendar-core"}
 lxx-calendar-common = { path = "../../lxx-calendar-common"}
 
 esp-hal = { version = "1.0.0", features = ["esp32c6", "unstable"] }

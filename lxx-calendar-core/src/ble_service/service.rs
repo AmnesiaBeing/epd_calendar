@@ -1,5 +1,5 @@
-use lxx_calendar_common as lxxcc;
-use lxxcc::{SystemResult, SystemError};
+use lxx_calendar_common as lxx_common;
+use lxx_common::{SystemResult, SystemError};
 
 pub struct BLEService {
     initialized: bool,
@@ -12,31 +12,31 @@ impl BLEService {
         }
     }
 
-    pub async fn initialize(&mut self) -> Result<(), lxxcc::SystemError> {
-        lxxcc::info!("Initializing BLE service");
+    pub async fn initialize(&mut self) -> Result<(), lxx_common::SystemError> {
+        lxx_common::info!("Initializing BLE service");
         self.initialized = true;
         Ok(())
     }
 
-    pub async fn start(&mut self) -> Result<(), lxxcc::SystemError> {
+    pub async fn start(&mut self) -> Result<(), lxx_common::SystemError> {
         if !self.initialized {
-            return Err(lxxcc::SystemError::HardwareError(lxxcc::HardwareError::NotInitialized));
+            return Err(lxx_common::SystemError::HardwareError(lxx_common::HardwareError::NotInitialized));
         }
-        lxxcc::info!("Starting BLE");
+        lxx_common::info!("Starting BLE");
         Ok(())
     }
 
-    pub async fn stop(&mut self) -> Result<(), lxxcc::SystemError> {
+    pub async fn stop(&mut self) -> Result<(), lxx_common::SystemError> {
         if !self.initialized {
-            return Err(lxxcc::SystemError::HardwareError(lxxcc::HardwareError::NotInitialized));
+            return Err(lxx_common::SystemError::HardwareError(lxx_common::HardwareError::NotInitialized));
         }
-        lxxcc::info!("Stopping BLE");
+        lxx_common::info!("Stopping BLE");
         Ok(())
     }
 
-    pub async fn is_connected(&self) -> Result<bool, lxxcc::SystemError> {
+    pub async fn is_connected(&self) -> Result<bool, lxx_common::SystemError> {
         if !self.initialized {
-            return Err(lxxcc::SystemError::HardwareError(lxxcc::HardwareError::NotInitialized));
+            return Err(lxx_common::SystemError::HardwareError(lxx_common::HardwareError::NotInitialized));
         }
         Ok(false)
     }

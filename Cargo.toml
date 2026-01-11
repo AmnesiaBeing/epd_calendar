@@ -3,7 +3,8 @@ members = [
     "lxx-calendar-core",
     "lxx-calendar-common",
     "lxx-calendar-graphics",
-    "lxx-calendar-quotes", "lxx-calendar-boards/esp32c6",
+    "lxx-calendar-quotes",
+    "lxx-calendar-boards/esp32c6",
 ]
 resolver = "2"
 
@@ -82,40 +83,6 @@ jiff = { version = "0.2.18", default-features = false, features = ["alloc"] }
 
 # 二维码生成
 qrcode = { path = "libs/qrcode", default-features = false }
-
-# PC端依赖
-# embedded-hal-mock = "0.1"
-# embedded-storage-std-async-mock = "0.1"
-
-# 嵌入式Linux端依赖
-# libc = { version = "0.2.180" }
-# linux-embedded-hal = { version = "0.4.1" }
-# bitbang-hal = "0.1"
-# env_logger = { version = "0.11.8" }
-
-# ESP32特定依赖
-# esp-hal = { version = "1.0.0", features = ["esp32c6", "unstable"] }
-# esp-alloc = { version = "0.9.0" }
-# esp-rtos = { version = "0.2.0", features = ["esp-radio", "embassy", "esp32c6"] }
-# esp-bootloader-esp-idf = { version = "0.4.0", features = ["esp32c6"] }
-# esp-println = { version = "0.16.1", features = ["esp32c6", "log-04"] }
-# esp-backtrace = { version = "0.18.1", features = [
-#     "esp32c6",
-#     "println",
-#     "panic-handler",
-# ] }
-# esp-radio = { version = "0.17.0", features = [
-#     "esp32c6",
-#     "wifi",
-#     "esp-alloc",
-#     "unstable",
-# ] }
-# esp-sync = { version = "0.1.1", features = ["esp32c6"] }
-# esp-storage = { version = "0.8.1", features = ["esp32c6"] }
-# panic-rtt-target = { version = "0.2.0" }
-# rtt-target = { version = "0.6.2", features = ["log"] }
-# sht25 = { version = "0.2.0" }
-# enumset = "1.1.10"
 
 [profile.dev]
 codegen-units = 1

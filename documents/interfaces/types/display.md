@@ -93,10 +93,10 @@ pub enum RefreshState {
 
 ```rust
 match refresh_state {
-    RefreshState::Idle => lxxcc::info!("Ready for refresh"),
-    RefreshState::SendingData => lxxcc::info!("Sending data..."),
-    RefreshState::Refreshing => lxxcc::info!("Refreshing..."),
-    RefreshState::Error(err) => lxxcc::error!("Error: {:?}", err),
+    RefreshState::Idle => lxx_common::info!("Ready for refresh"),
+    RefreshState::SendingData => lxx_common::info!("Sending data..."),
+    RefreshState::Refreshing => lxx_common::info!("Refreshing..."),
+    RefreshState::Error(err) => lxx_common::error!("Error: {:?}", err),
 }
 ```
 

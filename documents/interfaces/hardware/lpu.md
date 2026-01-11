@@ -72,7 +72,7 @@ pub trait LPUMonitor {
 let heartbeat = lpu.get_heartbeat().await?;
 if heartbeat {
     let sensor_data = lpu.get_sensor_data().await?;
-    lxxcc::info!("Temperature: {}°C, Humidity: {}%", sensor_data.temp, sensor_data.humidity);
+    lxx_common::info!("Temperature: {}°C, Humidity: {}%", sensor_data.temp, sensor_data.humidity);
 }
 ```
 

@@ -36,7 +36,7 @@ pub trait TemperatureSensor {
 let mut sensor = Sht20::new(i2c);
 sensor.initialize().await?;
 let (temp, humidity) = sensor.read_both().await?;
-lxxcc::info!("Temperature: {}°C, Humidity: {}%", temp, humidity);
+lxx_common::info!("Temperature: {}°C, Humidity: {}%", temp, humidity);
 ```
 
 ## HumiditySensor Trait
@@ -67,7 +67,7 @@ pub trait HumiditySensor {
 let mut sensor = Sht20::new(i2c);
 sensor.initialize().await?;
 let humidity = sensor.read_humidity().await?;
-lxxcc::info!("Humidity: {}%", humidity);
+lxx_common::info!("Humidity: {}%", humidity);
 ```
 
 ## 数据类型定义

@@ -37,8 +37,8 @@ let mut button = Esp32C6Button::new(gpio_pin);
 button.initialize().await?;
 let event = button.wait_for_press(Duration::from_secs(30)).await?;
 match event {
-    ButtonEvent::ShortPress => lxxcc::info!("Short press"),
-    ButtonEvent::LongPress => lxxcc::info!("Long press"),
+    ButtonEvent::ShortPress => lxx_common::info!("Short press"),
+    ButtonEvent::LongPress => lxx_common::info!("Long press"),
 }
 ```
 
@@ -64,9 +64,9 @@ pub trait ButtonEvent {
 
 ```rust
 if event.is_short_press() {
-    lxxcc::info!("Short press detected");
+    lxx_common::info!("Short press detected");
 } else if event.is_long_press() {
-    lxxcc::info!("Long press detected");
+    lxx_common::info!("Long press detected");
 }
 ```
 

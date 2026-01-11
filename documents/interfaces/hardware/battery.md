@@ -39,9 +39,9 @@ let mut battery = Esp32C6Battery::new(adc_pin);
 battery.initialize().await?;
 let voltage = battery.read_voltage().await?;
 let percentage = battery.read_percentage().await?;
-lxxcc::info!("Voltage: {}V, Percentage: {}%", voltage, percentage);
+lxx_common::info!("Voltage: {}V, Percentage: {}%", voltage, percentage);
 if battery.is_low_battery().await? {
-    lxxcc::warn!("Low battery!");
+    lxx_common::warn!("Low battery!");
 }
 ```
 

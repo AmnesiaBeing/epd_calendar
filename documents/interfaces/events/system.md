@@ -32,12 +32,12 @@ pub enum SystemEvent {
 
 ```rust
 match event {
-    SystemEvent::WakeupEvent(evt) => lxxcc::info!("Wakeup: {:?}", evt),
-    SystemEvent::UserEvent(evt) => lxxcc::info!("User: {:?}", evt),
-    SystemEvent::TimeEvent(evt) => lxxcc::info!("Time: {:?}", evt),
-    SystemEvent::NetworkEvent(evt) => lxxcc::info!("Network: {:?}", evt),
-    SystemEvent::SystemEvent(evt) => lxxcc::info!("System: {:?}", evt),
-    SystemEvent::PowerEvent(evt) => lxxcc::info!("Power: {:?}", evt),
+    SystemEvent::WakeupEvent(evt) => lxx_common::info!("Wakeup: {:?}", evt),
+    SystemEvent::UserEvent(evt) => lxx_common::info!("User: {:?}", evt),
+    SystemEvent::TimeEvent(evt) => lxx_common::info!("Time: {:?}", evt),
+    SystemEvent::NetworkEvent(evt) => lxx_common::info!("Network: {:?}", evt),
+    SystemEvent::SystemEvent(evt) => lxx_common::info!("System: {:?}", evt),
+    SystemEvent::PowerEvent(evt) => lxx_common::info!("Power: {:?}", evt),
 }
 ```
 
@@ -65,10 +65,10 @@ pub enum WakeupEvent {
 
 ```rust
 match wakeup_event {
-    WakeupEvent::WakeFromDeepSleep => lxxcc::info!("Waking from deep sleep"),
-    WakeupEvent::WakeByLPU => lxxcc::info!("Waking by LPU timer"),
-    WakeupEvent::WakeByButton => lxxcc::info!("Waking by button"),
-    WakeupEvent::WakeByWDT => lxxcc::info!("Waking by watchdog"),
+    WakeupEvent::WakeFromDeepSleep => lxx_common::info!("Waking from deep sleep"),
+    WakeupEvent::WakeByLPU => lxx_common::info!("Waking by LPU timer"),
+    WakeupEvent::WakeByButton => lxx_common::info!("Waking by button"),
+    WakeupEvent::WakeByWDT => lxx_common::info!("Waking by watchdog"),
 }
 ```
 
@@ -94,9 +94,9 @@ pub enum UserEvent {
 
 ```rust
 match user_event {
-    UserEvent::ButtonShortPress => lxxcc::info!("Short press"),
-    UserEvent::ButtonLongPress => lxxcc::info!("Long press"),
-    UserEvent::BLEConfigReceived(config) => lxxcc::info!("Config received"),
+    UserEvent::ButtonShortPress => lxx_common::info!("Short press"),
+    UserEvent::ButtonLongPress => lxx_common::info!("Long press"),
+    UserEvent::BLEConfigReceived(config) => lxx_common::info!("Config received"),
 }
 ```
 
@@ -122,9 +122,9 @@ pub enum TimeEvent {
 
 ```rust
 match time_event {
-    TimeEvent::MinuteTick => lxxcc::info!("Minute tick"),
-    TimeEvent::HourChimeTrigger => lxxcc::info!("Hour chime"),
-    TimeEvent::AlarmTrigger(alarm) => lxxcc::info!("Alarm: {:?}", alarm),
+    TimeEvent::MinuteTick => lxx_common::info!("Minute tick"),
+    TimeEvent::HourChimeTrigger => lxx_common::info!("Hour chime"),
+    TimeEvent::AlarmTrigger(alarm) => lxx_common::info!("Alarm: {:?}", alarm),
 }
 ```
 
@@ -150,9 +150,9 @@ pub enum NetworkEvent {
 
 ```rust
 match network_event {
-    NetworkEvent::NetworkSyncRequested => lxxcc::info!("Sync requested"),
-    NetworkEvent::NetworkSyncComplete(result) => lxxcc::info!("Sync complete"),
-    NetworkEvent::NetworkSyncFailed(err) => lxxcc::error!("Sync failed"),
+    NetworkEvent::NetworkSyncRequested => lxx_common::info!("Sync requested"),
+    NetworkEvent::NetworkSyncComplete(result) => lxx_common::info!("Sync complete"),
+    NetworkEvent::NetworkSyncFailed(err) => lxx_common::error!("Sync failed"),
 }
 ```
 
@@ -186,13 +186,13 @@ pub enum SystemEvent {
 
 ```rust
 match system_event {
-    SystemEvent::EnterDeepSleep => lxxcc::info!("Entering deep sleep"),
-    SystemEvent::EnterBLEMode => lxxcc::info!("Entering BLE mode"),
-    SystemEvent::EnterNormalMode => lxxcc::info!("Entering normal mode"),
-    SystemEvent::ConfigChanged(change) => lxxcc::info!("Config changed"),
-    SystemEvent::LowPowerDetected => lxxcc::warn!("Low power detected"),
-    SystemEvent::OTATriggered => lxxcc::info!("OTA triggered"),
-    SystemEvent::OTAUpdateComplete => lxxcc::info!("OTA complete"),
+    SystemEvent::EnterDeepSleep => lxx_common::info!("Entering deep sleep"),
+    SystemEvent::EnterBLEMode => lxx_common::info!("Entering BLE mode"),
+    SystemEvent::EnterNormalMode => lxx_common::info!("Entering normal mode"),
+    SystemEvent::ConfigChanged(change) => lxx_common::info!("Config changed"),
+    SystemEvent::LowPowerDetected => lxx_common::warn!("Low power detected"),
+    SystemEvent::OTATriggered => lxx_common::info!("OTA triggered"),
+    SystemEvent::OTAUpdateComplete => lxx_common::info!("OTA complete"),
 }
 ```
 
@@ -218,9 +218,9 @@ pub enum PowerEvent {
 
 ```rust
 match power_event {
-    PowerEvent::BatteryLevelChanged(level) => lxxcc::info!("Battery: {}%", level),
-    PowerEvent::ChargingStateChanged(charging) => lxxcc::info!("Charging: {}", charging),
-    PowerEvent::LowPowerModeChanged(enabled) => lxxcc::info!("Low power mode: {}", enabled),
+    PowerEvent::BatteryLevelChanged(level) => lxx_common::info!("Battery: {}%", level),
+    PowerEvent::ChargingStateChanged(charging) => lxx_common::info!("Charging: {}", charging),
+    PowerEvent::LowPowerModeChanged(enabled) => lxx_common::info!("Low power mode: {}", enabled),
 }
 ```
 

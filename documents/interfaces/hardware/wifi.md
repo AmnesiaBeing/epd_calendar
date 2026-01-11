@@ -42,7 +42,7 @@ wifi.initialize().await?;
 wifi.connect("MyWiFi", "password").await?;
 if wifi.is_connected().await? {
     let rssi = wifi.get_rssi().await?;
-    lxxcc::info!("RSSI: {} dBm", rssi);
+    lxx_common::info!("RSSI: {} dBm", rssi);
 }
 ```
 
@@ -76,7 +76,7 @@ pub trait WiFiConnection {
 
 ```rust
 let ip = wifi.get_ip_address().await?;
-lxxcc::info!("IP: {}", ip);
+lxx_common::info!("IP: {}", ip);
 ```
 
 ## 数据类型定义

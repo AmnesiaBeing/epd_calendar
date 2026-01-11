@@ -4,10 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [features]
-default = ["simulator"]
-simulator = []
-tspi = []
-esp32 = []
 
 [dependencies]
 # 核心依赖
@@ -16,6 +12,7 @@ thiserror = { workspace = true }
 cfg-if = { workspace = true }
 defmt = { workspace = true, optional = true }
 defmt-rtt = { workspace = true, optional = true }
+
 
 # 嵌入式相关依赖
 embedded-hal = { workspace = true }
