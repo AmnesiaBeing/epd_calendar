@@ -7,3 +7,6 @@
 [submodule "libs/sxtwl-rs"]
 	path = libs/sxtwl-rs
 	url = https://github.com/AmnesiaBeing/sxtwl-rs.git
+[submodule "libs/qrcode"]
+	path = libs/qrcode
+	url = https://github.com/kennytm/qrcode-rust
