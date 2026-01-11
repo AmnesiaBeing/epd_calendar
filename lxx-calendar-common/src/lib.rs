@@ -1,14 +1,41 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
+#![no_std]
+#![allow(async_fn_in_trait)]
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+pub mod events;
+pub mod traits;
+pub mod types;
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
+cfg_if::cfg_if! {
+    if #[cfg(feature = "log")] {
+        pub use log::{trace, debug, info, warn, error};
+    }
+    else if #[cfg(feature = "defmt")] {
+        pub use defmt::{trace, debug, info, warn, error};
+    }
+    else {
+        #[macro_export]
+        macro_rules! trace {
+            ($($arg:tt)*) => {{}};
+        }
+        #[macro_export]
+        macro_rules! debug {
+            ($($arg:tt)*) => {{}};
+        }
+        #[macro_export]
+        macro_rules! info {
+            ($($arg:tt)*) => {{}};
+        }
+        #[macro_export]
+        macro_rules! warn {
+            ($($arg:tt)*) => {{}};
+        }
+        #[macro_export]
+        macro_rules! error {
+            ($($arg:tt)*) => {{}};
+        }
     }
 }
+
+pub use events::*;
+pub use traits::*;
+pub use types::*;

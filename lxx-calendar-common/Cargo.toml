@@ -3,4 +3,48 @@ name = "lxx-calendar-common"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+default = ["simulator"]
+simulator = []
+tspi = []
+esp32 = []
+
 [dependencies]
+# 核心依赖
+log = { workspace = true, optional = true }
+thiserror = { workspace = true }
+cfg-if = { workspace = true }
+defmt = { workspace = true, optional = true }
+defmt-rtt = { workspace = true, optional = true }
+
+# 嵌入式相关依赖
+embedded-hal = { workspace = true }
+embedded-hal-bus = { workspace = true }
+embedded-hal-async = { workspace = true }
+embedded-graphics = { workspace = true }
+embedded-io = { workspace = true }
+embedded-io-async = { workspace = true }
+embedded-storage = { workspace = true }
+embedded-storage-async = { workspace = true }
+embedded-svc = { workspace = true }
+
+# 无标准库数据结构
+static_cell = { workspace = true }
+critical-section = { workspace = true }
+heapless = { workspace = true }
+
+# Embassy框架
+embassy-sync = { workspace = true }
+embassy-executor = { workspace = true }
+embassy-time = { workspace = true }
+embassy-net = { workspace = true }
+embassy-embedded-hal = { workspace = true }
+embassy-net-tuntap = { workspace = true, optional = true }
+
+# 序列化/反序列化
+serde_json = { workspace = true }
+serde = { workspace = true }
+postcard = { workspace = true }
+
+# 时间相关
+jiff = { workspace = true }

@@ -1,0 +1,32 @@
+[package]
+name = "lxx-calendar-core"
+version = "0.1.0"
+edition.workspace = true
+
+[features]
+default = ["esp32"]
+simulator = ["lxx-calendar-common/simulator"]
+tspi = ["lxx-calendar-common/tspi"]
+esp32 = ["lxx-calendar-common/esp32"]
+
+[dependencies]
+# 核心依赖
+log = { workspace = true, optional = true }
+thiserror = { workspace = true }
+cfg-if = { workspace = true }
+defmt = { workspace = true, optional = true }
+defmt-rtt = { workspace = true, optional = true }
+heapless = { workspace = true }
+
+# 子项目依赖
+lxx-calendar-common = { path = "../lxx-calendar-common" }
+lxx-calendar-graphics = { path = "../lxx-calendar-graphics" }
+lxx-calendar-quotes = { path = "../lxx-calendar-quotes" }
+
+# Embassy框架
+embassy-executor = { workspace = true }
+embassy-sync = { workspace = true }
+embassy-time = { workspace = true }
+embassy-net = { workspace = true }
+embassy-embedded-hal = { workspace = true }
+esp-rtos = "0.2.0"

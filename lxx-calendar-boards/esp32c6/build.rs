@@ -1,18 +1,10 @@
 //! 嵌入式资源构建脚本 - 主入口
 
-use anyhow::{Ok, Result};
-
-fn main() -> Result<()> {
-    #[cfg(feature = "esp32")]
-    {
-        linker_be_nice();
-        println!("cargo:rustc-link-arg=-Tlinkall.x");
-    }
-
-    Ok(())
+fn main() {
+    linker_be_nice();
+    println!("cargo:rustc-link-arg=-Tlinkall.x");
 }
 
-#[cfg(feature = "esp32")]
 fn linker_be_nice() {
     let args: Vec<String> = std::env::args().collect();
     if args.len() > 1 {
