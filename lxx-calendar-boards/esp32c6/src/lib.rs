@@ -41,6 +41,9 @@ impl PlatformTrait for Platform {
         >,
     >;
 
+    type StatiEpdSpiControllerMutexType =
+        LxxAsyncMutex<esp_hal::spi::master::Spi<'static, esp_hal::Async>>;
+
     async fn init(_spawner: embassy_executor::Spawner) -> PlatformContext<Self> {
         let mut peripherals = esp_hal::init(
             esp_hal::Config::default().with_cpu_clock(esp_hal::clock::CpuClock::max()),
@@ -104,7 +107,11 @@ impl PlatformTrait for Platform {
             .unwrap(),
         );
 
-        PlatformContext { sys_watch_dog, epd }
+        PlatformContext {
+            sys_watch_dog,
+            epd,
+            epd_spi: spi_bus_mutex,
+        }
     }
 
     fn sys_reset() {

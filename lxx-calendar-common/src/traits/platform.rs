@@ -20,6 +20,7 @@ pub trait PlatformTrait: Sized {
 
     type StaticWatchDogControllerMutexType;
 
+    type StatiEpdSpiControllerMutexType;
     type StatiEpdControllerMutexType;
 }
 
@@ -28,5 +29,6 @@ where
     C: PlatformTrait + Sized,
 {
     pub sys_watch_dog: C::StaticWatchDogControllerMutexType,
+    pub epd_spi: C::StatiEpdSpiControllerMutexType,
     pub epd: C::StatiEpdControllerMutexType,
 }
