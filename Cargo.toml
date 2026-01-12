@@ -6,6 +6,7 @@ members = [
     "lxx-calendar-quotes",
     "lxx-calendar-boards/esp32c6",
 ]
+exclude = ["libs/"]
 resolver = "2"
 
 [workspace.package]
