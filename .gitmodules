@@ -10,3 +10,6 @@
 [submodule "libs/qrcode"]
 	path = libs/qrcode
 	url = https://github.com/kennytm/qrcode-rust
+[submodule "libs/epd"]
+	path = libs/epd
+	url = https://github.com/AmnesiaBeing/epd-yrd0750ryf665f60
