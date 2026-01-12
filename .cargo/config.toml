@@ -45,5 +45,5 @@ rsg = "run --target x86_64-unknown-linux-gnu --no-default-features --features si
 rsgr = "run --target x86_64-unknown-linux-gnu --no-default-features --release --features simulator --features embedded_graphics_simulator"
 
 # ESP32C6相关命令
-besp = "build --target riscv32imac-unknown-none-elf --no-default-features --features esp32c6"
-bespr = "build --release --target riscv32imac-unknown-none-elf --no-default-features --features esp32c6"
+besp = "build"
+bespr = "build --release"

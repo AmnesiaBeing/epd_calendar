@@ -1,6 +1,7 @@
 pub type SystemResult<T> = core::result::Result<T, SystemError>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum SystemError {
     HardwareError(HardwareError),
     ServiceError(ServiceError),
@@ -8,18 +9,8 @@ pub enum SystemError {
     NetworkError(NetworkError),
 }
 
-impl core::fmt::Display for SystemError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            SystemError::HardwareError(e) => write!(f, "Hardware error: {:?}", e),
-            SystemError::ServiceError(e) => write!(f, "Service error: {:?}", e),
-            SystemError::StorageError(e) => write!(f, "Storage error: {:?}", e),
-            SystemError::NetworkError(e) => write!(f, "Network error: {:?}", e),
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum HardwareError {
     NotInitialized,
     InvalidParameter,
@@ -30,6 +21,7 @@ pub enum HardwareError {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum ServiceError {
     NotInitialized,
     InvalidState,
@@ -39,6 +31,7 @@ pub enum ServiceError {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum StorageError {
     NotFound,
     Corrupted,
@@ -48,6 +41,7 @@ pub enum StorageError {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum NetworkError {
     NotConnected,
     Timeout,

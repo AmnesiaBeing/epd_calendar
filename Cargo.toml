@@ -85,23 +85,13 @@ jiff = { version = "0.2.18", default-features = false, features = ["alloc"] }
 qrcode = { path = "libs/qrcode", default-features = false }
 
 [profile.dev]
-codegen-units = 1
-debug = 2
-strip = false
-incremental = false
-debug-assertions = true
-overflow-checks = true
-#opt-level = "s" # disable to play with GDB
-lto = false
-panic = "unwind"
+opt-level = "s"
 
 [profile.release]
 codegen-units = 1
 debug = 2
-strip = false
+debug-assertions = false
 incremental = false
-debug-assertions = true
-overflow-checks = true
-opt-level = "z"
-lto = "fat"
-panic = "unwind"
+lto = 'fat'
+opt-level = 's'
+overflow-checks = false

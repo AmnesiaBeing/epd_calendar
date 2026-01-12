@@ -2,7 +2,7 @@
 
 use anyhow::{Context, Result};
 use serde::Deserialize;
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap};
 use std::fs;
 use std::path::PathBuf;
 
@@ -48,11 +48,8 @@ pub fn escape_string(s: &str) -> String {
 
 pub fn parse_all_json_files(categories: &[HitokotoCategory]) -> Result<Vec<(u32, Vec<Hitokoto>)>> {
     let mut result = Vec::new();
-    let mut total_hitokotos = 0;
-    let mut valid_hitokotos = 0;
-    let mut ignored_hitokotos = 0;
 
-    for (index, category) in categories.iter().enumerate() {
+    for category in categories.iter() {
         let mut path = PathBuf::from("sentences").join("sentences");
         path.push(&category.key);
         path.set_extension("json");
@@ -156,13 +153,4 @@ fn generate_hitokoto_data(hitokotos: &[(u32, Vec<Hitokoto>)]) -> Result<()> {
     fs::write(&output_path, content)?;
 
     Ok(())
-}
-
-/// 转义字符串用于 Rust 代码
-pub fn escape_string(s: &str) -> String {
-    s.replace('\\', "\\\\")
-        .replace('\"', "\\\"")
-        .replace('\n', "\\n")
-        .replace('\r', "\\r")
-        .replace('\t', "\\t")
 }

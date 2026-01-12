@@ -1,20 +1,6 @@
-pub trait Platform: Sized {
-    /// 平台特定的异步类型集
-    type AsyncTypes: PlatformAsyncTypes;
+use core::marker::PhantomData;
 
-    type EventBusPubSubMutexType: AsyncRawMutex;
-
-    type WatchDogMutexStrategy: AsyncMutexStrategy;
-
-    type EventBusMutexStrategy: AsyncMutexStrategy;
-
-    type EpdSpiController: AsyncMutexStrategy;
-
-    type SensorI2cMutexStrategy: AsyncMutexStrategy;
-
-    type BuzzerPwm: SyncMutexStrategy;
-    type BuzzerPwmChannel: RawHwiResource + Copy;
-
+pub trait PlatformTrait: Sized {
     /// 初始化日志
     fn init_logger() {}
 
@@ -22,11 +8,25 @@ pub trait Platform: Sized {
     fn init_heap() {}
 
     // 硬件实现初始化
-    fn init(spawner: embassy_executor::Spawner) -> impl core::future::Future<Output = HwiContext>;
+    fn init(
+        spawner: embassy_executor::Spawner,
+    ) -> impl core::future::Future<Output = PlatformContext<Self>>;
 
     /// 复位处理器
     fn sys_reset();
 
     /// 停止处理器，进入深度休眠
     fn sys_stop();
+
+    type StaticWatchDogControllerMutexType;
+
+    type StatiEpdControllerMutexType;
+}
+
+pub struct PlatformContext<C>
+where
+    C: PlatformTrait + Sized,
+{
+    pub sys_watch_dog: C::StaticWatchDogControllerMutexType,
+    pub epd: C::StatiEpdControllerMutexType,
 }

@@ -1,7 +1,4 @@
 use lxx_calendar_common as lxx_common;
-use lxx_common::{SystemResult, SystemError};
-
-use alloc::string::ToString;
 
 pub struct ConfigManager {
     initialized: bool,
@@ -22,9 +19,13 @@ impl ConfigManager {
         Ok(())
     }
 
-    pub async fn load_config(&mut self) -> Result<lxx_common::SystemConfig, lxx_common::SystemError> {
+    pub async fn load_config(
+        &mut self,
+    ) -> Result<lxx_common::SystemConfig, lxx_common::SystemError> {
         if !self.initialized {
-            return Err(lxx_common::SystemError::HardwareError(lxx_common::HardwareError::NotInitialized));
+            return Err(lxx_common::SystemError::HardwareError(
+                lxx_common::HardwareError::NotInitialized,
+            ));
         }
         lxx_common::info!("Loading config");
         Ok(lxx_common::SystemConfig {
@@ -67,9 +68,14 @@ impl ConfigManager {
         })
     }
 
-    pub async fn save_config(&mut self, config: lxx_common::SystemConfig) -> Result<(), lxx_common::SystemError> {
+    pub async fn save_config(
+        &mut self,
+        config: lxx_common::SystemConfig,
+    ) -> Result<(), lxx_common::SystemError> {
         if !self.initialized {
-            return Err(lxx_common::SystemError::HardwareError(lxx_common::HardwareError::NotInitialized));
+            return Err(lxx_common::SystemError::HardwareError(
+                lxx_common::HardwareError::NotInitialized,
+            ));
         }
         lxx_common::info!("Saving config");
         self.config = Some(config);
@@ -78,7 +84,9 @@ impl ConfigManager {
 
     pub async fn get_config(&self) -> Result<lxx_common::SystemConfig, lxx_common::SystemError> {
         if !self.initialized {
-            return Err(lxx_common::SystemError::HardwareError(lxx_common::HardwareError::NotInitialized));
+            return Err(lxx_common::SystemError::HardwareError(
+                lxx_common::HardwareError::NotInitialized,
+            ));
         }
         self.config.clone().ok_or_else(|| {
             lxx_common::SystemError::StorageError(lxx_common::StorageError::NotFound)

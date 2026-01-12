@@ -1,9 +1,13 @@
 fn main() {
-    linker_be_nice();
-    println!("cargo:rustc-link-arg=-Tdefmt.x");
-    println!("cargo:rustc-link-arg=-Tlinkall.x");
+    #[cfg(feature = "esp32c6")]
+    {
+        linker_be_nice();
+        println!("cargo:rustc-link-arg=-Tdefmt.x");
+        println!("cargo:rustc-link-arg=-Tlinkall.x");
+    }
 }
 
+#[cfg(feature = "esp32c6")]
 fn linker_be_nice() {
     let args: Vec<String> = std::env::args().collect();
     if args.len() > 1 {
