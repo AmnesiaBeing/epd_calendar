@@ -13,3 +13,6 @@
 [submodule "libs/linux-embedded-hal"]
 	path = libs/linux-embedded-hal
 	url = https://github.com/AmnesiaBeing/linux-embedded-hal.git
+[submodule "libs/embedded-hal-mock"]
+	path = libs/embedded-hal-mock
+	url = https://github.com/AmnesiaBeing/embedded-hal-mock.git
