@@ -1,5 +1,32 @@
 # 文档索引
 
+## 项目状态
+
+> **最后更新**：2026-02-18
+> **核心服务实现进度**：已完成业务逻辑框架，硬件抽象层待实现
+
+### 已完成模块
+
+| 模块 | 状态 | 说明 |
+|------|------|------|
+| StateManager | ✅ | 状态机框架完成，集成看门狗 |
+| TimeService | ✅ | 时间管理 + sxtwl-rs 农历计算 |
+| NetworkService | ✅ | Wi-Fi管理框架，天气API预留 |
+| DisplayService | ✅ | 显示框架，SPI驱动预留 |
+| BLEService | ✅ | 配网/OTA框架，BLE驱动预留 |
+| AudioService | ✅ | 音频框架，PWM驱动预留 |
+| PowerManager | ✅ | 电量管理框架，ADC预留 |
+| ConfigManager | ✅ | 配置管理框架，FLASH预留 |
+| WatchdogManager | ✅ | 看门狗管理 |
+| Quotes | ✅ | 格言服务 |
+
+### 待实现
+
+- 各服务的硬件驱动（ESP32-C6平台）
+- 日志管理器
+
+---
+
 ## 架构设计文档
 
 1. **[01-系统架构概览.md](./01-系统架构概览.md)** - 系统架构核心设计理念和目标，支持的多平台

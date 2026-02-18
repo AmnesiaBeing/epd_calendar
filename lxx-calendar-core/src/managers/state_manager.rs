@@ -1,12 +1,14 @@
 use alloc::boxed::Box;
 use lxx_calendar_common::*;
+use lxx_calendar_common::Watchdog;
 
+use crate::managers::WatchdogManager;
 use crate::services::{
     audio_service::AudioService, ble_service::BLEService, display_service::DisplayService,
     network_service::NetworkService, power_service::PowerManager, time_service::TimeService,
 };
 
-pub struct StateManager<'a> {
+pub struct StateManager<'a, W: Watchdog> {
     event_channel: LxxChannelReceiver<'a, SystemEvent>,
     current_state: SystemMode,
     time_service: &'a mut TimeService,
@@ -15,9 +17,10 @@ pub struct StateManager<'a> {
     ble_service: &'a mut BLEService,
     power_manager: &'a mut PowerManager,
     audio_service: &'a mut AudioService,
+    watchdog: WatchdogManager<W>,
 }
 
-impl<'a> StateManager<'a> {
+impl<'a, W: Watchdog> StateManager<'a, W> {
     pub fn new(
         event_receiver: LxxChannelReceiver<'a, SystemEvent>,
         time_service: &'a mut TimeService,
@@ -26,6 +29,7 @@ impl<'a> StateManager<'a> {
         ble_service: &'a mut BLEService,
         power_manager: &'a mut PowerManager,
         audio_service: &'a mut AudioService,
+        watchdog_device: W,
     ) -> Self {
         Self {
             current_state: SystemMode::DeepSleep,
@@ -36,11 +40,13 @@ impl<'a> StateManager<'a> {
             ble_service,
             power_manager,
             audio_service,
+            watchdog: WatchdogManager::new(watchdog_device),
         }
     }
 
     pub async fn initialize(&mut self) -> SystemResult<()> {
         info!("Initializing state manager");
+        self.watchdog.initialize().await?;
         self.current_state = SystemMode::DeepSleep;
         Ok(())
     }
@@ -133,12 +139,15 @@ impl<'a> StateManager<'a> {
 
     async fn execute_scheduled_tasks(&mut self) -> SystemResult<()> {
         info!("Executing scheduled tasks");
+        
+        self.watchdog.start_task().await;
 
         let is_low_battery = self.power_manager.is_low_battery().await?;
         let schedule = self.time_service.calculate_wakeup_schedule().await?;
 
         if schedule.scheduled_tasks.network_sync && !is_low_battery {
             info!("Performing network sync");
+            self.watchdog.feed();
             match self.network_service.sync().await {
                 Ok(result) => {
                     if result.time_synced {
@@ -156,16 +165,20 @@ impl<'a> StateManager<'a> {
 
         if schedule.scheduled_tasks.display_refresh {
             info!("Refreshing display");
+            self.watchdog.feed();
             self.display_service.refresh().await?;
         }
 
         if schedule.scheduled_tasks.alarm_check {
             info!("Checking alarms");
+            self.watchdog.feed();
         }
 
         let wakeup_time = self.time_service.calculate_next_wakeup_time().await?;
         info!("Next wakeup scheduled at: {:?}", wakeup_time);
 
+        self.watchdog.end_task().await;
+        
         self.transition_to(SystemMode::DeepSleep).await?;
 
         Ok(())

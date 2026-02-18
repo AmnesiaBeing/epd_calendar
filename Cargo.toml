@@ -11,6 +11,7 @@ members = [
     "libs/sxtwl-rs",
     "libs/linux-embedded-hal",
     "libs/simulated-wdt",
+    "libs/embedded-hal-mock",
 ]
 default-members = [
     "lxx-calendar-boards/esp32c6",
@@ -110,3 +111,4 @@ incremental = false
 lto = 'fat'
 opt-level = 's'
 overflow-checks = false
+panic = "abort"

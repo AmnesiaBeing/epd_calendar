@@ -1,5 +1,7 @@
 use embassy_sync::channel::{Channel, Receiver, Sender};
 
+use super::Watchdog;
+
 const CAP: usize = 10;
 
 pub type LxxSystemEventChannel = Channel<
@@ -27,12 +29,16 @@ pub trait PlatformTrait: Sized {
 
     fn sys_stop();
 
-    type WatchdogDevice;
+    /// 看门狗设备，必须实现 Watchdog trait
+    type WatchdogDevice: Watchdog;
 
+    /// EPD 设备
     type EpdDevice;
 }
 
 pub struct PlatformContext<C: PlatformTrait + Sized> {
+    /// 看门狗设备
     pub sys_watch_dog: C::WatchdogDevice,
+    /// EPD 设备
     pub epd: C::EpdDevice,
 }

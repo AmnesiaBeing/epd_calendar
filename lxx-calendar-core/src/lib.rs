@@ -20,7 +20,7 @@ use lxx_calendar_common::*;
 
 pub async fn main_task<P: PlatformTrait>(
     _spawner: Spawner,
-    _platform_ctx: PlatformContext<P>,
+    platform_ctx: PlatformContext<P>,
 ) -> SystemResult<()> {
     info!("lxx-calendar starting...");
 
@@ -61,6 +61,7 @@ pub async fn main_task<P: PlatformTrait>(
         &mut ble_service,
         &mut power_manager,
         &mut audio_service,
+        platform_ctx.sys_watch_dog,
     );
 
     state_manager.initialize().await?;

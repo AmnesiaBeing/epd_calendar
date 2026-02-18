@@ -1,25 +1,43 @@
-use embassy_executor::{Spawner, task};
-use embassy_time::Duration;
 use core::sync::atomic::{AtomicBool, Ordering};
+use embassy_executor::{task, Spawner};
+use embassy_time::Duration;
+use lxx_calendar_common::Watchdog;
 
 static WATCHDOG_FED: AtomicBool = AtomicBool::new(true);
 
 pub struct SimulatedWdt {
-    timeout_ms: u64,
+    pub timeout_ms: u64,
 }
 
 impl SimulatedWdt {
     pub fn new(timeout_ms: u64) -> Self {
         Self { timeout_ms }
     }
+}
 
-    pub fn feed(&self) {
+impl Watchdog for SimulatedWdt {
+    type Error = core::convert::Infallible;
+
+    fn feed(&mut self) -> Result<(), Self::Error> {
         WATCHDOG_FED.store(true, Ordering::SeqCst);
         log::debug!("Watchdog fed");
+        Ok(())
     }
 
-    pub fn is_armed(&self) -> bool {
-        WATCHDOG_FED.load(Ordering::SeqCst)
+    fn enable(&mut self) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn disable(&mut self) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn get_timeout(&self) -> Result<u32, Self::Error> {
+        Ok(self.timeout_ms as u32)
+    }
+
+    fn set_timeout(&mut self, _timeout_ms: u32) -> Result<(), Self::Error> {
+        Ok(())
     }
 }
 
@@ -38,20 +56,4 @@ async fn watchdog_task(timeout_ms: u64) {
 
 pub fn start_watchdog(spawner: &Spawner, timeout_ms: u64) {
     spawner.spawn(watchdog_task(timeout_ms)).ok();
-}
-
-pub struct NoopWdt;
-
-impl NoopWdt {
-    pub fn new() -> Self {
-        Self
-    }
-
-    pub fn feed(&self) {}
-}
-
-impl Default for NoopWdt {
-    fn default() -> Self {
-        Self::new()
-    }
 }

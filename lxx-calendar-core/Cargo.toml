@@ -5,7 +5,7 @@ edition.workspace = true
 
 [dependencies]
 # 核心依赖
-log = { workspace = true, optional = true }
+log = { workspace = true }
 thiserror = { workspace = true }
 cfg-if = { workspace = true }
 defmt = { workspace = true, optional = true }
@@ -13,9 +13,10 @@ defmt-rtt = { workspace = true, optional = true }
 heapless = { workspace = true }
 
 # 子项目依赖
-lxx-calendar-common = { path = "../lxx-calendar-common" }
+lxx-calendar-common = { path = "../lxx-calendar-common", default-features = false, features = ["log"] }
 lxx-calendar-graphics = { path = "../lxx-calendar-graphics" }
 lxx-calendar-quotes = { path = "../lxx-calendar-quotes" }
+sxtwl-rs = { path = "../libs/sxtwl-rs", features = ["festival"] }
 
 # Embassy框架
 embassy-executor = { workspace = true }

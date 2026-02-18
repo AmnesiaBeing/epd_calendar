@@ -9,7 +9,7 @@
 
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use epd_yrd0750ryf665f60::{prelude::WaveshareDisplay as _, yrd0750ryf665f60::Epd7in5};
-use esp_hal::timer::timg::{TimerGroup, Wdt};
+use esp_hal::timer::timg::{TimerGroup, Wdt, MwdtStage};
 pub use esp_rtos::main as platform_main;
 use lxx_calendar_common::*;
 use lxx_calendar_core::main_task;
@@ -19,10 +19,49 @@ esp_bootloader_esp_idf::esp_app_desc!();
 
 use panic_rtt_target as _;
 
+pub struct Esp32Watchdog {
+    inner: Wdt<esp_hal::peripherals::TIMG0<'static>>,
+}
+
+impl Esp32Watchdog {
+    pub fn new(wdt: Wdt<esp_hal::peripherals::TIMG0<'static>>) -> Self {
+        Self { inner: wdt }
+    }
+}
+
+impl Watchdog for Esp32Watchdog {
+    type Error = core::convert::Infallible;
+
+    fn feed(&mut self) -> Result<(), Self::Error> {
+        self.inner.feed();
+        Ok(())
+    }
+
+    fn enable(&mut self) -> Result<(), Self::Error> {
+        self.inner.enable();
+        Ok(())
+    }
+
+    fn disable(&mut self) -> Result<(), Self::Error> {
+        self.inner.disable();
+        Ok(())
+    }
+
+    fn get_timeout(&self) -> Result<u32, Self::Error> {
+        Ok(0)
+    }
+
+    fn set_timeout(&mut self, timeout_ms: u32) -> Result<(), Self::Error> {
+        let timeout_us = timeout_ms as u64 * 1000;
+        self.inner.set_timeout(MwdtStage::Stage0, esp_hal::time::Duration::from_micros(timeout_us));
+        Ok(())
+    }
+}
+
 pub struct Platform;
 
 impl PlatformTrait for Platform {
-    type WatchdogDevice = Wdt<esp_hal::peripherals::TIMG0<'static>>;
+    type WatchdogDevice = Esp32Watchdog;
 
     type EpdDevice = epd_yrd0750ryf665f60::yrd0750ryf665f60::Epd7in5<
         embassy_embedded_hal::shared_bus::asynch::spi::SpiDevice<
@@ -58,7 +97,8 @@ impl PlatformTrait for Platform {
         esp_alloc::heap_allocator!(#[esp_hal::ram(reclaimed)] size: 32768);
 
         let timg0 = TimerGroup::new(peripherals.TIMG0);
-        let sys_watch_dog = timg0.wdt;
+        let wdt = timg0.wdt;
+        let sys_watch_dog = Esp32Watchdog::new(wdt);
 
         let sck = peripherals.GPIO22;
         let sda = peripherals.GPIO23;
