@@ -45,3 +45,6 @@ postcard = { workspace = true }
 
 # 时间相关
 jiff = { workspace = true }
+
+# 农历计算
+sxtwl-rs = { path = "../libs/sxtwl-rs", features = ["festival"] }

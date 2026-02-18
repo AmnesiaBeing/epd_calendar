@@ -1,20 +1,12 @@
-use heapless::String;
 use lxx_calendar_common::*;
-use sxtwl_rs::sixtycycle::SIXTY_CYCLE_NAMES;
 use sxtwl_rs::solar::SolarDay;
-
-const SOLAR_TERM_NAMES: [&str; 24] = [
-    "小寒", "大寒", "立春", "雨水", "惊蛰", "春分", "清明", "谷雨",
-    "立夏", "小满", "芒种", "夏至", "小暑", "大暑", "立秋", "处暑",
-    "白露", "秋分", "寒露", "霜降", "立冬", "小雪", "大雪", "冬至",
-];
 
 pub struct TimeService {
     initialized: bool,
     current_time: Option<DateTime>,
     cached_lunar: Option<LunarDate>,
-    cached_solar_term: Option<Option<SolarTerm>>,
-    cached_holiday: Option<Option<Holiday>>,
+    cached_solar_term: Option<SolarTerm>,
+    cached_holiday: Option<Holiday>,
     last_calculation_date: Option<(u16, u8, u8)>,
     timezone_offset: i32,
 }
@@ -82,46 +74,34 @@ impl TimeService {
                 if last_date.0 == current_time.year 
                     && last_date.1 == current_time.month 
                     && last_date.2 == current_time.day {
-                    return Ok(cached.clone());
+                    return Ok(*cached);
                 }
             }
         }
 
-        Ok(self.calculate_lunar_date(current_time.year, current_time.month, current_time.day))
+        let lunar = self.calculate_lunar_date(current_time.year, current_time.month, current_time.day);
+        
+        Ok(lunar)
     }
 
     fn calculate_lunar_date(&self, year: u16, month: u8, day: u8) -> LunarDate {
         let solar_day = SolarDay::from_ymd(year as isize, month as usize, day as usize);
         let lunar_day = solar_day.get_lunar_day();
-        
         let sixty_cycle = solar_day.get_sixty_cycle_day();
         
-        let zodiac = match sixty_cycle.get_year().get_earth_branch().get_index() {
-            0 => Zodiac::Rat,
-            1 => Zodiac::Ox,
-            2 => Zodiac::Tiger,
-            3 => Zodiac::Rabbit,
-            4 => Zodiac::Dragon,
-            5 => Zodiac::Snake,
-            6 => Zodiac::Horse,
-            7 => Zodiac::Goat,
-            8 => Zodiac::Monkey,
-            9 => Zodiac::Rooster,
-            10 => Zodiac::Dog,
-            11 => Zodiac::Pig,
-            _ => Zodiac::Rat,
-        };
+        // 获取生肖：年柱的地支 -> 生肖
+        let zodiac_idx = sixty_cycle.get_year().get_earth_branch().get_zodiac().get_index();
         
-        LunarDate {
-            year: lunar_day.get_year() as u16,
-            month: lunar_day.get_month().abs() as u8,
-            day: lunar_day.get_day() as u8,
-            is_leap_month: lunar_day.get_month() < 0,
-            ganzhi_year: String::try_from(SIXTY_CYCLE_NAMES[sixty_cycle.get_year().get_index()]).unwrap_or_default(),
-            ganzhi_month: String::try_from(SIXTY_CYCLE_NAMES[sixty_cycle.get_month().get_index()]).unwrap_or_default(),
-            ganzhi_day: String::try_from(SIXTY_CYCLE_NAMES[sixty_cycle.get_sixty_cycle().get_index()]).unwrap_or_default(),
-            zodiac,
-        }
+        LunarDate::from_sxtwl(
+            lunar_day.get_year() as u16,
+            lunar_day.get_month().abs() as u8,
+            lunar_day.get_day() as u8,
+            lunar_day.get_month() < 0,
+            zodiac_idx,
+            sixty_cycle.get_year().get_index(),
+            sixty_cycle.get_month().get_index(),
+            sixty_cycle.get_sixty_cycle().get_index(),
+        )
     }
 
     pub async fn get_solar_term(&self) -> SystemResult<Option<SolarTerm>> {
@@ -136,17 +116,7 @@ impl TimeService {
     fn calculate_solar_term(&self, year: u16, month: u8, day: u8) -> Option<SolarTerm> {
         let solar_day = SolarDay::from_ymd(year as isize, month as usize, day as usize);
         let term = solar_day.get_term();
-        let index = term.get_index();
-        
-        if index == 0 || index > 24 {
-            return None;
-        }
-        
-        Some(SolarTerm {
-            name: String::try_from(SOLAR_TERM_NAMES[index - 1]).unwrap_or_default(),
-            date: day,
-            month,
-        })
+        SolarTerm::from_index(term.get_index(), day, month)
     }
 
     pub async fn get_holiday(&self) -> SystemResult<Option<Holiday>> {
