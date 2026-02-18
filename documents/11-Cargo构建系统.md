@@ -43,60 +43,10 @@ cargo bespr
 
 ```bash
 # 构建
-cargo bel
+cargo bspi
 
 # Release 构建
-cargo belr
-```
-
-### 模拟器 (simulator) - Linux
-
-```bash
-# 构建（无图形）
-cargo bs
-
-# Release 构建
-cargo bsr
-
-# 构建（带SDL2图形）
-cargo bsg
-
-# Release 构建
-cargo bsgr
-
-# 运行
-cargo rs
-
-# Release 运行
-cargo rsr
-
-# 运行（带图形）
-cargo rsg
-
-# Release 运行（带图形）
-cargo rsgr
-```
-
-## Cargo Alias 命令
-
-### ESP32-C6
-
-```bash
-# 构建
-cargo besp
-
-# Release 构建
-cargo bespr
-```
-
-### 泰山派 (tspi)
-
-```bash
-# 构建
-cargo bel
-
-# Release 构建
-cargo belr
+cargo btspir
 ```
 
 ### 模拟器 (simulator) - Linux
@@ -171,38 +121,6 @@ cargo check
 | `lxx-calendar-boards-tspi` | `tspi` | 泰山派 Linux 平台 |
 | `lxx-calendar-boards-simulator` | `simulator` | PC 模拟器平台 |
 | `lxx-calendar-boards-simulator` | `embedded_graphics_simulator` | 模拟器 SDL2 图形支持 |
-
-## 编译目标配置 (.cargo/config.toml)
-
-```toml
-# ESP32-C6 目标
-[target.riscv32imac-unknown-none-elf]
-runner = "probe-rs run --chip=esp32c6 --preverify --always-print-stacktrace --no-location --catch-hardfault"
-rustflags = [
-    "-C",
-    "force-frame-pointers",
-    "--cfg",
-    'getrandom_backend="custom"',
-]
-
-# 环境变量
-[env]
-ESP_LOG = "INFO"
-
-# Cargo Alias
-[alias]
-# ESP32-C6
-besp = "build -p lxx-calendar-boards-esp32c6 --target riscv32imac-unknown-none-elf --no-default-features --features esp32c6"
-bespr = "build -p lxx-calendar-boards-esp32c6 --release --target riscv32imac-unknown-none-elf --no-default-features --features esp32c6"
-
-# 泰山派
-bel = "build -p lxx-calendar-boards-tspi --target aarch64-unknown-linux-gnu --no-default-features --features tspi"
-belr = "build -p lxx-calendar-boards-tspi --release --target aarch64-unknown-linux-gnu --no-default-features --features tspi"
-
-# 模拟器
-bs = "build -p lxx-calendar-boards-simulator --target x86_64-unknown-linux-gnu --no-default-features --features simulator"
-bsr = "build -p lxx-calendar-boards-simulator --target x86_64-unknown-linux-gnu --no-default-features --release --features simulator"
-```
 
 ## 依赖管理
 

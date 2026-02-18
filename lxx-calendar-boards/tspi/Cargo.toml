@@ -13,17 +13,23 @@ lxx-calendar-core = { path = "../../lxx-calendar-core" }
 static_cell = { workspace = true }
 simulated-wdt = { path = "../../libs/simulated-wdt" }
 epd-yrd0750ryf665f60 = { version = "0.1.0", path = "../../libs/epd" }
+critical-section = { workspace = true, features = ["std"] }
 
 [dependencies.embassy-sync]
 workspace = true
 
 [dependencies.embassy-time]
 workspace = true
+features = ["std"]
 
 [dependencies.embassy-executor]
 workspace = true
-features = ["arch-std"]
+features = ["arch-std", "executor-thread"]
 
 [dependencies.linux-embedded-hal]
-git = "https://github.com/rust-embedded/linux-embedded-hal.git"
-features = ["gpio_sysfs", "spi", "async-tokio"]
+path = "../../libs/linux-embedded-hal"
+features = ["gpio_sysfs", "spi", "async-tokio", "async-spi", "async-gpio-sysfs"]
+
+[dependencies.tokio]
+version = "1"
+features = ["rt-multi-thread", "macros"]

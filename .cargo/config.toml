@@ -7,15 +7,18 @@ rustflags = [
     'getrandom_backend="custom"',
 ]
 
+[target.aarch64-unknown-linux-gnu]
+linker = "aarch64-linux-gnu-gcc"
+
 [env]
 ESP_LOG = "INFO"
 
 [alias]
 # Linux相关命令
-bel = "build -p lxx-calendar-boards-tspi --target aarch64-unknown-linux-gnu --no-default-features --features tspi"
-belr = "build -p lxx-calendar-boards-tspi --release --target aarch64-unknown-linux-gnu --no-default-features --features tspi"
+btspi = "build -p lxx-calendar-boards-tspi --target aarch64-unknown-linux-gnu --no-default-features --features tspi"
+btspir = "build -p lxx-calendar-boards-tspi --release --target aarch64-unknown-linux-gnu --no-default-features --features tspi"
 
-cel = "check -p lxx-calendar-boards-tspi --target aarch64-unknown-linux-gnu --no-default-features --features tspi"
+ctspi = "check -p lxx-calendar-boards-tspi --target aarch64-unknown-linux-gnu --no-default-features --features tspi"
 
 # 模拟器相关命令
 bs = "build -p lxx-calendar-boards-simulator --target x86_64-unknown-linux-gnu --no-default-features --features simulator"

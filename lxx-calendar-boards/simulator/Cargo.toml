@@ -13,6 +13,7 @@ lxx-calendar-common = { path = "../../lxx-calendar-common" }
 static_cell = { workspace = true }
 simulated-wdt = { path = "../../libs/simulated-wdt" }
 epd-yrd0750ryf665f60 = { version = "0.1.0", path = "../../libs/epd" }
+critical-section = { workspace = true, features = ["std"] }
 
 [dependencies.embassy-sync]
 workspace = true

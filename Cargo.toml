@@ -7,9 +7,16 @@ members = [
     "lxx-calendar-boards/esp32c6",
     "lxx-calendar-boards/tspi",
     "lxx-calendar-boards/simulator",
+    "libs/epd",
+    "libs/sxtwl-rs",
+    "libs/linux-embedded-hal",
     "libs/simulated-wdt",
 ]
-exclude = ["libs/epd", "libs/sxtwl-rs", "libs/qrcode"]
+default-members = [
+    "lxx-calendar-boards/esp32c6",
+    "lxx-calendar-boards/tspi",
+    "lxx-calendar-boards/simulator",
+]
 resolver = "2"
 
 [workspace.package]
@@ -40,7 +47,10 @@ embedded-svc = { version = "0.28.1", default-features = false }
 # 无标准库数据结构
 static_cell = "2.1.1"
 critical-section = "1.2.0"
-heapless = { version = "0.9.2", default-features = false, features = ["serde", "defmt"] }
+heapless = { version = "0.9.2", default-features = false, features = [
+    "serde",
+    "defmt",
+] }
 heapless_08 = { package = "heapless", default-features = false, version = "0.8.0" }
 
 # Embassy框架
