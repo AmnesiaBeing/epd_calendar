@@ -10,3 +10,6 @@
 [submodule "libs/epd"]
 	path = libs/epd
 	url = https://github.com/AmnesiaBeing/epd-yrd0750ryf665f60
+[submodule "libs/linux-embedded-hal"]
+	path = libs/linux-embedded-hal
+	url = https://github.com/AmnesiaBeing/linux-embedded-hal.git
