@@ -1,9 +1,3 @@
-[target.aarch64-unknown-linux-gnu]
-linker = "aarch64-linux-gnu-gcc"
-
-[target.x86_64-pc-windows-gnu]
-linker = "x86_64-w64-mingw32-gcc"
-
 [target.riscv32imac-unknown-none-elf]
 runner = "probe-rs run --chip=esp32c6 --preverify --always-print-stacktrace --no-location --catch-hardfault"
 rustflags = [
@@ -16,34 +10,30 @@ rustflags = [
 [env]
 ESP_LOG = "INFO"
 
-# 如果删除下面一行，VSCode的代码分析器将无法正常运行
-[build]
-target = "riscv32imac-unknown-none-elf"
-
-[unstable]
-build-std = ["alloc", "core"]
-
 [alias]
 # Linux相关命令
-bel = "build --target aarch64-unknown-linux-gnu --no-default-features --features tspi"
-belr = "build --release --target aarch64-unknown-linux-gnu --no-default-features --features tspi"
+bel = "build -p lxx-calendar-boards-tspi --target aarch64-unknown-linux-gnu --no-default-features --features tspi"
+belr = "build -p lxx-calendar-boards-tspi --release --target aarch64-unknown-linux-gnu --no-default-features --features tspi"
+
+cel = "check -p lxx-calendar-boards-tspi --target aarch64-unknown-linux-gnu --no-default-features --features tspi"
 
 # 模拟器相关命令
-bs = "build --target x86_64-unknown-linux-gnu --no-default-features --features simulator"
-bsr = "build --target x86_64-unknown-linux-gnu --no-default-features --release --features simulator"
+bs = "build -p lxx-calendar-boards-simulator --target x86_64-unknown-linux-gnu --no-default-features --features simulator"
+bsr = "build -p lxx-calendar-boards-simulator --target x86_64-unknown-linux-gnu --no-default-features --release --features simulator"
 
-bsg = "build --target x86_64-unknown-linux-gnu --no-default-features --features simulator --features embedded_graphics_simulator"
-bsgr = "build --target x86_64-unknown-linux-gnu --release --no-default-features --features simulator --features embedded_graphics_simulator"
+bsg = "build -p lxx-calendar-boards-simulator --target x86_64-unknown-linux-gnu --no-default-features --features simulator --features embedded_graphics_simulator"
+bsgr = "build -p lxx-calendar-boards-simulator --target x86_64-unknown-linux-gnu --release --no-default-features --features simulator --features embedded_graphics_simulator"
 
-bsw = "build --target x86_64-pc-windows-gnu --no-default-features --features simulator"
-bswr = "build --release --target x86_64-pc-windows-gnu --no-default-features --features simulator"
+rs = "run -p lxx-calendar-boards-simulator --target x86_64-unknown-linux-gnu --no-default-features --features simulator"
+rsr = "run -p lxx-calendar-boards-simulator --target x86_64-unknown-linux-gnu --no-default-features --release --features simulator"
 
-rs = "run --target x86_64-unknown-linux-gnu --no-default-features --features simulator"
-rsr = "run --target x86_64-unknown-linux-gnu --no-default-features --release --features simulator"
+rsg = "run -p lxx-calendar-boards-simulator --target x86_64-unknown-linux-gnu --no-default-features --features simulator --features embedded_graphics_simulator"
+rsgr = "run -p lxx-calendar-boards-simulator --target x86_64-unknown-linux-gnu --no-default-features --release --features simulator --features embedded_graphics_simulator"
 
-rsg = "run --target x86_64-unknown-linux-gnu --no-default-features --features simulator --features embedded_graphics_simulator"
-rsgr = "run --target x86_64-unknown-linux-gnu --no-default-features --release --features simulator --features embedded_graphics_simulator"
+cs = "check -p lxx-calendar-boards-esp32c6 --target riscv32imac-unknown-none-elf --no-default-features --features esp32c6"
 
 # ESP32C6相关命令
-besp = "build"
-bespr = "build --release"
+besp = "build -p lxx-calendar-boards-esp32c6 --target riscv32imac-unknown-none-elf --no-default-features --features esp32c6"
+bespr = "build -p lxx-calendar-boards-esp32c6 --release --target riscv32imac-unknown-none-elf --no-default-features --features esp32c6"
+
+cesp = "check -p lxx-calendar-boards-esp32c6 --target riscv32imac-unknown-none-elf --no-default-features --features esp32c6"

@@ -83,7 +83,6 @@ pub struct ScheduledTasks {
 pub enum WakeupReason {
     Timer,
     Button,
-    LPU,
     WDT,
 }
 

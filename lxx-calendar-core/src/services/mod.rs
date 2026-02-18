@@ -1,6 +1,6 @@
-mod audio_service;
-mod ble_service;
-mod display_service;
-mod network_service;
-mod power_service;
-mod time_service;
+pub mod audio_service;
+pub mod ble_service;
+pub mod display_service;
+pub mod network_service;
+pub mod power_service;
+pub mod time_service;

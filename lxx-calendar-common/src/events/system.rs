@@ -1,4 +1,4 @@
-use crate::types::{AlarmInfo, SyncResult, NetworkError, ConfigChange};
+use crate::types::{AlarmInfo, ConfigChange, NetworkError, SyncResult};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SystemEvent {
@@ -13,7 +13,6 @@ pub enum SystemEvent {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WakeupEvent {
     WakeFromDeepSleep,
-    WakeByLPU,
     WakeByButton,
     WakeByWDT,
 }
@@ -22,7 +21,7 @@ pub enum WakeupEvent {
 pub enum UserEvent {
     ButtonShortPress,
     ButtonLongPress,
-    BLEConfigReceived(heapless::Vec<u8, 256>),
+    BLEConfigReceived(heapless::Vec<u8, 64>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

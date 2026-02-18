@@ -1,5 +1,7 @@
 mod config_manager;
+mod event_producer;
 mod state_manager;
 
 pub use config_manager::ConfigManager;
+pub use event_producer::EventProducer;
 pub use state_manager::StateManager;

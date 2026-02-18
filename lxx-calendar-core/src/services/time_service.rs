@@ -80,11 +80,20 @@ impl TimeService {
             next_wakeup_time: 0,
             wakeup_reason: WakeupReason::Timer,
             scheduled_tasks: ScheduledTasks {
-                display_refresh: false,
-                network_sync: false,
-                alarm_check: false,
+                display_refresh: true,
+                network_sync: true,
+                alarm_check: true,
                 reserved: 0,
             },
         })
+    }
+
+    pub async fn calculate_next_wakeup_time(&self) -> SystemResult<u64> {
+        if !self.initialized {
+            return Err(SystemError::HardwareError(HardwareError::NotInitialized));
+        }
+        let now = embassy_time::Instant::now();
+        let next_minute = (now.elapsed().as_secs() / 60 + 1) * 60;
+        Ok(next_minute)
     }
 }

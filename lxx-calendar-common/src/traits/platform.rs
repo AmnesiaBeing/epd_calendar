@@ -1,34 +1,38 @@
-use core::marker::PhantomData;
+use embassy_sync::channel::{Channel, Receiver, Sender};
+
+const CAP: usize = 10;
+
+pub type LxxSystemEventChannel = Channel<
+    embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
+    crate::events::SystemEvent,
+    CAP,
+>;
+
+pub type LxxChannelSender<'a, T> =
+    Sender<'a, embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex, T, CAP>;
+
+pub type LxxChannelReceiver<'a, T> =
+    Receiver<'a, embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex, T, CAP>;
 
 pub trait PlatformTrait: Sized {
-    /// 初始化日志
     fn init_logger() {}
 
-    /// 初始化堆栈
     fn init_heap() {}
 
-    // 硬件实现初始化
     fn init(
         spawner: embassy_executor::Spawner,
     ) -> impl core::future::Future<Output = PlatformContext<Self>>;
 
-    /// 复位处理器
     fn sys_reset();
 
-    /// 停止处理器，进入深度休眠
     fn sys_stop();
 
-    type StaticWatchDogControllerMutexType;
+    type WatchdogDevice;
 
-    type StatiEpdSpiControllerMutexType;
-    type StatiEpdControllerMutexType;
+    type EpdDevice;
 }
 
-pub struct PlatformContext<C>
-where
-    C: PlatformTrait + Sized,
-{
-    pub sys_watch_dog: C::StaticWatchDogControllerMutexType,
-    pub epd_spi: C::StatiEpdSpiControllerMutexType,
-    pub epd: C::StatiEpdControllerMutexType,
+pub struct PlatformContext<C: PlatformTrait + Sized> {
+    pub sys_watch_dog: C::WatchdogDevice,
+    pub epd: C::EpdDevice,
 }

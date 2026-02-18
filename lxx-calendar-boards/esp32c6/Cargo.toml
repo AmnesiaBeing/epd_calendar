@@ -3,8 +3,15 @@ name = "lxx-calendar-boards-esp32c6"
 version = "0.1.0"
 edition.workspace = true
 
+[features]
+default = ["esp32c6"]
+esp32c6 = []
+
 [dependencies]
 lxx-calendar-common = { path = "../../lxx-calendar-common" }
+lxx-calendar-core = { path = "../../lxx-calendar-core" }
+
+riscv.workspace = true
 
 esp-hal = { version = "1.0.0", features = ["esp32c6", "unstable"] }
 esp-alloc = { version = "0.9.0" }
@@ -27,10 +34,12 @@ esp-radio = { version = "0.17.0", features = [
     "esp-alloc",
     "unstable",
 ] }
-esp-sync = { version = "0.1.1", features = ["esp32c6"] }
+esp-sync = { version = "0.1.1", features = ["esp32c6"], default-features = false }
 esp-storage = { version = "0.8.1", features = ["esp32c6"] }
 panic-rtt-target = { version = "0.2.0" }
 rtt-target = { version = "0.6.2", features = ["defmt"] }
+
+static_cell.workspace = true
 embassy-executor.workspace = true
 defmt.workspace = true
 embassy-sync.workspace = true

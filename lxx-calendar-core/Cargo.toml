@@ -3,20 +3,6 @@ name = "lxx-calendar-core"
 version = "0.1.0"
 edition.workspace = true
 
-[features]
-default = ["esp32c6"]
-esp32c6 = [
-    "lxx-calendar-boards-esp32c6",
-    "esp-rtos",
-    "esp-hal",
-    "esp-sync",
-    "esp-alloc",
-    "lxx-calendar-common/defmt",
-    "defmt"
-]
-simulator = []
-tspi = []
-
 [dependencies]
 # 核心依赖
 log = { workspace = true, optional = true }
@@ -37,16 +23,4 @@ embassy-sync = { workspace = true }
 embassy-time = { workspace = true }
 embassy-net = { workspace = true }
 embassy-embedded-hal = { workspace = true }
-
-# 平台特定依赖 - 条件引入
-
-## ESP32C6
-lxx-calendar-boards-esp32c6 = { path = "../lxx-calendar-boards/esp32c6", optional = true }
-esp-rtos = { version = "0.2.0", optional = true, features = [
-    "esp32c6",
-    "embassy",
-] }
-esp-hal = { version = "1.0.0", optional = true, features = ["esp32c6"] }
-esp-sync = { version = "0.1.1", optional = true, features = ["esp32c6"] }
-esp-alloc = { version = "0.9.0", optional = true, features = ["esp32c6"] }
-critical-section.workspace = true
+embassy-futures = "0.1.2"

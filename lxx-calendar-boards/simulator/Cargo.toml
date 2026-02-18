@@ -1,0 +1,25 @@
+[package]
+name = "lxx-calendar-boards-simulator"
+version = "0.1.0"
+edition.workspace = true
+
+[features]
+default = ["simulator"]
+simulator = []
+embedded_graphics_simulator = []
+
+[dependencies]
+lxx-calendar-common = { path = "../../lxx-calendar-common" }
+static_cell = { workspace = true }
+simulated-wdt = { path = "../../libs/simulated-wdt" }
+epd-yrd0750ryf665f60 = { version = "0.1.0", path = "../../libs/epd" }
+
+[dependencies.embassy-sync]
+workspace = true
+
+[dependencies.embassy-time]
+workspace = true
+
+[dependencies.embassy-executor]
+workspace = true
+features = ["arch-std"]

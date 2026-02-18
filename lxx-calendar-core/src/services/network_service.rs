@@ -55,4 +55,12 @@ impl NetworkService {
         }
         Ok(false)
     }
+
+    pub async fn disconnect(&mut self) -> SystemResult<()> {
+        if !self.initialized {
+            return Err(SystemError::HardwareError(HardwareError::NotInitialized));
+        }
+        info!("Disconnecting network");
+        Ok(())
+    }
 }

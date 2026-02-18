@@ -1,17 +1,41 @@
+use alloc::boxed::Box;
 use lxx_calendar_common::*;
 
-use crate::platform::*;
+use crate::services::{
+    audio_service::AudioService, ble_service::BLEService, display_service::DisplayService,
+    network_service::NetworkService, power_service::PowerManager, time_service::TimeService,
+};
 
-pub struct StateManager {
-    event_channel: LxxChannelReceiver<'static, SystemEvent>,
+pub struct StateManager<'a> {
+    event_channel: LxxChannelReceiver<'a, SystemEvent>,
     current_state: SystemMode,
+    time_service: &'a mut TimeService,
+    display_service: &'a mut DisplayService,
+    network_service: &'a mut NetworkService,
+    ble_service: &'a mut BLEService,
+    power_manager: &'a mut PowerManager,
+    audio_service: &'a mut AudioService,
 }
 
-impl StateManager {
-    pub fn new(event_receiver: LxxChannelReceiver<'static, SystemEvent>) -> Self {
+impl<'a> StateManager<'a> {
+    pub fn new(
+        event_receiver: LxxChannelReceiver<'a, SystemEvent>,
+        time_service: &'a mut TimeService,
+        display_service: &'a mut DisplayService,
+        network_service: &'a mut NetworkService,
+        ble_service: &'a mut BLEService,
+        power_manager: &'a mut PowerManager,
+        audio_service: &'a mut AudioService,
+    ) -> Self {
         Self {
             current_state: SystemMode::DeepSleep,
             event_channel: event_receiver,
+            time_service,
+            display_service,
+            network_service,
+            ble_service,
+            power_manager,
+            audio_service,
         }
     }
 
@@ -28,6 +52,8 @@ impl StateManager {
 
     pub async fn stop(&mut self) -> SystemResult<()> {
         info!("Stopping state manager");
+        self.ble_service.stop().await?;
+        let _ = self.network_service.disconnect().await;
         Ok(())
     }
 
@@ -51,14 +77,96 @@ impl StateManager {
     }
 
     pub async fn transition_to(&mut self, mode: SystemMode) -> SystemResult<()> {
-        info!("Transitioning from {:?} to {:?}", self.current_state, mode);
-
         if !self.can_transition(self.current_state, mode) {
+            warn!(
+                "Invalid transition from {:?} to {:?}",
+                self.current_state, mode
+            );
             return Err(SystemError::HardwareError(HardwareError::InvalidParameter));
         }
 
+        info!("Transitioning from {:?} to {:?}", self.current_state, mode);
+
+        self.on_state_exit(self.current_state).await?;
+
         self.current_state = mode;
+
+        Box::pin(self.on_state_enter(mode)).await?;
+
         info!("Transitioned to {:?}", mode);
+        Ok(())
+    }
+
+    async fn on_state_enter(&mut self, mode: SystemMode) -> SystemResult<()> {
+        match mode {
+            SystemMode::DeepSleep => {
+                info!("Entering deep sleep mode");
+                self.stop().await?;
+            }
+            SystemMode::BleConnection => {
+                info!("Entering BLE connection mode");
+                self.ble_service.start().await?;
+            }
+            SystemMode::NormalWork => {
+                info!("Entering normal work mode");
+                self.execute_scheduled_tasks().await?;
+            }
+        }
+        Ok(())
+    }
+
+    async fn on_state_exit(&mut self, mode: SystemMode) -> SystemResult<()> {
+        match mode {
+            SystemMode::DeepSleep => {
+                info!("Exiting deep sleep mode");
+            }
+            SystemMode::BleConnection => {
+                info!("Exiting BLE connection mode");
+                self.ble_service.stop().await?;
+            }
+            SystemMode::NormalWork => {
+                info!("Exiting normal work mode");
+            }
+        }
+        Ok(())
+    }
+
+    async fn execute_scheduled_tasks(&mut self) -> SystemResult<()> {
+        info!("Executing scheduled tasks");
+
+        let is_low_battery = self.power_manager.is_low_battery().await?;
+        let schedule = self.time_service.calculate_wakeup_schedule().await?;
+
+        if schedule.scheduled_tasks.network_sync && !is_low_battery {
+            info!("Performing network sync");
+            match self.network_service.sync().await {
+                Ok(result) => {
+                    if result.time_synced {
+                        info!("Time synchronized successfully");
+                    }
+                    if result.weather_synced {
+                        info!("Weather synchronized successfully");
+                    }
+                }
+                Err(e) => {
+                    warn!("Network sync failed: {:?}", e);
+                }
+            }
+        }
+
+        if schedule.scheduled_tasks.display_refresh {
+            info!("Refreshing display");
+            self.display_service.refresh().await?;
+        }
+
+        if schedule.scheduled_tasks.alarm_check {
+            info!("Checking alarms");
+        }
+
+        let wakeup_time = self.time_service.calculate_next_wakeup_time().await?;
+        info!("Next wakeup scheduled at: {:?}", wakeup_time);
+
+        self.transition_to(SystemMode::DeepSleep).await?;
 
         Ok(())
     }
@@ -83,10 +191,6 @@ impl StateManager {
         match event {
             WakeupEvent::WakeFromDeepSleep => {
                 info!("Waking from deep sleep");
-                self.transition_to(SystemMode::NormalWork).await?;
-            }
-            WakeupEvent::WakeByLPU => {
-                info!("Waking by LPU timer");
                 self.transition_to(SystemMode::NormalWork).await?;
             }
             WakeupEvent::WakeByButton => {
