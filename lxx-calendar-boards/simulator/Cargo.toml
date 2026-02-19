@@ -13,6 +13,7 @@ lxx-calendar-common = { path = "../../lxx-calendar-common" }
 lxx-calendar-core = { path = "../../lxx-calendar-core" }
 static_cell = { workspace = true }
 simulated-wdt = { path = "../../libs/simulated-wdt" }
+simulated-rtc = { path = "../../libs/simulated-rtc" }
 epd-yrd0750ryf665f60 = { version = "0.1.0", path = "../../libs/epd", features = ["simulator"] }
 critical-section = { workspace = true, features = ["std"] }
 embedded-hal-mock = { path = "../../libs/embedded-hal-mock", features = ["eh1", "embedded-hal-async"] }

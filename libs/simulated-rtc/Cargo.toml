@@ -1,0 +1,12 @@
+[package]
+name = "simulated-rtc"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+embassy-executor = { workspace = true }
+embassy-time = { workspace = true }
+log = { workspace = true }
+
+[dependencies.lxx-calendar-common]
+path = "../../lxx-calendar-common"

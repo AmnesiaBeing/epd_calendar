@@ -1,6 +1,6 @@
 use embassy_sync::channel::{Channel, Receiver, Sender};
 
-use super::Watchdog;
+use super::{BuzzerDriver, Rtc, Watchdog};
 
 const CAP: usize = 10;
 
@@ -34,6 +34,12 @@ pub trait PlatformTrait: Sized {
 
     /// EPD 设备
     type EpdDevice;
+
+    /// 音频/蜂鸣器设备
+    type AudioDevice: BuzzerDriver;
+
+    /// RTC 设备
+    type RtcDevice: Rtc;
 }
 
 pub struct PlatformContext<C: PlatformTrait + Sized> {
@@ -41,4 +47,8 @@ pub struct PlatformContext<C: PlatformTrait + Sized> {
     pub sys_watch_dog: C::WatchdogDevice,
     /// EPD 设备
     pub epd: C::EpdDevice,
+    /// 音频设备
+    pub audio: C::AudioDevice,
+    /// RTC 设备
+    pub rtc: C::RtcDevice,
 }
