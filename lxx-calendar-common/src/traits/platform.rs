@@ -1,6 +1,6 @@
 use embassy_sync::channel::{Channel, Receiver, Sender};
 
-use super::{BuzzerDriver, Rtc, Watchdog};
+use super::{BuzzerDriver, NetworkStack, Rtc, Watchdog, WifiController};
 
 const CAP: usize = 10;
 
@@ -40,6 +40,12 @@ pub trait PlatformTrait: Sized {
 
     /// RTC 设备
     type RtcDevice: Rtc;
+
+    /// WiFi 控制器（物理层）
+    type WifiDevice: WifiController;
+
+    /// 网络协议栈
+    type NetworkStack: NetworkStack;
 }
 
 pub struct PlatformContext<C: PlatformTrait + Sized> {
@@ -51,4 +57,8 @@ pub struct PlatformContext<C: PlatformTrait + Sized> {
     pub audio: C::AudioDevice,
     /// RTC 设备
     pub rtc: C::RtcDevice,
+    /// WiFi 设备
+    pub wifi: C::WifiDevice,
+    /// 网络协议栈
+    pub network: C::NetworkStack,
 }
