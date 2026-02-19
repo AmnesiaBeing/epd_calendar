@@ -207,6 +207,92 @@ impl Rtc for Esp32Rtc {
     }
 }
 
+pub struct Esp32Wifi {
+    connected: bool,
+}
+
+impl Esp32Wifi {
+    pub fn new() -> Self {
+        Self { connected: false }
+    }
+}
+
+impl Default for Esp32Wifi {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[async_trait]
+impl WifiController for Esp32Wifi {
+    type Error = core::convert::Infallible;
+
+    async fn connect_sta(&mut self, ssid: &str, password: &str) -> Result<(), Self::Error> {
+        info!("ESP32 WiFi connecting to SSID: {}", ssid);
+        // TODO: 使用 esp-radio 实现真正的 WiFi 连接
+        // 需要使用 esp_radio::wifi 模块来连接 WiFi
+        // 示例代码：
+        // let config = ClientConfiguration { ... };
+        // esp_radio::wifi::sta_connect(config).await?;
+        self.connected = true;
+        info!("ESP32 WiFi connected (stub)");
+        Ok(())
+    }
+
+    async fn disconnect(&mut self) -> Result<(), Self::Error> {
+        info!("ESP32 WiFi disconnecting");
+        self.connected = false;
+        Ok(())
+    }
+
+    fn is_connected(&self) -> bool {
+        self.connected
+    }
+
+    async fn get_rssi(&self) -> Result<i32, Self::Error> {
+        Ok(-50)
+    }
+}
+
+pub struct Esp32Network;
+
+impl Esp32Network {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl Default for Esp32Network {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[async_trait]
+impl NetworkStack for Esp32Network {
+    type Error = core::convert::Infallible;
+
+    async fn dns_query(&self, _host: &str) -> Result<Vec<core::net::IpAddr>, Self::Error> {
+        // TODO: 使用 embassy-net 的 DNS 功能
+        // 需要获取 embassy_net::Stack 的引用
+        info!("DNS query (stub)");
+        Ok(vec![])
+    }
+
+    fn is_link_up(&self) -> bool {
+        true
+    }
+
+    async fn wait_config_up(&self) -> Result<(), Self::Error> {
+        info!("Waiting for network config (stub)");
+        Ok(())
+    }
+
+    fn is_config_up(&self) -> bool {
+        true
+    }
+}
+
 pub struct Platform;
 
 impl PlatformTrait for Platform {
@@ -228,6 +314,10 @@ impl PlatformTrait for Platform {
     type AudioDevice = Esp32Buzzer;
 
     type RtcDevice = Esp32Rtc;
+
+    type WifiDevice = Esp32Wifi;
+
+    type NetworkStack = Esp32Network;
 
     async fn init(_spawner: embassy_executor::Spawner) -> PlatformContext<Self> {
         static SPI_BUS_MUTEX: StaticCell<
@@ -306,11 +396,16 @@ impl PlatformTrait for Platform {
         let mut rtc = Esp32Rtc::new();
         rtc.initialize().await.ok();
 
+        let wifi = Esp32Wifi::new();
+        let network = Esp32Network::new();
+
         PlatformContext {
             sys_watch_dog,
             epd,
             audio,
             rtc,
+            wifi,
+            network,
         }
     }
 
