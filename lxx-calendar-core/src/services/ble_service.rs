@@ -25,15 +25,15 @@ impl BLEService {
 
     pub async fn initialize(&mut self) -> SystemResult<()> {
         info!("Initializing BLE service");
-        
+
         // 预留BLE初始化接口
         // 实际实现需要在ESP32-C6上初始化WiFi BT Coexistence和BLE外设
-        
+
         self.initialized = true;
         self.enabled = true;
-        
+
         info!("BLE service initialized");
-        
+
         Ok(())
     }
 
@@ -41,29 +41,29 @@ impl BLEService {
         if !self.initialized {
             return Err(SystemError::HardwareError(HardwareError::NotInitialized));
         }
-        
+
         if !self.enabled {
             info!("BLE disabled, skipping start");
             return Ok(());
         }
-        
+
         if self.advertising {
             info!("BLE already advertising");
             return Ok(());
         }
-        
+
         info!("Starting BLE advertising");
-        
+
         // 预留BLE广播接口
         // 实际实现需要：
         // 1. 配置BLE广播参数
         // 2. 设置广播数据（设备名称、服务UUID）
         // 3. 开始广播
-        
+
         self.advertising = true;
-        
+
         info!("BLE advertising started");
-        
+
         Ok(())
     }
 
@@ -71,23 +71,23 @@ impl BLEService {
         if !self.initialized {
             return Err(SystemError::HardwareError(HardwareError::NotInitialized));
         }
-        
+
         if !self.advertising && !self.connected {
             info!("BLE not advertising or connected");
             return Ok(());
         }
-        
+
         info!("Stopping BLE");
-        
+
         // 预留BLE停止接口
         // 实际实现需要停止广播和断开连接
-        
+
         self.advertising = false;
         self.connected = false;
         self.ota_mode = false;
-        
+
         info!("BLE stopped");
-        
+
         Ok(())
     }
 
@@ -109,33 +109,33 @@ impl BLEService {
         if !self.initialized {
             return Err(SystemError::HardwareError(HardwareError::NotInitialized));
         }
-        
+
         if !self.connected {
             return Err(SystemError::ServiceError(ServiceError::InvalidState));
         }
-        
+
         info!("Processing BLE config data ({} bytes)", data.len());
-        
+
         // 预留配置解析接口
         // 实际实现需要：
         // 1. 解析配置数据（JSON格式）
         // 2. 验证配置完整性
         // 3. 加密存储敏感信息
-        
+
         // 示例配置解析
         let change = self.parse_config_data(data)?;
-        
+
         self.configured = true;
-        
+
         info!("Config processed: {:?}", change);
-        
+
         Ok(change)
     }
 
     fn parse_config_data(&self, data: &[u8]) -> SystemResult<ConfigChange> {
         // 预留配置解析逻辑
         // 实际实现需要根据配置类型返回对应的ConfigChange
-        
+
         // 简单示例：根据数据长度猜测配置类型
         if data.len() < 10 {
             Ok(ConfigChange::TimeConfig)
@@ -150,19 +150,19 @@ impl BLEService {
         if !self.initialized {
             return Err(SystemError::HardwareError(HardwareError::NotInitialized));
         }
-        
+
         info!("Starting OTA mode");
-        
+
         // 预留OTA模式接口
         // 实际实现需要：
         // 1. 进入OTA升级模式
         // 2. 配置OTA服务UUID
         // 3. 准备固件接收缓冲区
-        
+
         self.ota_mode = true;
-        
+
         info!("OTA mode started");
-        
+
         Ok(())
     }
 
@@ -170,19 +170,19 @@ impl BLEService {
         if !self.initialized {
             return Err(SystemError::HardwareError(HardwareError::NotInitialized));
         }
-        
+
         if !self.ota_mode {
             return Err(SystemError::HardwareError(HardwareError::InvalidParameter));
         }
-        
+
         // 预留固件接收接口
         // 实际实现需要：
         // 1. 接收固件数据块
         // 2. 写入固件缓冲区
         // 3. 验证数据完整性
-        
+
         info!("Receiving firmware data ({} bytes)", data.len());
-        
+
         Ok(())
     }
 
@@ -190,24 +190,24 @@ impl BLEService {
         if !self.initialized {
             return Err(SystemError::HardwareError(HardwareError::NotInitialized));
         }
-        
+
         if !self.ota_mode {
             return Err(SystemError::HardwareError(HardwareError::InvalidParameter));
         }
-        
+
         info!("Finishing OTA");
-        
+
         // 预留OTA完成接口
         // 实际实现需要：
         // 1. 校验固件完整性
         // 2. 写入备用固件分区
         // 3. 设置启动标记
         // 4. 触发重启
-        
+
         self.ota_mode = false;
-        
+
         info!("OTA completed, ready to reboot");
-        
+
         Ok(())
     }
 
@@ -215,14 +215,14 @@ impl BLEService {
         if !self.initialized {
             return Err(SystemError::HardwareError(HardwareError::NotInitialized));
         }
-        
+
         info!("Canceling OTA");
-        
+
         // 预留OTA取消接口
         // 实际实现需要清理固件缓冲区
-        
+
         self.ota_mode = false;
-        
+
         Ok(())
     }
 
@@ -237,11 +237,11 @@ impl BLEService {
         if !self.initialized {
             return Err(SystemError::HardwareError(HardwareError::NotInitialized));
         }
-        
+
         self.timeout_minutes = minutes;
-        
+
         info!("BLE timeout set to {} minutes", minutes);
-        
+
         Ok(())
     }
 
@@ -249,15 +249,15 @@ impl BLEService {
         if !self.initialized {
             return Err(SystemError::HardwareError(HardwareError::NotInitialized));
         }
-        
+
         self.enabled = enabled;
-        
+
         if !enabled {
             self.stop().await?;
         }
-        
+
         info!("BLE enabled: {}", enabled);
-        
+
         Ok(())
     }
 
@@ -265,14 +265,14 @@ impl BLEService {
         if !self.initialized {
             return Err(SystemError::HardwareError(HardwareError::NotInitialized));
         }
-        
+
         info!("Entering BLE pairing mode");
-        
+
         // 未配网时显示二维码
         // 实际实现需要生成配网二维码
-        
+
         self.start().await?;
-        
+
         Ok(())
     }
 
@@ -280,11 +280,11 @@ impl BLEService {
         if !self.initialized {
             return Err(SystemError::HardwareError(HardwareError::NotInitialized));
         }
-        
+
         info!("Exiting BLE pairing mode");
-        
+
         self.stop().await?;
-        
+
         Ok(())
     }
 
@@ -292,7 +292,7 @@ impl BLEService {
         if !self.initialized {
             return Err(SystemError::HardwareError(HardwareError::NotInitialized));
         }
-        
+
         Ok(heapless::String::try_from("LXX-Calendar").unwrap_or_default())
     }
 }

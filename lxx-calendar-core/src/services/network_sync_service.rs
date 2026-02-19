@@ -1,6 +1,6 @@
 use lxx_calendar_common::*;
 
-pub struct NetworkService {
+pub struct NetworkSyncService<R: Rtc> {
     initialized: bool,
     connected: bool,
     last_sync_time: Option<u64>,
@@ -9,9 +9,10 @@ pub struct NetworkService {
     retry_count: u8,
     max_retries: u8,
     low_power_mode: bool,
+    rtc: Option<R>,
 }
 
-impl NetworkService {
+impl<R: Rtc> NetworkSyncService<R> {
     pub fn new() -> Self {
         Self {
             initialized: false,
@@ -22,17 +23,32 @@ impl NetworkService {
             retry_count: 0,
             max_retries: 2,
             low_power_mode: false,
+            rtc: None,
+        }
+    }
+
+    pub fn with_rtc(rtc: R) -> Self {
+        Self {
+            initialized: false,
+            connected: false,
+            last_sync_time: None,
+            cached_weather: None,
+            sync_interval_minutes: 120,
+            retry_count: 0,
+            max_retries: 2,
+            low_power_mode: false,
+            rtc: Some(rtc),
         }
     }
 
     pub async fn initialize(&mut self) -> SystemResult<()> {
-        info!("Initializing network service");
+        info!("Initializing network sync service");
         
         self.retry_count = 0;
         self.max_retries = if self.low_power_mode { 1 } else { 2 };
         self.initialized = true;
         
-        info!("Network service initialized");
+        info!("Network sync service initialized");
         Ok(())
     }
 
@@ -85,6 +101,7 @@ impl NetworkService {
         Ok(SyncResult {
             time_synced,
             weather_synced,
+            quote_updated: false,
             sync_duration,
         })
     }
@@ -94,7 +111,68 @@ impl NetworkService {
             self.connect().await?;
         }
 
-        info!("SNTP time sync not implemented - using system time");
+        // TODO: SNTP 时间同步实现
+        // 需要使用 sntpc 库通过 embassy-net 进行时间同步
+        // 
+        // 示例代码（需要在实际平台中实现）：
+        // ```rust
+        // use embassy_net::udp::UdpSocket;
+        // use sntpc::{get_time, NtpContext, NtpTimestampGenerator};
+        // use sntpc_net_embassy::UdpSocketWrapper;
+        // use core::net::SocketAddr;
+        //
+        // // 国内 NTP 服务器 (阿里云)
+        // const NTP_SERVER: &str = "ntp.aliyun.com";
+        // // 备选服务器：
+        // // - time.pool.aliyun.com
+        // // - ntp.tencent.com
+        // // - cn.pool.ntp.org
+        //
+        // // 创建 UDP socket
+        // let mut rx_meta = [PacketMetadata::EMPTY; 4];
+        // let mut rx_buffer = [0; 256];
+        // let mut tx_meta = [PacketMetadata::EMPTY; 4];
+        // let mut tx_buffer = [0; 256];
+        // let mut socket = UdpSocket::new(
+        //     stack,
+        //     &mut rx_meta,
+        //     &mut rx_buffer,
+        //     &mut tx_meta,
+        //     &mut tx_buffer
+        // );
+        // socket.bind(123)?;
+        // let wrapper = UdpSocketWrapper::new(socket);
+        //
+        // // DNS 解析 NTP 服务器地址
+        // let ntp_addrs = stack.dns_query(NTP_SERVER, DnsQueryType::A).await?;
+        // let addr: IpAddr = ntp_addrs[0].into();
+        // let ntp_addr = SocketAddr::from((addr, 123));
+        //
+        // // 获取时间
+        // let context = NtpContext::new(TimestampGenerator::default());
+        // let result = get_time(ntp_addr, &wrapper, context).await?;
+        // 
+        // // 转换为 Unix 时间戳
+        // let unix_timestamp = result.timestamp();
+        //
+        // // 写入 RTC 硬件外设
+        // if let Some(ref mut rtc) = self.rtc {
+        //     rtc.set_time(unix_timestamp).await?;
+        // }
+        // ```
+        
+        info!("SNTP time sync - implementation pending (requires embassy-net stack)");
+        
+        // 模拟时间同步成功的演示代码
+        // 实际使用时，在 SNTP 成功后写入 RTC
+        if let Some(ref mut rtc) = self.rtc {
+            let simulated_timestamp = 1739932800i64; // 2025-03-20 00:00:00 UTC
+            if let Err(e) = rtc.set_time(simulated_timestamp).await {
+                warn!("Failed to write time to RTC: {:?}", e);
+            } else {
+                info!("Time written to RTC: {}", simulated_timestamp);
+            }
+        }
         
         Ok(())
     }
@@ -242,9 +320,9 @@ impl NetworkService {
         self.max_retries = if enabled { 1 } else { 2 };
         
         if enabled {
-            info!("Network service entered low power mode");
+            info!("Network sync service entered low power mode");
         } else {
-            info!("Network service exited low power mode");
+            info!("Network sync service exited low power mode");
         }
         
         Ok(())

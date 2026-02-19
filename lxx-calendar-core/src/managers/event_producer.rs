@@ -8,9 +8,7 @@ pub struct EventProducer {
 
 impl EventProducer {
     pub fn new() -> Self {
-        Self {
-            initialized: false,
-        }
+        Self { initialized: false }
     }
 
     pub async fn initialize(&mut self) {

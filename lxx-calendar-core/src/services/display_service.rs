@@ -1,6 +1,6 @@
-use lxx_calendar_common::*;
 use embassy_time::Duration;
 use heapless::String;
+use lxx_calendar_common::*;
 
 pub struct DisplayService {
     initialized: bool,
@@ -77,11 +77,7 @@ impl DisplayService {
                     embassy_time::Timer::after(Duration::from_secs(10)).await;
 
                     self.state = RefreshState::Idle;
-                    self.last_refresh_time = Some(
-                        embassy_time::Instant::now()
-                            .elapsed()
-                            .as_secs(),
-                    );
+                    self.last_refresh_time = Some(embassy_time::Instant::now().elapsed().as_secs());
                     info!("Display refreshed successfully");
                 }
                 Err(e) => {

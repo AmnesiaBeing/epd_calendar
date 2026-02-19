@@ -27,15 +27,18 @@ impl PowerManager {
 
     pub async fn initialize(&mut self) -> SystemResult<()> {
         info!("Initializing power manager");
-        
+
         self.battery_level = self.read_battery_level().await?;
         self.charging = self.check_charging_status().await?;
         self.update_power_mode();
-        
+
         self.initialized = true;
-        
-        info!("Power manager initialized, battery: {}%", self.battery_level);
-        
+
+        info!(
+            "Power manager initialized, battery: {}%",
+            self.battery_level
+        );
+
         Ok(())
     }
 
@@ -54,13 +57,13 @@ impl PowerManager {
 
     fn update_power_mode(&mut self) {
         let was_low_power = self.low_power_mode;
-        
+
         if self.battery_level < self.low_battery_threshold {
             self.low_power_mode = true;
         } else if self.battery_level >= self.low_battery_threshold + 5 {
             self.low_power_mode = false;
         }
-        
+
         if was_low_power != self.low_power_mode {
             info!("Power mode changed: low_power_mode={}", self.low_power_mode);
         }
@@ -77,20 +80,20 @@ impl PowerManager {
         if !self.initialized {
             return Err(SystemError::HardwareError(HardwareError::NotInitialized));
         }
-        
+
         let raw_level = self.read_battery_level().await?;
         let calibrated_level = ((raw_level as i32) + self.calibration_offset).clamp(0, 100) as u8;
-        
+
         let was_low_power = self.low_power_mode;
         self.battery_level = calibrated_level;
         self.charging = self.check_charging_status().await?;
-        
+
         self.update_power_mode();
-        
+
         if was_low_power != self.low_power_mode {
             info!("Power state changed due to battery update");
         }
-        
+
         Ok(self.battery_level)
     }
 
@@ -119,12 +122,12 @@ impl PowerManager {
         if !self.initialized {
             return Err(SystemError::HardwareError(HardwareError::NotInitialized));
         }
-        
+
         if !self.low_power_mode {
             self.low_power_mode = true;
             warn!("Entering low power mode manually");
         }
-        
+
         Ok(())
     }
 
@@ -132,12 +135,12 @@ impl PowerManager {
         if !self.initialized {
             return Err(SystemError::HardwareError(HardwareError::NotInitialized));
         }
-        
+
         if self.low_power_mode && self.battery_level >= self.low_battery_threshold {
             self.low_power_mode = false;
             info!("Exiting low power mode");
         }
-        
+
         Ok(())
     }
 
@@ -145,16 +148,16 @@ impl PowerManager {
         if !self.initialized {
             return Err(SystemError::HardwareError(HardwareError::NotInitialized));
         }
-        
+
         if threshold > 100 {
             return Err(SystemError::HardwareError(HardwareError::InvalidParameter));
         }
-        
+
         self.low_battery_threshold = threshold;
         self.update_power_mode();
-        
+
         info!("Low battery threshold set to {}%", threshold);
-        
+
         Ok(())
     }
 
@@ -162,15 +165,15 @@ impl PowerManager {
         if !self.initialized {
             return Err(SystemError::HardwareError(HardwareError::NotInitialized));
         }
-        
+
         if threshold > 100 || threshold >= self.low_battery_threshold {
             return Err(SystemError::HardwareError(HardwareError::InvalidParameter));
         }
-        
+
         self.critical_battery_threshold = threshold;
-        
+
         info!("Critical battery threshold set to {}%", threshold);
-        
+
         Ok(())
     }
 
@@ -178,13 +181,13 @@ impl PowerManager {
         if !self.initialized {
             return Err(SystemError::HardwareError(HardwareError::NotInitialized));
         }
-        
+
         let current_raw = self.read_battery_level().await?;
         self.calibration_offset = (actual_level as i32) - (current_raw as i32);
         self.last_calibration_time = Some(embassy_time::Instant::now().elapsed().as_secs());
-        
+
         info!("Battery calibrated: offset={}", self.calibration_offset);
-        
+
         Ok(())
     }
 
@@ -192,7 +195,7 @@ impl PowerManager {
         if !self.initialized {
             return Err(SystemError::HardwareError(HardwareError::NotInitialized));
         }
-        
+
         Ok(PowerStatus {
             battery_level: self.battery_level,
             charging: self.charging,

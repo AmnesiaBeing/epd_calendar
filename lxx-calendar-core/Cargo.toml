@@ -13,7 +13,9 @@ defmt-rtt = { workspace = true, optional = true }
 heapless = { workspace = true }
 
 # 子项目依赖
-lxx-calendar-common = { path = "../lxx-calendar-common", default-features = false, features = ["log"] }
+lxx-calendar-common = { path = "../lxx-calendar-common", default-features = false, features = [
+    "log",
+] }
 lxx-calendar-graphics = { path = "../lxx-calendar-graphics" }
 lxx-calendar-quotes = { path = "../lxx-calendar-quotes" }
 sxtwl-rs = { path = "../libs/sxtwl-rs", features = ["festival"] }
@@ -25,3 +27,10 @@ embassy-time = { workspace = true }
 embassy-net = { workspace = true }
 embassy-embedded-hal = { workspace = true }
 embassy-futures = "0.1.2"
+
+# 随机数
+getrandom = { workspace = true }
+
+# SNTP时间同步
+sntpc = { workspace = true }
+sntpc-net-embassy = { workspace = true }

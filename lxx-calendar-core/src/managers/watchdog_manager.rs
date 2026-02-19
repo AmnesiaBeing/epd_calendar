@@ -21,10 +21,12 @@ impl<W: Watchdog> WatchdogManager<W> {
         info!("Initializing watchdog manager");
 
         if let Some(ref mut wdt) = self.wdt {
-            wdt.enable().map_err(|_| SystemError::HardwareError(HardwareError::NotInitialized))?;
+            wdt.enable()
+                .map_err(|_| SystemError::HardwareError(HardwareError::NotInitialized))?;
             wdt.set_timeout(self.timeout_ms as u32)
                 .map_err(|_| SystemError::HardwareError(HardwareError::NotInitialized))?;
-            wdt.feed().map_err(|_| SystemError::HardwareError(HardwareError::NotInitialized))?;
+            wdt.feed()
+                .map_err(|_| SystemError::HardwareError(HardwareError::NotInitialized))?;
         }
 
         self.initialized = true;

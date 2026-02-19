@@ -46,5 +46,6 @@ pub enum WeatherCondition {
 pub struct SyncResult {
     pub time_synced: bool,
     pub weather_synced: bool,
+    pub quote_updated: bool,
     pub sync_duration: embassy_time::Duration,
 }
