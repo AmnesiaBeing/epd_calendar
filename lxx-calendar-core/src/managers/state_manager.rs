@@ -1,42 +1,39 @@
 use alloc::boxed::Box;
-use lxx_calendar_common::*;
 use lxx_calendar_common::Watchdog;
+use lxx_calendar_common::*;
 
 use crate::managers::WatchdogManager;
 use crate::services::{
     audio_service::AudioService, ble_service::BLEService, display_service::DisplayService,
-    network_service::NetworkService, power_service::PowerManager, time_service::TimeService,
+    power_service::PowerManager, time_service::TimeService,
 };
 
-pub struct StateManager<'a, W: Watchdog> {
+pub struct StateManager<'a, P: PlatformTrait> {
     event_channel: LxxChannelReceiver<'a, SystemEvent>,
     current_state: SystemMode,
-    time_service: &'a mut TimeService,
+    time_service: &'a mut TimeService<P::RtcDevice>,
     display_service: &'a mut DisplayService,
-    network_service: &'a mut NetworkService,
     ble_service: &'a mut BLEService,
     power_manager: &'a mut PowerManager,
-    audio_service: &'a mut AudioService,
-    watchdog: WatchdogManager<W>,
+    audio_service: &'a mut AudioService<P::AudioDevice>,
+    watchdog: WatchdogManager<P::WatchdogDevice>,
 }
 
-impl<'a, W: Watchdog> StateManager<'a, W> {
+impl<'a, P: PlatformTrait> StateManager<'a, P> {
     pub fn new(
         event_receiver: LxxChannelReceiver<'a, SystemEvent>,
-        time_service: &'a mut TimeService,
+        time_service: &'a mut TimeService<P::RtcDevice>,
         display_service: &'a mut DisplayService,
-        network_service: &'a mut NetworkService,
         ble_service: &'a mut BLEService,
         power_manager: &'a mut PowerManager,
-        audio_service: &'a mut AudioService,
-        watchdog_device: W,
+        audio_service: &'a mut AudioService<P::AudioDevice>,
+        watchdog_device: P::WatchdogDevice,
     ) -> Self {
         Self {
             current_state: SystemMode::DeepSleep,
             event_channel: event_receiver,
             time_service,
             display_service,
-            network_service,
             ble_service,
             power_manager,
             audio_service,
@@ -59,7 +56,6 @@ impl<'a, W: Watchdog> StateManager<'a, W> {
     pub async fn stop(&mut self) -> SystemResult<()> {
         info!("Stopping state manager");
         self.ble_service.stop().await?;
-        let _ = self.network_service.disconnect().await;
         Ok(())
     }
 
@@ -139,29 +135,11 @@ impl<'a, W: Watchdog> StateManager<'a, W> {
 
     async fn execute_scheduled_tasks(&mut self) -> SystemResult<()> {
         info!("Executing scheduled tasks");
-        
+
         self.watchdog.start_task().await;
 
         let is_low_battery = self.power_manager.is_low_battery().await?;
         let schedule = self.time_service.calculate_wakeup_schedule().await?;
-
-        if schedule.scheduled_tasks.network_sync && !is_low_battery {
-            info!("Performing network sync");
-            self.watchdog.feed();
-            match self.network_service.sync().await {
-                Ok(result) => {
-                    if result.time_synced {
-                        info!("Time synchronized successfully");
-                    }
-                    if result.weather_synced {
-                        info!("Weather synchronized successfully");
-                    }
-                }
-                Err(e) => {
-                    warn!("Network sync failed: {:?}", e);
-                }
-            }
-        }
 
         if schedule.scheduled_tasks.display_refresh {
             info!("Refreshing display");
@@ -178,7 +156,7 @@ impl<'a, W: Watchdog> StateManager<'a, W> {
         info!("Next wakeup scheduled at: {:?}", wakeup_time);
 
         self.watchdog.end_task().await;
-        
+
         self.transition_to(SystemMode::DeepSleep).await?;
 
         Ok(())
