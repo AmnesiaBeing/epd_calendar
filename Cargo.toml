@@ -11,6 +11,7 @@ members = [
     "libs/sxtwl-rs",
     "libs/linux-embedded-hal",
     "libs/simulated-wdt",
+    "libs/simulated-rtc",
     "libs/embedded-hal-mock",
 ]
 default-members = [
@@ -86,7 +87,8 @@ reqwless = { version = "0.13.0", default-features = false, features = [
     "alloc",
     "log",
 ] }
-sntpc = { version = "0.8.1", default-features = false }
+sntpc = { git = "https://github.com/vpetrigo/sntpc", branch = "master", default-features = false }
+sntpc-net-embassy = { git = "https://github.com/vpetrigo/sntpc", branch = "master", default-features = false }
 
 # GZip解压
 miniz_oxide = "0.8.9"

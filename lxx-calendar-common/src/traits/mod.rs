@@ -1,13 +1,17 @@
 pub mod battery;
 pub mod buzzer;
 pub mod led;
+pub mod network;
 pub mod platform;
 pub mod rtc;
 pub mod watchdog;
+pub mod wifi;
 
 pub use battery::*;
 pub use buzzer::*;
 pub use led::*;
+pub use network::*;
 pub use platform::*;
 pub use rtc::*;
 pub use watchdog::*;
+pub use wifi::*;
