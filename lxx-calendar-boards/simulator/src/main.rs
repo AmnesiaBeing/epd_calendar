@@ -6,8 +6,8 @@ use embedded_hal_mock::eh1::{
 };
 use lxx_calendar_common::*;
 use lxx_calendar_core::main_task;
-use simulated_wdt::SimulatedWdt;
 use simulated_rtc::SimulatedRtc;
+use simulated_wdt::SimulatedWdt;
 
 pub struct SimulatorBuzzer;
 
@@ -33,6 +33,81 @@ impl BuzzerDriver for SimulatorBuzzer {
     }
 
     fn is_playing(&self) -> bool {
+        false
+    }
+}
+
+pub struct SimulatorWifi;
+
+impl SimulatorWifi {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl Default for SimulatorWifi {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl WifiController for SimulatorWifi {
+    type Error = core::convert::Infallible;
+
+    async fn connect_sta(&mut self, ssid: &str, _password: &str) -> Result<(), Self::Error> {
+        info!("[Simulator WiFi] Connecting to SSID: {} (stub)", ssid);
+        Ok(())
+    }
+
+    async fn disconnect(&mut self) -> Result<(), Self::Error> {
+        info!("[Simulator WiFi] Disconnecting (stub)");
+        Ok(())
+    }
+
+    fn is_connected(&self) -> bool {
+        false
+    }
+
+    async fn get_rssi(&self) -> Result<i32, Self::Error> {
+        Ok(0)
+    }
+}
+
+pub struct SimulatorNetwork;
+
+impl SimulatorNetwork {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl Default for SimulatorNetwork {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl NetworkStack for SimulatorNetwork {
+    type Error = core::convert::Infallible;
+
+    async fn dns_query(
+        &self,
+        _host: &str,
+    ) -> Result<std::vec::Vec<core::net::IpAddr>, Self::Error> {
+        info!("[Simulator Network] DNS query (stub)");
+        Ok(std::vec::Vec::new())
+    }
+
+    fn is_link_up(&self) -> bool {
+        false
+    }
+
+    async fn wait_config_up(&self) -> Result<(), Self::Error> {
+        info!("[Simulator Network] Waiting for config (stub)");
+        Ok(())
+    }
+
+    fn is_config_up(&self) -> bool {
         false
     }
 }
@@ -70,6 +145,10 @@ impl PlatformTrait for Platform {
 
     type RtcDevice = SimulatedRtc;
 
+    type WifiDevice = SimulatorWifi;
+
+    type NetworkStack = SimulatorNetwork;
+
     async fn init(spawner: Spawner) -> PlatformContext<Self> {
         let wdt = SimulatedWdt::new(5000);
         simulated_wdt::start_watchdog(&spawner, 5000);
@@ -85,11 +164,16 @@ impl PlatformTrait for Platform {
         let mut rtc = SimulatedRtc::new();
         rtc.initialize().await.ok();
 
+        let wifi = SimulatorWifi::new();
+        let network = SimulatorNetwork::new();
+
         PlatformContext {
             sys_watch_dog: wdt,
             epd: spi,
             audio,
             rtc,
+            wifi,
+            network,
         }
     }
 

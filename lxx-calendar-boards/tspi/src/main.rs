@@ -3,8 +3,8 @@ use epd_yrd0750ryf665f60::{prelude::WaveshareDisplay as _, yrd0750ryf665f60::Epd
 use linux_embedded_hal::{SpidevDevice, SysfsPin};
 use lxx_calendar_common::*;
 use lxx_calendar_core::main_task;
-use simulated_wdt::SimulatedWdt;
 use simulated_rtc::SimulatedRtc;
+use simulated_wdt::SimulatedWdt;
 
 pub struct LinuxBuzzer;
 
@@ -14,8 +14,6 @@ impl BuzzerDriver for LinuxBuzzer {
     fn play_tone(&mut self, frequency: u32, duration_ms: u32) -> Result<(), Self::Error> {
         // Linux: 通过 /sys/class/pwm 驱动 pwm-beeper
         // 如果不可用，则记录日志
-        info!("[Buzzer] Playing {}Hz for {}ms", frequency, duration_ms);
-
         // 实际实现可以使用 sysfs PWM:
         // echo 0 > /sys/class/pwm/pwmchip0/export
         // echo {frequency} > /sys/class/pwm/pwmchip0/pwm0/period
@@ -24,16 +22,119 @@ impl BuzzerDriver for LinuxBuzzer {
 
         std::thread::sleep(std::time::Duration::from_millis(duration_ms as u64));
 
+        todo!()
+    }
+}
+
+pub struct LinuxWifi {
+    connected: bool,
+    interface: Option<String>,
+}
+
+impl LinuxWifi {
+    pub fn new() -> Self {
+        Self {
+            connected: false,
+            interface: None,
+        }
+    }
+}
+
+impl Default for LinuxWifi {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl WifiController for LinuxWifi {
+    type Error = core::convert::Infallible;
+
+    async fn connect_sta(&mut self, ssid: &str, password: &str) -> Result<(), Self::Error> {
+        use wifi_rs::WiFi;
+        use wifi_rs::prelude::*;
+
+        info!("Linux WiFi connecting to SSID: {}", ssid);
+
+        let mut wifi = WiFi::new(None);
+
+        match wifi.connect(ssid, password) {
+            Ok(true) => {
+                info!("Linux WiFi connected successfully");
+                self.connected = true;
+                self.interface = Some("wlan0".to_string());
+            }
+            Ok(false) => {
+                warn!("Linux WiFi connection failed - invalid password");
+                self.connected = false;
+            }
+            Err(e) => {
+                error!("Linux WiFi connection error: {:?}", e);
+                self.connected = false;
+            }
+        }
+
         Ok(())
     }
 
-    fn stop(&mut self) -> Result<(), Self::Error> {
-        info!("[Buzzer] Stopped");
+    async fn disconnect(&mut self) -> Result<(), Self::Error> {
+        use wifi_rs::WiFi;
+        use wifi_rs::prelude::*;
+
+        info!("Linux WiFi disconnecting");
+
+        let mut wifi = WiFi::new(self.interface.as_ref().map(|s| Config {
+            interface: Some(s.as_str()),
+        }));
+
+        wifi.disconnect().ok();
+
+        self.connected = false;
         Ok(())
     }
 
-    fn is_playing(&self) -> bool {
-        false
+    fn is_connected(&self) -> bool {
+        self.connected
+    }
+
+    async fn get_rssi(&self) -> Result<i32, Self::Error> {
+        Ok(-50)
+    }
+}
+
+pub struct LinuxNetwork;
+
+impl LinuxNetwork {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl Default for LinuxNetwork {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl NetworkStack for LinuxNetwork {
+    type Error = core::convert::Infallible;
+
+    // async fn dns_query(&self, _host: &str) -> Result<Vec<core::net::IpAddr>, Self::Error> {
+    //     // TODO: 使用 embassy-net 的 DNS 功能
+    //     info!("Linux DNS query (stub)");
+    //     Ok(vec![])
+    // }
+
+    fn is_link_up(&self) -> bool {
+        true
+    }
+
+    async fn wait_config_up(&self) -> Result<(), Self::Error> {
+        info!("Linux network waiting for config (stub)");
+        Ok(())
+    }
+
+    fn is_config_up(&self) -> bool {
+        true
     }
 }
 
@@ -47,6 +148,10 @@ impl PlatformTrait for Platform {
     type AudioDevice = LinuxBuzzer;
 
     type RtcDevice = SimulatedRtc;
+
+    type WifiDevice = LinuxWifi;
+
+    type NetworkStack = LinuxNetwork;
 
     async fn init(spawner: Spawner) -> PlatformContext<Self> {
         let epd_busy = init_gpio(101, linux_embedded_hal::sysfs_gpio::Direction::In).unwrap();
@@ -68,11 +173,16 @@ impl PlatformTrait for Platform {
         let mut rtc = SimulatedRtc::new();
         rtc.initialize().await.ok();
 
+        let wifi = LinuxWifi::new();
+        let network = LinuxNetwork::new();
+
         PlatformContext {
             sys_watch_dog: wdt,
             epd: spi,
             audio,
             rtc,
+            wifi,
+            network,
         }
     }
 

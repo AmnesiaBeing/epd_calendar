@@ -1,6 +1,6 @@
+use core::sync::atomic::{AtomicI64, Ordering};
 use embassy_time::Instant;
 use lxx_calendar_common::Rtc;
-use core::sync::atomic::{AtomicI64, Ordering};
 
 static RTC_TIMESTAMP: AtomicI64 = AtomicI64::new(1704067200);
 
@@ -18,6 +18,22 @@ impl SimulatedRtc {
             boot_instant: None,
         }
     }
+
+    pub async fn initialize(&mut self) -> Result<(), core::convert::Infallible> {
+        let stored = RTC_TIMESTAMP.load(Ordering::SeqCst);
+        if stored > 0 {
+            self.base_timestamp = stored;
+        } else {
+            self.base_timestamp = 1704067200;
+        }
+        self.boot_instant = Some(Instant::now());
+        self.initialized = true;
+        log::info!(
+            "Simulated RTC initialized with base timestamp: {}",
+            self.base_timestamp
+        );
+        Ok(())
+    }
 }
 
 impl Default for SimulatedRtc {
@@ -29,24 +45,11 @@ impl Default for SimulatedRtc {
 impl Rtc for SimulatedRtc {
     type Error = core::convert::Infallible;
 
-    async fn initialize(&mut self) -> Result<(), Self::Error> {
-        let stored = RTC_TIMESTAMP.load(Ordering::SeqCst);
-        if stored > 0 {
-            self.base_timestamp = stored;
-        } else {
-            self.base_timestamp = 1704067200;
-        }
-        self.boot_instant = Some(Instant::now());
-        self.initialized = true;
-        log::info!("Simulated RTC initialized with base timestamp: {}", self.base_timestamp);
-        Ok(())
-    }
-
     async fn get_time(&self) -> Result<i64, Self::Error> {
         if !self.initialized {
             return Ok(0);
         }
-        
+
         if let Some(instant) = self.boot_instant {
             let elapsed = instant.elapsed().as_secs() as i64;
             Ok(self.base_timestamp + elapsed)

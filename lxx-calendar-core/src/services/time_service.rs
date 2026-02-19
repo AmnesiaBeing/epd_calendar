@@ -40,35 +40,8 @@ impl<R: Rtc> TimeService<R> {
     }
 
     pub async fn initialize(&mut self) -> SystemResult<()> {
-        let current_timestamp = if let Some(ref mut rtc) = self.rtc {
-            match rtc.initialize().await {
-                Ok(_) => {
-                    match rtc.get_time().await {
-                        Ok(ts) => {
-                            info!("Time initialized from RTC: {}", ts);
-                            ts
-                        }
-                        Err(_) => {
-                            let secs_since_boot = embassy_time::Instant::now().elapsed().as_secs();
-                            let base_timestamp: i64 = 1704067200;
-                            base_timestamp + secs_since_boot as i64
-                        }
-                    }
-                }
-                Err(_) => {
-                    let secs_since_boot = embassy_time::Instant::now().elapsed().as_secs();
-                    let base_timestamp: i64 = 1704067200;
-                    base_timestamp + secs_since_boot as i64
-                }
-            }
-        } else {
-            let secs_since_boot = embassy_time::Instant::now().elapsed().as_secs();
-            let base_timestamp: i64 = 1704067200;
-            base_timestamp + secs_since_boot as i64
-        };
+        // TODO: 初始化服务有关事项，如加载配置信息等
 
-        self.current_time = Some(self.timestamp_to_datetime(current_timestamp));
-        self.timezone_offset = 28800;
         self.initialized = true;
 
         Ok(())
@@ -88,7 +61,10 @@ impl<R: Rtc> TimeService<R> {
         }
     }
 
-    pub async fn set_time(&mut self, datetime: DateTime) -> SystemResult<()> {
+    pub async fn set_time(&mut self, datetime: DateTime) -> SystemResult<()>
+    where
+        R::Error: core::fmt::Debug,
+    {
         if !self.initialized {
             return Err(SystemError::HardwareError(HardwareError::NotInitialized));
         }
@@ -97,8 +73,9 @@ impl<R: Rtc> TimeService<R> {
         self.current_time = Some(datetime);
         self.invalidate_cache();
 
+        let timestamp = self.datetime_to_timestamp(&datetime);
+
         if let Some(ref mut rtc) = self.rtc {
-            let timestamp = self.datetime_to_timestamp(&datetime);
             if let Err(e) = rtc.set_time(timestamp).await {
                 warn!("Failed to write time to RTC: {:?}", e);
             }

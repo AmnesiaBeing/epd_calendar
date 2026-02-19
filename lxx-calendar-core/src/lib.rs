@@ -29,7 +29,7 @@ pub async fn main_task<P: PlatformTrait>(
     let event_receiver = event_channel_static.receiver();
     let event_sender = event_channel_static.sender();
 
-    let mut time_service = TimeService::new();
+    let mut time_service = TimeService::<P::RtcDevice>::new();
     let mut display_service = DisplayService::new();
     let mut ble_service = BLEService::new();
     let mut power_manager = PowerManager::new();
@@ -51,7 +51,7 @@ pub async fn main_task<P: PlatformTrait>(
         EventProducer::start_minute_timer(sender).await;
     };
 
-    let mut state_manager = StateManager::new(
+    let mut state_manager: StateManager<'_, P> = StateManager::new(
         event_receiver,
         &mut time_service,
         &mut display_service,

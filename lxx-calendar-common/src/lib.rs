@@ -1,6 +1,8 @@
 #![no_std]
 #![allow(async_fn_in_trait)]
 
+extern crate alloc;
+
 pub mod events;
 pub mod traits;
 pub mod types;

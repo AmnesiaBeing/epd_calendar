@@ -1,6 +1,6 @@
 #![allow(async_fn_in_trait)]
 
-use crate::SystemError;
+use crate::{HardwareError, SystemError, SystemResult};
 
 pub trait WifiController: Send + Sync {
     type Error;
@@ -28,10 +28,12 @@ pub struct WifiConfig {
 }
 
 impl WifiConfig {
-    pub fn new_sta(ssid: &str, password: &str) -> Result<Self, SystemError> {
+    pub fn new_sta(ssid: &str, password: &str) -> SystemResult<Self> {
         Ok(Self {
-            ssid: heapless::String::try_from(ssid).map_err(|_| SystemError::InvalidParameter)?,
-            password: heapless::String::try_from(password).map_err(|_| SystemError::InvalidParameter)?,
+            ssid: heapless::String::try_from(ssid)
+                .map_err(|_| SystemError::HardwareError(HardwareError::InvalidParameter))?,
+            password: heapless::String::try_from(password)
+                .map_err(|_| SystemError::HardwareError(HardwareError::InvalidParameter))?,
             mode: WifiMode::Sta,
         })
     }

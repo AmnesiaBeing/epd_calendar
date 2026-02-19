@@ -43,24 +43,27 @@ impl<R: Rtc> NetworkSyncService<R> {
 
     pub async fn initialize(&mut self) -> SystemResult<()> {
         info!("Initializing network sync service");
-        
+
         self.retry_count = 0;
         self.max_retries = if self.low_power_mode { 1 } else { 2 };
         self.initialized = true;
-        
+
         info!("Network sync service initialized");
         Ok(())
     }
 
-    pub async fn sync(&mut self) -> SystemResult<SyncResult> {
+    pub async fn sync(&mut self) -> SystemResult<SyncResult>
+    where
+        R::Error: core::fmt::Debug,
+    {
         if !self.initialized {
             return Err(SystemError::HardwareError(HardwareError::NotInitialized));
         }
 
         let start_time = embassy_time::Instant::now();
-        
+
         info!("Starting network sync");
-        
+
         let time_synced = match self.sync_time().await {
             Ok(_) => {
                 info!("Time synchronized successfully");
@@ -84,13 +87,17 @@ impl<R: Rtc> NetworkSyncService<R> {
         };
 
         self.last_sync_time = Some(embassy_time::Instant::now().elapsed().as_secs());
-        
+
         let sync_duration = start_time.elapsed();
-        
+
         if !time_synced || !weather_synced {
             self.retry_count += 1;
             if self.retry_count < self.max_retries {
-                info!("Sync failed, will retry (attempt {}/{})", self.retry_count + 1, self.max_retries);
+                info!(
+                    "Sync failed, will retry (attempt {}/{})",
+                    self.retry_count + 1,
+                    self.max_retries
+                );
             }
         } else {
             self.retry_count = 0;
@@ -106,14 +113,17 @@ impl<R: Rtc> NetworkSyncService<R> {
         })
     }
 
-    async fn sync_time(&mut self) -> SystemResult<()> {
+    async fn sync_time(&mut self) -> SystemResult<()>
+    where
+        R::Error: core::fmt::Debug,
+    {
         if !self.connected {
             self.connect().await?;
         }
 
         // TODO: SNTP 时间同步实现
         // 需要使用 sntpc 库通过 embassy-net 进行时间同步
-        // 
+        //
         // 示例代码（需要在实际平台中实现）：
         // ```rust
         // use embassy_net::udp::UdpSocket;
@@ -151,7 +161,7 @@ impl<R: Rtc> NetworkSyncService<R> {
         // // 获取时间
         // let context = NtpContext::new(TimestampGenerator::default());
         // let result = get_time(ntp_addr, &wrapper, context).await?;
-        // 
+        //
         // // 转换为 Unix 时间戳
         // let unix_timestamp = result.timestamp();
         //
@@ -160,9 +170,9 @@ impl<R: Rtc> NetworkSyncService<R> {
         //     rtc.set_time(unix_timestamp).await?;
         // }
         // ```
-        
+
         info!("SNTP time sync - implementation pending (requires embassy-net stack)");
-        
+
         // 模拟时间同步成功的演示代码
         // 实际使用时，在 SNTP 成功后写入 RTC
         if let Some(ref mut rtc) = self.rtc {
@@ -173,7 +183,7 @@ impl<R: Rtc> NetworkSyncService<R> {
                 info!("Time written to RTC: {}", simulated_timestamp);
             }
         }
-        
+
         Ok(())
     }
 
@@ -184,11 +194,11 @@ impl<R: Rtc> NetworkSyncService<R> {
         // 2. 解析JSON响应
         // 3. 缓存天气数据
         info!("Weather sync reserved - API not implemented");
-        
+
         // 使用默认天气数据
         let weather = self.get_default_weather()?;
         self.cached_weather = Some(weather);
-        
+
         Ok(())
     }
 
@@ -208,27 +218,33 @@ impl<R: Rtc> NetworkSyncService<R> {
             },
             forecast: {
                 let mut forecast = heapless::Vec::new();
-                forecast.push(ForecastDay {
-                    date: 0,
-                    high_temp: 25,
-                    low_temp: 18,
-                    condition: WeatherCondition::Sunny,
-                    humidity: 60,
-                }).ok();
-                forecast.push(ForecastDay {
-                    date: 86400,
-                    high_temp: 24,
-                    low_temp: 17,
-                    condition: WeatherCondition::Cloudy,
-                    humidity: 65,
-                }).ok();
-                forecast.push(ForecastDay {
-                    date: 172800,
-                    high_temp: 23,
-                    low_temp: 16,
-                    condition: WeatherCondition::LightRain,
-                    humidity: 80,
-                }).ok();
+                forecast
+                    .push(ForecastDay {
+                        date: 0,
+                        high_temp: 25,
+                        low_temp: 18,
+                        condition: WeatherCondition::Sunny,
+                        humidity: 60,
+                    })
+                    .ok();
+                forecast
+                    .push(ForecastDay {
+                        date: 86400,
+                        high_temp: 24,
+                        low_temp: 17,
+                        condition: WeatherCondition::Cloudy,
+                        humidity: 65,
+                    })
+                    .ok();
+                forecast
+                    .push(ForecastDay {
+                        date: 172800,
+                        high_temp: 23,
+                        low_temp: 16,
+                        condition: WeatherCondition::LightRain,
+                        humidity: 80,
+                    })
+                    .ok();
                 forecast
             },
             last_update: embassy_time::Instant::now().elapsed().as_secs() as i64,
@@ -264,10 +280,10 @@ impl<R: Rtc> NetworkSyncService<R> {
         }
 
         info!("Connecting to Wi-Fi");
-        
+
         self.connected = true;
         info!("Wi-Fi connected");
-        
+
         Ok(())
     }
 
@@ -281,11 +297,11 @@ impl<R: Rtc> NetworkSyncService<R> {
         }
 
         info!("Disconnecting from Wi-Fi");
-        
+
         self.connected = false;
-        
+
         info!("Wi-Fi disconnected");
-        
+
         Ok(())
     }
 
@@ -297,7 +313,7 @@ impl<R: Rtc> NetworkSyncService<R> {
             } else {
                 self.sync_interval_minutes as u64 * 60
             };
-            
+
             elapsed >= interval
         } else {
             true
@@ -308,23 +324,23 @@ impl<R: Rtc> NetworkSyncService<R> {
         if !self.initialized {
             return Err(SystemError::HardwareError(HardwareError::NotInitialized));
         }
-        
+
         self.sync_interval_minutes = minutes;
         info!("Sync interval set to {} minutes", minutes);
-        
+
         Ok(())
     }
 
     pub async fn set_low_power_mode(&mut self, enabled: bool) -> SystemResult<()> {
         self.low_power_mode = enabled;
         self.max_retries = if enabled { 1 } else { 2 };
-        
+
         if enabled {
             info!("Network sync service entered low power mode");
         } else {
             info!("Network sync service exited low power mode");
         }
-        
+
         Ok(())
     }
 
@@ -332,7 +348,10 @@ impl<R: Rtc> NetworkSyncService<R> {
         self.last_sync_time
     }
 
-    pub async fn force_sync(&mut self) -> SystemResult<SyncResult> {
+    pub async fn force_sync(&mut self) -> SystemResult<SyncResult>
+    where
+        R::Error: core::fmt::Debug,
+    {
         self.retry_count = 0;
         self.sync().await
     }

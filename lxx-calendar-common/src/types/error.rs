@@ -7,6 +7,16 @@ pub enum SystemError {
     ServiceError(ServiceError),
     StorageError(StorageError),
     NetworkError(NetworkError),
+    DataError(DataError),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum DataError {
+    NotFound,
+    Corrupted,
+    ParseError,
+    Unknown,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
