@@ -44,7 +44,7 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
     pub async fn initialize(&mut self) -> SystemResult<()> {
         info!("Initializing state manager");
         self.watchdog.initialize().await?;
-        self.current_state = SystemMode::NormalWork;
+        self.current_state = SystemMode::DeepSleep;
         Ok(())
     }
 
