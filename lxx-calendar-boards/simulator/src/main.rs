@@ -23,8 +23,8 @@ impl PlatformTrait for Platform {
     type NetworkStack = drivers::SimulatorNetwork;
 
     async fn init(spawner: Spawner) -> PlatformContext<Self> {
-        let wdt = simulated_wdt::SimulatedWdt::new(5000);
-        simulated_wdt::start_watchdog(&spawner, 5000);
+        let wdt = simulated_wdt::SimulatedWdt::new(30000);
+        simulated_wdt::start_watchdog(&spawner, 30000);
 
         let epd = drivers::init_epd().await;
 

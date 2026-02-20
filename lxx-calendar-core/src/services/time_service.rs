@@ -1,9 +1,11 @@
+use embassy_time::Instant;
 use lxx_calendar_common::*;
 use sxtwl_rs::solar::SolarDay;
 
 pub struct TimeService<R: Rtc> {
     initialized: bool,
     current_time: Option<DateTime>,
+    boot_instant: Option<Instant>,
     cached_lunar: Option<LunarDate>,
     cached_solar_term: Option<SolarTerm>,
     cached_holiday: Option<Holiday>,
@@ -17,6 +19,7 @@ impl<R: Rtc> TimeService<R> {
         Self {
             initialized: false,
             current_time: None,
+            boot_instant: None,
             cached_lunar: None,
             cached_solar_term: None,
             cached_holiday: None,
@@ -30,6 +33,7 @@ impl<R: Rtc> TimeService<R> {
         Self {
             initialized: false,
             current_time: None,
+            boot_instant: None,
             cached_lunar: None,
             cached_solar_term: None,
             cached_holiday: None,
@@ -40,7 +44,14 @@ impl<R: Rtc> TimeService<R> {
     }
 
     pub async fn initialize(&mut self) -> SystemResult<()> {
-        // TODO: 初始化服务有关事项，如加载配置信息等
+        self.boot_instant = Some(Instant::now());
+        
+        if let Some(ref mut rtc) = self.rtc {
+            let timestamp = rtc.get_time().await.unwrap_or(1704067200);
+            let datetime = self.timestamp_to_datetime(timestamp);
+            self.timezone_offset = 28800;
+            self.current_time = Some(datetime);
+        }
 
         self.initialized = true;
 
@@ -53,9 +64,11 @@ impl<R: Rtc> TimeService<R> {
         }
 
         if let Some(ref base_time) = self.current_time {
-            let elapsed = embassy_time::Instant::now().elapsed().as_secs();
+            let elapsed = self.boot_instant.map(|i| i.elapsed().as_secs()).unwrap_or(0);
             let base_timestamp = self.datetime_to_timestamp(base_time);
-            Ok(self.timestamp_to_datetime(base_timestamp + elapsed as i64))
+            let total_timestamp = base_timestamp + elapsed as i64;
+            debug!("get_current_time: base={}, elapsed={}, total={}", base_timestamp, elapsed, total_timestamp);
+            Ok(self.timestamp_to_datetime(total_timestamp))
         } else {
             Err(SystemError::HardwareError(HardwareError::NotInitialized))
         }

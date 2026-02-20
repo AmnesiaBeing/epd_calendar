@@ -19,7 +19,7 @@ use crate::{
 use lxx_calendar_common::*;
 
 pub async fn main_task<P: PlatformTrait>(
-    _spawner: Spawner,
+    spawner: Spawner,
     platform_ctx: PlatformContext<P>,
 ) -> SystemResult<()> {
     info!("lxx-calendar starting...");
@@ -29,7 +29,7 @@ pub async fn main_task<P: PlatformTrait>(
     let event_receiver = event_channel_static.receiver();
     let event_sender = event_channel_static.sender();
 
-    let mut time_service = TimeService::<P::RtcDevice>::new();
+    let mut time_service = TimeService::with_rtc(platform_ctx.rtc);
     let mut display_service = DisplayService::new();
     let mut ble_service = BLEService::new();
     let mut power_manager = PowerManager::new();
@@ -46,10 +46,7 @@ pub async fn main_task<P: PlatformTrait>(
     let mut event_producer = EventProducer::new();
     event_producer.initialize().await;
 
-    let sender = event_sender;
-    let _producer = async move {
-        EventProducer::start_minute_timer(sender).await;
-    };
+    event_producer.start_minute_timer(spawner.clone(), event_sender);
 
     let mut state_manager: StateManager<'_, P> = StateManager::new(
         event_receiver,
@@ -64,15 +61,17 @@ pub async fn main_task<P: PlatformTrait>(
     state_manager.initialize().await?;
     state_manager.start().await?;
 
-    let wakeup_event = SystemEvent::WakeupEvent(WakeupEvent::WakeFromDeepSleep);
-    state_manager.handle_event(wakeup_event).await?;
+    state_manager.transition_to(SystemMode::NormalWork).await?;
 
     info!("Main task started, entering event loop");
 
     loop {
+        state_manager.feed_watchdog();
+        
         match state_manager.wait_for_event().await {
             Ok(event) => {
                 debug!("Received event: {:?}", event);
+                state_manager.feed_watchdog();
                 if let Err(e) = state_manager.handle_event(event).await {
                     error!("Failed to handle event: {:?}", e);
                 }

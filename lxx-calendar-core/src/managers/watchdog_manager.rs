@@ -1,3 +1,4 @@
+use embassy_executor::Spawner;
 use lxx_calendar_common::*;
 
 pub struct WatchdogManager<W: Watchdog> {
@@ -5,6 +6,7 @@ pub struct WatchdogManager<W: Watchdog> {
     initialized: bool,
     timeout_ms: u64,
     enabled: bool,
+    feed_interval_ms: u64,
 }
 
 impl<W: Watchdog> WatchdogManager<W> {
@@ -14,6 +16,7 @@ impl<W: Watchdog> WatchdogManager<W> {
             initialized: false,
             timeout_ms: 30000,
             enabled: true,
+            feed_interval_ms: 5000,
         }
     }
 
@@ -55,6 +58,10 @@ impl<W: Watchdog> WatchdogManager<W> {
     pub async fn end_task(&mut self) {
         self.feed();
         info!("Watchdog task ended");
+    }
+
+    pub async fn start_feed_task(&mut self, spawner: Spawner) {
+        info!("Watchdog feed task not implemented, using event loop feeding");
     }
 
     pub async fn set_timeout(&mut self, timeout_ms: u64) -> SystemResult<()> {

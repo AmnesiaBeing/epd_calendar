@@ -1,5 +1,5 @@
 use alloc::boxed::Box;
-use lxx_calendar_common::Watchdog;
+use embassy_executor::Spawner;
 use lxx_calendar_common::*;
 
 use crate::managers::WatchdogManager;
@@ -44,8 +44,16 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
     pub async fn initialize(&mut self) -> SystemResult<()> {
         info!("Initializing state manager");
         self.watchdog.initialize().await?;
-        self.current_state = SystemMode::DeepSleep;
+        self.current_state = SystemMode::NormalWork;
         Ok(())
+    }
+
+    pub fn feed_watchdog(&mut self) {
+        self.watchdog.feed();
+    }
+
+    pub async fn start_feed_task(&mut self, spawner: Spawner) {
+        self.watchdog.start_feed_task(spawner).await;
     }
 
     pub async fn start(&mut self) -> SystemResult<()> {
@@ -103,14 +111,17 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
         match mode {
             SystemMode::DeepSleep => {
                 info!("Entering deep sleep mode");
+                self.watchdog.disable().await?;
                 self.stop().await?;
             }
             SystemMode::BleConnection => {
                 info!("Entering BLE connection mode");
+                self.watchdog.enable().await?;
                 self.ble_service.start().await?;
             }
             SystemMode::NormalWork => {
                 info!("Entering normal work mode");
+                self.watchdog.enable().await?;
                 self.execute_scheduled_tasks().await?;
             }
         }
@@ -121,6 +132,7 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
         match mode {
             SystemMode::DeepSleep => {
                 info!("Exiting deep sleep mode");
+                self.watchdog.enable().await?;
             }
             SystemMode::BleConnection => {
                 info!("Exiting BLE connection mode");
@@ -157,7 +169,7 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
 
         self.watchdog.end_task().await;
 
-        self.transition_to(SystemMode::DeepSleep).await?;
+        info!("Scheduled tasks completed, waiting for events");
 
         Ok(())
     }
@@ -167,6 +179,9 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
     }
 
     fn can_transition(&self, from: SystemMode, to: SystemMode) -> bool {
+        if from == to {
+            return true;
+        }
         match (from, to) {
             (SystemMode::DeepSleep, SystemMode::BleConnection) => true,
             (SystemMode::DeepSleep, SystemMode::NormalWork) => true,
@@ -219,9 +234,20 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
         match event {
             TimeEvent::MinuteTick => {
                 debug!("Minute tick");
+                self.watchdog.feed();
+                
+                let current_time = self.time_service.get_current_time().await?;
+                info!("Current time: {:02}:{:02}:{:02}", current_time.hour, current_time.minute, current_time.second);
+                
+                if current_time.minute == 59 && current_time.second >= 55 {
+                    info!("Hour chime starting at {:02}:{:02}:{:02}", current_time.hour, current_time.minute, current_time.second);
+                    self.audio_service.play_hour_chime().await?;
+                }
+                
+                self.display_service.refresh().await?;
             }
             TimeEvent::HourChimeTrigger => {
-                info!("Hour chime trigger");
+                info!("Hour chime trigger (deprecated, using MinuteTick instead)");
             }
             TimeEvent::AlarmTrigger(_) => {
                 info!("Alarm trigger");

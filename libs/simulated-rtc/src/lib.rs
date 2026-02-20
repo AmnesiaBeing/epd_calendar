@@ -2,7 +2,7 @@ use core::sync::atomic::{AtomicI64, Ordering};
 use embassy_time::Instant;
 use lxx_calendar_common::Rtc;
 
-static RTC_TIMESTAMP: AtomicI64 = AtomicI64::new(1704067200);
+static RTC_TIMESTAMP: AtomicI64 = AtomicI64::new(1771588453);
 
 pub struct SimulatedRtc {
     initialized: bool,
@@ -14,7 +14,7 @@ impl SimulatedRtc {
     pub fn new() -> Self {
         Self {
             initialized: false,
-            base_timestamp: 1704067200,
+            base_timestamp: 1771588453,
             boot_instant: None,
         }
     }
@@ -24,7 +24,7 @@ impl SimulatedRtc {
         if stored > 0 {
             self.base_timestamp = stored;
         } else {
-            self.base_timestamp = 1704067200;
+            self.base_timestamp = 1771588453;
         }
         self.boot_instant = Some(Instant::now());
         self.initialized = true;
