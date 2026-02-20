@@ -4,8 +4,9 @@ use lxx_calendar_common::*;
 
 use crate::managers::WatchdogManager;
 use crate::services::{
-    audio_service::AudioService, ble_service::BLEService, display_service::DisplayService,
-    power_service::PowerManager, time_service::TimeService,
+    audio_service::AudioService, ble_service::BLEService, display_manager::DisplayManager,
+    display_service::DisplayService, power_service::PowerManager, quote_service::QuoteService,
+    time_service::TimeService,
 };
 
 pub struct StateManager<'a, P: PlatformTrait> {
@@ -13,6 +14,7 @@ pub struct StateManager<'a, P: PlatformTrait> {
     current_state: SystemMode,
     time_service: &'a mut TimeService<P::RtcDevice>,
     display_service: &'a mut DisplayService,
+    quote_service: &'a mut QuoteService,
     ble_service: &'a mut BLEService,
     power_manager: &'a mut PowerManager,
     audio_service: &'a mut AudioService<P::AudioDevice>,
@@ -24,6 +26,7 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
         event_receiver: LxxChannelReceiver<'a, SystemEvent>,
         time_service: &'a mut TimeService<P::RtcDevice>,
         display_service: &'a mut DisplayService,
+        quote_service: &'a mut QuoteService,
         ble_service: &'a mut BLEService,
         power_manager: &'a mut PowerManager,
         audio_service: &'a mut AudioService<P::AudioDevice>,
@@ -34,6 +37,7 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
             event_channel: event_receiver,
             time_service,
             display_service,
+            quote_service,
             ble_service,
             power_manager,
             audio_service,
@@ -52,6 +56,7 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
         self.watchdog.feed();
     }
 
+    #[allow(dead_code)]
     pub async fn start_feed_task(&mut self, spawner: Spawner) {
         self.watchdog.start_feed_task(spawner).await;
     }
@@ -59,6 +64,11 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
     pub async fn start(&mut self) -> SystemResult<()> {
         info!("Starting state manager");
         Ok(())
+    }
+
+    #[allow(dead_code)]
+    pub async fn get_current_state(&self) -> SystemResult<SystemMode> {
+        Ok(self.current_state)
     }
 
     pub async fn stop(&mut self) -> SystemResult<()> {
@@ -80,10 +90,6 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
         }
 
         Ok(())
-    }
-
-    pub async fn get_current_state(&self) -> SystemResult<SystemMode> {
-        Ok(self.current_state)
     }
 
     pub async fn transition_to(&mut self, mode: SystemMode) -> SystemResult<()> {
@@ -150,13 +156,19 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
 
         self.watchdog.start_task().await;
 
-        let is_low_battery = self.power_manager.is_low_battery().await?;
+        let _is_low_battery = self.power_manager.is_low_battery().await?;
         let schedule = self.time_service.calculate_wakeup_schedule().await?;
 
         if schedule.scheduled_tasks.display_refresh {
-            info!("Refreshing display");
+            info!("Updating display data");
             self.watchdog.feed();
-            self.display_service.refresh().await?;
+            
+            let mut display_manager = DisplayManager::new(
+                self.time_service,
+                self.display_service,
+                self.quote_service,
+            );
+            display_manager.update_display().await?;
         }
 
         if schedule.scheduled_tasks.alarm_check {

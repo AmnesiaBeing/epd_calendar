@@ -191,7 +191,7 @@ impl<R: Rtc> TimeService<R> {
             next_wakeup_time: next_wakeup,
             wakeup_reason: WakeupReason::Timer,
             scheduled_tasks: ScheduledTasks {
-                display_refresh: current_time.second == 0,
+                display_refresh: true,
                 network_sync: current_time.minute == 0,
                 alarm_check: true,
                 reserved: 0,

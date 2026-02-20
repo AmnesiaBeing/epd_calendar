@@ -60,10 +60,11 @@ impl<W: Watchdog> WatchdogManager<W> {
         info!("Watchdog task ended");
     }
 
-    pub async fn start_feed_task(&mut self, spawner: Spawner) {
+    pub async fn start_feed_task(&mut self, _spawner: Spawner) {
         info!("Watchdog feed task not implemented, using event loop feeding");
     }
 
+    #[allow(dead_code)]
     pub async fn set_timeout(&mut self, timeout_ms: u64) -> SystemResult<()> {
         if !self.initialized {
             return Err(SystemError::HardwareError(HardwareError::NotInitialized));
