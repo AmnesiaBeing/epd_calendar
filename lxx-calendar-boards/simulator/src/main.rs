@@ -26,51 +26,6 @@ impl BuzzerDriver for SimulatorBuzzer {
 
         Ok(())
     }
-
-    fn stop(&mut self) -> Result<(), Self::Error> {
-        info!("[Simulator Buzzer] Stopped");
-        Ok(())
-    }
-
-    fn is_playing(&self) -> bool {
-        false
-    }
-}
-
-pub struct SimulatorWifi;
-
-impl SimulatorWifi {
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-impl Default for SimulatorWifi {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl WifiController for SimulatorWifi {
-    type Error = core::convert::Infallible;
-
-    async fn connect_sta(&mut self, ssid: &str, _password: &str) -> Result<(), Self::Error> {
-        info!("[Simulator WiFi] Connecting to SSID: {} (stub)", ssid);
-        Ok(())
-    }
-
-    async fn disconnect(&mut self) -> Result<(), Self::Error> {
-        info!("[Simulator WiFi] Disconnecting (stub)");
-        Ok(())
-    }
-
-    fn is_connected(&self) -> bool {
-        false
-    }
-
-    async fn get_rssi(&self) -> Result<i32, Self::Error> {
-        Ok(0)
-    }
 }
 
 pub struct SimulatorNetwork;
@@ -89,14 +44,6 @@ impl Default for SimulatorNetwork {
 
 impl NetworkStack for SimulatorNetwork {
     type Error = core::convert::Infallible;
-
-    async fn dns_query(
-        &self,
-        _host: &str,
-    ) -> Result<std::vec::Vec<core::net::IpAddr>, Self::Error> {
-        info!("[Simulator Network] DNS query (stub)");
-        Ok(std::vec::Vec::new())
-    }
 
     fn is_link_up(&self) -> bool {
         false
@@ -145,7 +92,7 @@ impl PlatformTrait for Platform {
 
     type RtcDevice = SimulatedRtc;
 
-    type WifiDevice = SimulatorWifi;
+    type WifiDevice = NoWifi;
 
     type NetworkStack = SimulatorNetwork;
 
@@ -164,7 +111,7 @@ impl PlatformTrait for Platform {
         let mut rtc = SimulatedRtc::new();
         rtc.initialize().await.ok();
 
-        let wifi = SimulatorWifi::new();
+        let wifi = NoWifi::new();
         let network = SimulatorNetwork::new();
 
         PlatformContext {

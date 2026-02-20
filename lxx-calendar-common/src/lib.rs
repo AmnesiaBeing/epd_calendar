@@ -4,6 +4,7 @@
 extern crate alloc;
 
 pub mod events;
+pub mod http;
 pub mod traits;
 pub mod types;
 

@@ -95,10 +95,6 @@ impl WifiController for LinuxWifi {
     fn is_connected(&self) -> bool {
         self.connected
     }
-
-    async fn get_rssi(&self) -> Result<i32, Self::Error> {
-        Ok(-50)
-    }
 }
 
 pub struct LinuxNetwork;
@@ -117,12 +113,6 @@ impl Default for LinuxNetwork {
 
 impl NetworkStack for LinuxNetwork {
     type Error = core::convert::Infallible;
-
-    // async fn dns_query(&self, _host: &str) -> Result<Vec<core::net::IpAddr>, Self::Error> {
-    //     // TODO: 使用 embassy-net 的 DNS 功能
-    //     info!("Linux DNS query (stub)");
-    //     Ok(vec![])
-    // }
 
     fn is_link_up(&self) -> bool {
         true

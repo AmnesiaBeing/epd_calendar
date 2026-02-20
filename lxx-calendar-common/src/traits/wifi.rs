@@ -10,8 +10,6 @@ pub trait WifiController: Send + Sync {
     async fn disconnect(&mut self) -> Result<(), Self::Error>;
 
     fn is_connected(&self) -> bool;
-
-    async fn get_rssi(&self) -> Result<i32, Self::Error>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -41,6 +39,12 @@ impl WifiConfig {
 
 pub struct NoWifi;
 
+impl NoWifi {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
 impl WifiController for NoWifi {
     type Error = core::convert::Infallible;
 
@@ -54,9 +58,5 @@ impl WifiController for NoWifi {
 
     fn is_connected(&self) -> bool {
         false
-    }
-
-    async fn get_rssi(&self) -> Result<i32, Self::Error> {
-        Ok(0)
     }
 }
