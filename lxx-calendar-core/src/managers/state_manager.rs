@@ -36,7 +36,7 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
         watchdog_device: P::WatchdogDevice,
     ) -> Self {
         Self {
-            current_state: SystemMode::DeepSleep,
+            current_state: SystemMode::LightSleep,
             event_channel: event_receiver,
             time_service,
             quote_service,
@@ -111,8 +111,8 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
 
     async fn on_state_enter(&mut self, mode: SystemMode) -> SystemResult<()> {
         match mode {
-            SystemMode::DeepSleep => {
-                info!("Entering deep sleep mode");
+            SystemMode::LightSleep => {
+                info!("Entering light sleep mode");
                 self.watchdog.disable().await?;
                 self.stop().await?;
             }
@@ -132,8 +132,8 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
 
     async fn on_state_exit(&mut self, mode: SystemMode) -> SystemResult<()> {
         match mode {
-            SystemMode::DeepSleep => {
-                info!("Exiting deep sleep mode");
+            SystemMode::LightSleep => {
+                info!("Exiting light sleep mode");
                 self.watchdog.enable().await?;
             }
             SystemMode::BleConnection => {
@@ -233,7 +233,8 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
         if let Some((timestamp, _source)) = &next_wakeup {
             let current_ts = self.time_service.get_timestamp().await?;
             if *timestamp > current_ts {
-                let duration = Duration::from_millis((*timestamp - current_ts) * 1000);
+                self.time_service.set_rtc_alarm(*timestamp).await?;
+                let duration = Duration::from_secs(*timestamp - current_ts);
                 info!("Entering light sleep for {:?}", duration);
                 self.time_service.enter_light_sleep().await;
             }
@@ -266,8 +267,8 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
 
     async fn handle_wakeup_event(&mut self, event: WakeupEvent) -> SystemResult<()> {
         match event {
-            WakeupEvent::WakeFromDeepSleep => {
-                info!("Waking from deep sleep");
+            WakeupEvent::WakeFromLightSleep => {
+                info!("Waking from light sleep");
                 self.transition_to(SystemMode::NormalWork).await?;
             }
             WakeupEvent::WakeByButton => {
@@ -363,9 +364,9 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
 
     async fn handle_system_event(&mut self, event: SystemStateEvent) -> SystemResult<()> {
         match event {
-            SystemStateEvent::EnterDeepSleep => {
-                info!("Entering deep sleep");
-                self.transition_to(SystemMode::DeepSleep).await?;
+            SystemStateEvent::EnterLightSleep => {
+                info!("Entering light sleep");
+                self.transition_to(SystemMode::LightSleep).await?;
             }
             SystemStateEvent::EnterBLEMode => {
                 info!("Entering BLE mode");

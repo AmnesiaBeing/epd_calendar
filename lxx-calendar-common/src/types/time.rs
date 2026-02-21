@@ -15,7 +15,7 @@ pub struct AlarmInfo {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SystemMode {
-    DeepSleep,
+    LightSleep,
     NormalWork,
     BleConnection,
 }

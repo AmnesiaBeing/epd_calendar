@@ -335,7 +335,7 @@ impl<R: Rtc> TimeService<R> {
         let mut ts = 0i64;
         let year = st.get_year() as i16;
 
-        for y in 1970..=year {
+        for y in 1970..year {
             ts += if Self::is_leap_year(y) { 366 } else { 365 } * 86400;
         }
 
@@ -446,13 +446,15 @@ impl<R: Rtc> TimeService<R> {
 
         let next_refresh_minute =
             ((current_minute / refresh_interval_minutes + 1) * refresh_interval_minutes) % 60;
-        let mut next_refresh_timestamp = current_timestamp + (60 - current_second as u64) % 60;
+        let mut next_refresh_timestamp = current_timestamp;
 
         if next_refresh_minute > current_minute {
-            next_refresh_timestamp += (next_refresh_minute - current_minute) as u64 * 60;
+            next_refresh_timestamp += (next_refresh_minute - current_minute) as u64 * 60
+                - current_second as u64;
         } else {
             next_refresh_timestamp +=
-                (60 - current_minute as u64 + next_refresh_minute as u64) * 60;
+                (60 - current_minute as u64 + next_refresh_minute as u64) * 60
+                    - current_second as u64;
         }
 
         Ok(Some(next_refresh_timestamp))
@@ -525,7 +527,7 @@ impl<R: Rtc> TimeService<R> {
         if let Some(ref mut rtc) = self.rtc {
             let current_time = rtc.get_time().await.unwrap_or(1704067200) as u64;
             if timestamp > current_time {
-                let duration = Duration::from_millis((timestamp - current_time) * 1000);
+                let duration = Duration::from_secs(timestamp - current_time);
                 rtc.set_wakeup(duration).await.ok();
                 info!(
                     "RTC alarm set for {} seconds later",

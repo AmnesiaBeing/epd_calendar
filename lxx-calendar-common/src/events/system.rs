@@ -13,7 +13,7 @@ pub enum SystemEvent {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WakeupEvent {
-    WakeFromDeepSleep,
+    WakeFromLightSleep,
     WakeByButton,
     WakeByWDT,
 }
@@ -41,7 +41,7 @@ pub enum NetworkEvent {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SystemStateEvent {
-    EnterDeepSleep,
+    EnterLightSleep,
     EnterBLEMode,
     EnterNormalMode,
     ConfigChanged(ConfigChange),
