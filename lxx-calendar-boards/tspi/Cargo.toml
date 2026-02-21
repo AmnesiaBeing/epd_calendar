@@ -16,6 +16,7 @@ simulated-rtc = { path = "../../libs/simulated-rtc" }
 epd-yrd0750ryf665f60 = { version = "0.1.0", path = "../../libs/epd" }
 critical-section = { workspace = true, features = ["std"] }
 wifi-rs = "0.2"
+env_logger = "0.11.9"
 
 [dependencies.embassy-sync]
 workspace = true

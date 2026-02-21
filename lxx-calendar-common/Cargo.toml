@@ -48,3 +48,13 @@ jiff = { workspace = true }
 
 # 农历计算
 sxtwl-rs = { path = "../libs/sxtwl-rs", features = ["festival"] }
+
+# SNTP 时间同步
+sntpc = { workspace = true }
+sntpc-net-embassy = { workspace = true }
+
+# JWT认证
+ed25519-compact = { workspace = true }
+
+# GZip解压
+miniz_oxide = { workspace = true }

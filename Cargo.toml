@@ -93,6 +93,9 @@ sntpc-net-embassy = { git = "https://github.com/vpetrigo/sntpc", branch = "maste
 # GZip解压
 miniz_oxide = "0.8.9"
 
+# JWT认证
+ed25519-compact = { version = "2.2.0", default-features = false }
+
 # 随机数相关
 getrandom = { version = "0.3.4", default-features = false }
 

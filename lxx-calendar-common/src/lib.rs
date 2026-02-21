@@ -5,8 +5,10 @@ extern crate alloc;
 
 pub mod events;
 pub mod http;
+pub mod sntp;
 pub mod traits;
 pub mod types;
+pub mod weather;
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "log")] {

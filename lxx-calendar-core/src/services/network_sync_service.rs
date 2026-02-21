@@ -1,3 +1,10 @@
+use embassy_net::Stack;
+use heapless::String;
+use lxx_calendar_common::http::jwt::JwtSigner;
+use lxx_calendar_common::sntp::{EmbassySntpWithStack, SntpClient};
+use lxx_calendar_common::weather::{
+    API_HOST_DEFAULT, LOCATION_DEFAULT, QweatherJwtSigner,
+};
 use lxx_calendar_common::*;
 
 pub struct NetworkSyncService<R: Rtc> {
@@ -10,6 +17,10 @@ pub struct NetworkSyncService<R: Rtc> {
     max_retries: u8,
     low_power_mode: bool,
     rtc: Option<R>,
+    stack: Option<Stack<'static>>,
+    api_host: heapless::String<128>,
+    location: heapless::String<32>,
+    jwt_signer: Option<QweatherJwtSigner>,
 }
 
 impl<R: Rtc> NetworkSyncService<R> {
@@ -24,6 +35,10 @@ impl<R: Rtc> NetworkSyncService<R> {
             max_retries: 2,
             low_power_mode: false,
             rtc: None,
+            stack: None,
+            api_host: heapless::String::try_from(API_HOST_DEFAULT).unwrap_or_default(),
+            location: heapless::String::try_from(LOCATION_DEFAULT).unwrap_or_default(),
+            jwt_signer: None,
         }
     }
 
@@ -38,7 +53,16 @@ impl<R: Rtc> NetworkSyncService<R> {
             max_retries: 2,
             low_power_mode: false,
             rtc: Some(rtc),
+            stack: None,
+            api_host: heapless::String::try_from(API_HOST_DEFAULT).unwrap_or_default(),
+            location: heapless::String::try_from(LOCATION_DEFAULT).unwrap_or_default(),
+            jwt_signer: None,
         }
+    }
+
+    pub fn with_stack(mut self, stack: Stack<'static>) -> Self {
+        self.stack = Some(stack);
+        self
     }
 
     pub async fn initialize(&mut self) -> SystemResult<()> {
@@ -121,66 +145,26 @@ impl<R: Rtc> NetworkSyncService<R> {
             self.connect().await?;
         }
 
-        // TODO: SNTP 时间同步实现
-        // 需要使用 sntpc 库通过 embassy-net 进行时间同步
-        //
-        // 示例代码（需要在实际平台中实现）：
-        // ```rust
-        // use embassy_net::udp::UdpSocket;
-        // use sntpc::{get_time, NtpContext, NtpTimestampGenerator};
-        // use sntpc_net_embassy::UdpSocketWrapper;
-        // use core::net::SocketAddr;
-        //
-        // // 国内 NTP 服务器 (阿里云)
-        // const NTP_SERVER: &str = "ntp.aliyun.com";
-        // // 备选服务器：
-        // // - time.pool.aliyun.com
-        // // - ntp.tencent.com
-        // // - cn.pool.ntp.org
-        //
-        // // 创建 UDP socket
-        // let mut rx_meta = [PacketMetadata::EMPTY; 4];
-        // let mut rx_buffer = [0; 256];
-        // let mut tx_meta = [PacketMetadata::EMPTY; 4];
-        // let mut tx_buffer = [0; 256];
-        // let mut socket = UdpSocket::new(
-        //     stack,
-        //     &mut rx_meta,
-        //     &mut rx_buffer,
-        //     &mut tx_meta,
-        //     &mut tx_buffer
-        // );
-        // socket.bind(123)?;
-        // let wrapper = UdpSocketWrapper::new(socket);
-        //
-        // // DNS 解析 NTP 服务器地址
-        // let ntp_addrs = stack.dns_query(NTP_SERVER, DnsQueryType::A).await?;
-        // let addr: IpAddr = ntp_addrs[0].into();
-        // let ntp_addr = SocketAddr::from((addr, 123));
-        //
-        // // 获取时间
-        // let context = NtpContext::new(TimestampGenerator::default());
-        // let result = get_time(ntp_addr, &wrapper, context).await?;
-        //
-        // // 转换为 Unix 时间戳
-        // let unix_timestamp = result.timestamp();
-        //
-        // // 写入 RTC 硬件外设
-        // if let Some(ref mut rtc) = self.rtc {
-        //     rtc.set_time(unix_timestamp).await?;
-        // }
-        // ```
+        let stack = self.stack.ok_or_else(|| {
+            SystemError::HardwareError(HardwareError::NotInitialized)
+        })?;
 
-        info!("SNTP time sync - implementation pending (requires embassy-net stack)");
+        let mut sntp = EmbassySntpWithStack::new(stack);
 
-        // 模拟时间同步成功的演示代码
-        // 实际使用时，在 SNTP 成功后写入 RTC
-        if let Some(ref mut rtc) = self.rtc {
-            let simulated_timestamp = 1739932800i64; // 2025-03-20 00:00:00 UTC
-            if let Err(e) = rtc.set_time(simulated_timestamp).await {
-                warn!("Failed to write time to RTC: {:?}", e);
-            } else {
-                info!("Time written to RTC: {}", simulated_timestamp);
+        match sntp.get_time().await {
+            Ok(unix_timestamp) => {
+                info!("SNTP time sync success: {}", unix_timestamp);
+                if let Some(ref mut rtc) = self.rtc {
+                    if let Err(e) = rtc.set_time(unix_timestamp).await {
+                        warn!("Failed to write time to RTC: {:?}", e);
+                    } else {
+                        info!("Time written to RTC: {}", unix_timestamp);
+                    }
+                }
+            }
+            Err(e) => {
+                warn!("SNTP time sync failed: {:?}", e);
+                return Err(SystemError::NetworkError(NetworkError::Unknown));
             }
         }
 
@@ -188,14 +172,19 @@ impl<R: Rtc> NetworkSyncService<R> {
     }
 
     async fn sync_weather(&mut self) -> SystemResult<()> {
-        // 和风天气API预留接口，暂不实现
-        // 实际使用时需要：
-        // 1. 调用和风天气API获取数据
-        // 2. 解析JSON响应
-        // 3. 缓存天气数据
-        info!("Weather sync reserved - API not implemented");
+        if let Some(signer) = &self.jwt_signer {
+            let timestamp = self.get_current_timestamp().await.unwrap_or(1700000000);
+            match signer.sign_with_time("", timestamp) {
+                Ok(token) => {
+                    info!("JWT token generated: {}...", &token.as_str()[..30.min(token.len())]);
+                }
+                Err(e) => {
+                    warn!("Failed to generate JWT token: {:?}", e);
+                }
+            }
+        }
 
-        // 使用默认天气数据
+        info!("Weather sync using default data (HTTP client not fully implemented)");
         let weather = self.get_default_weather()?;
         self.cached_weather = Some(weather);
 
@@ -354,5 +343,51 @@ impl<R: Rtc> NetworkSyncService<R> {
     {
         self.retry_count = 0;
         self.sync().await
+    }
+
+    pub fn set_api_config(
+        &mut self,
+        api_host: &str,
+        location: &str,
+        key_id: &str,
+        project_id: &str,
+        private_key: &str,
+    ) -> SystemResult<()> {
+        self.api_host = String::try_from(api_host).unwrap_or_else(|_| {
+            String::try_from(API_HOST_DEFAULT).unwrap()
+        });
+        self.location = String::try_from(location).unwrap_or_else(|_| {
+            String::try_from(LOCATION_DEFAULT).unwrap()
+        });
+
+        self.jwt_signer = match QweatherJwtSigner::new(key_id, project_id, private_key) {
+            Ok(signer) => {
+                info!("JWT signer initialized successfully");
+                Some(signer)
+            }
+            Err(e) => {
+                warn!("Failed to initialize JWT signer: {:?}", e);
+                None
+            }
+        };
+
+        Ok(())
+    }
+
+    pub fn set_location(&mut self, location: &str) {
+        self.location = String::try_from(location).unwrap_or_else(|_| {
+            String::try_from(LOCATION_DEFAULT).unwrap()
+        });
+    }
+
+    async fn get_current_timestamp(&self) -> Option<i64> {
+        if let Some(ref rtc) = self.rtc {
+            match rtc.get_time().await {
+                Ok(timestamp) => Some(timestamp as i64),
+                Err(_) => None,
+            }
+        } else {
+            None
+        }
     }
 }

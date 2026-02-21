@@ -38,7 +38,7 @@ pub mod jwt {
     use heapless::String;
 
     pub trait JwtSigner: Send + Sync {
-        fn sign(&self, payload: &str) -> Result<String<256>, JwtError>;
+        fn sign_with_time(&self, payload: &str, timestamp_secs: i64) -> Result<String<256>, JwtError>;
         fn verify(&self, token: &str) -> Result<(), JwtError>;
     }
 

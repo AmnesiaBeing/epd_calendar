@@ -11,10 +11,14 @@ pub enum SystemEvent {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum WakeupEvent {
-    WakeFromDeepSleep,
-    WakeByButton,
-    WakeByWDT,
+pub enum SystemEvent {
+    WakeupEvent(WakeupEvent),
+    UserEvent(UserEvent),
+    TimeEvent(TimeEvent),
+    NetworkEvent(NetworkEvent),
+    SystemStateEvent(SystemStateEvent),
+    PowerEvent(PowerEvent),
+    ConfigChanged(ConfigChange),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

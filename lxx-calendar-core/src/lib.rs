@@ -29,7 +29,7 @@ pub async fn main_task<P: PlatformTrait>(
     let event_receiver = event_channel_static.receiver();
     let event_sender = event_channel_static.sender();
 
-    let mut time_service = TimeService::with_rtc(platform_ctx.rtc);
+    let mut time_service = TimeService::new(platform_ctx.rtc);
     let mut display_service = DisplayService::new();
     let mut quote_service = QuoteService::new();
     let mut ble_service = BLEService::new();

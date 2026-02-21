@@ -1,8 +1,10 @@
 use lxx_calendar_common as lxx_common;
+use lxx_calendar_common::SystemEvent;
 
 pub struct ConfigManager {
     initialized: bool,
     config: Option<lxx_common::SystemConfig>,
+    event_sender: Option<lxx_common::LxxChannelSender<'static, SystemEvent>>,
 }
 
 impl ConfigManager {
@@ -10,6 +12,17 @@ impl ConfigManager {
         Self {
             initialized: false,
             config: None,
+            event_sender: None,
+        }
+    }
+
+    pub fn with_event_sender(
+        sender: lxx_common::LxxChannelSender<'static, SystemEvent>,
+    ) -> Self {
+        Self {
+            initialized: false,
+            config: None,
+            event_sender: Some(sender),
         }
     }
 
@@ -17,6 +30,13 @@ impl ConfigManager {
         lxx_common::info!("Initializing config manager");
         self.initialized = true;
         Ok(())
+    }
+
+    pub async fn set_event_sender(
+        &mut self,
+        sender: lxx_common::LxxChannelSender<'static, SystemEvent>,
+    ) {
+        self.event_sender = Some(sender);
     }
 
     pub async fn load_config(
@@ -78,8 +98,24 @@ impl ConfigManager {
             ));
         }
         lxx_common::info!("Saving config");
-        self.config = Some(config);
+        self.config = Some(config.clone());
+        self.notify_config_changed(config).await;
         Ok(())
+    }
+
+    async fn notify_config_changed(&self, config: lxx_common::SystemConfig) {
+        if let Some(ref sender) = self.event_sender {
+            for change in [
+                lxx_calendar_common::ConfigChange::TimeConfig,
+                lxx_calendar_common::ConfigChange::NetworkConfig,
+                lxx_calendar_common::ConfigChange::DisplayConfig,
+                lxx_calendar_common::ConfigChange::PowerConfig,
+                lxx_calendar_common::ConfigChange::LogConfig,
+            ] {
+                let event = lxx_calendar_common::SystemEvent::ConfigChanged(change);
+                let _ = sender.send(event).await;
+            }
+        }
     }
 
     pub async fn get_config(&self) -> Result<lxx_common::SystemConfig, lxx_common::SystemError> {

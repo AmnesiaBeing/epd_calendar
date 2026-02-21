@@ -169,28 +169,12 @@ impl DisplayService {
         }
         info!("Showing error: {}", message);
         let error_data = DisplayData {
-            time: DateTime {
-                year: 2024,
-                month: 1,
-                day: 1,
-                hour: 0,
-                minute: 0,
-                second: 0,
-                weekday: 0,
-                timezone_offset: 28800,
-            },
-            lunar_date: LunarDate {
-                year: 2023,
-                month: 12,
-                day: 1,
-                is_leap: false,
-                ganzhi_year: "癸卯",
-                ganzhi_month: "壬子",
-                ganzhi_day: "甲子",
-                zodiac: "鼠",
-            },
+            time: current_time.clone(),
+            lunar_date,
+            solar_term: None,
+            holiday: None,
             weather: None,
-            quote: Some(String::try_from(message).unwrap_or_default()),
+            quote: None,
             layout: DisplayLayout::Default,
         };
         self.update_display(error_data).await
