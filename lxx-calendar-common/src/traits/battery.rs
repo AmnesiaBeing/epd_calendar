@@ -11,11 +11,7 @@ pub trait Battery {
 
     async fn is_charging(&mut self) -> Result<bool, Self::Error>;
 
-    fn enable_voltage_interrupt<F>(
-        &mut self,
-        threshold_mv: u16,
-        callback: F,
-    ) -> Result<(), Self::Error>
+    fn enable_voltage_interrupt<F>(&mut self, callback: F) -> Result<(), Self::Error>
     where
         F: Fn() + Send + 'static;
 
@@ -63,11 +59,7 @@ impl Battery for NoBattery {
         Ok(self.is_charging)
     }
 
-    fn enable_voltage_interrupt<F>(
-        &mut self,
-        _threshold_mv: u16,
-        _callback: F,
-    ) -> Result<(), Self::Error>
+    fn enable_voltage_interrupt<F>(&mut self, _callback: F) -> Result<(), Self::Error>
     where
         F: Fn() + Send + 'static,
     {

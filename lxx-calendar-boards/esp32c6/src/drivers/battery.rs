@@ -7,10 +7,11 @@ use lxx_calendar_common::Battery;
 
 use lxx_calendar_common::*;
 
+const VOLTAGE_THRESHOLD_MV: u16 = 3000;
+
 pub struct Esp32Battery {
     adc: Adc<'static, esp_hal::peripherals::ADC1<'static>, esp_hal::Blocking>,
     pin: AdcPin<GPIO2<'static>, esp_hal::peripherals::ADC1<'static>>,
-    voltage_threshold: u16,
 }
 
 impl Esp32Battery {
@@ -25,7 +26,6 @@ impl Esp32Battery {
         Self {
             adc,
             pin: voltage_pin,
-            voltage_threshold: 3000,
         }
     }
 }
@@ -47,7 +47,7 @@ impl Battery for Esp32Battery {
 
     async fn is_low_battery(&mut self) -> Result<bool, Self::Error> {
         let voltage = self.read_voltage().await?;
-        Ok(voltage < self.voltage_threshold)
+        Ok(voltage < VOLTAGE_THRESHOLD_MV)
     }
 
     async fn is_charging(&mut self) -> Result<bool, Self::Error> {
@@ -55,16 +55,11 @@ impl Battery for Esp32Battery {
     }
 
     // TODO: 中断暂未完成，使用ADC Monitor中断
-    fn enable_voltage_interrupt<F>(
-        &mut self,
-        threshold_mv: u16,
-        _callback: F,
-    ) -> Result<(), Self::Error>
+    fn enable_voltage_interrupt<F>(&mut self, _callback: F) -> Result<(), Self::Error>
     where
         F: Fn() + Send + 'static,
     {
-        self.voltage_threshold = threshold_mv;
-        info!("Voltage interrupt enabled, threshold: {}mV", threshold_mv);
+        info!("Voltage interrupt enabled, threshold: {}mV", VOLTAGE_THRESHOLD_MV);
         Ok(())
     }
 

@@ -41,6 +41,7 @@ impl<A: BuzzerDriver> AudioService<A> {
         Ok(())
     }
 
+    // TODO: 增加预设闹钟，然后调用此函数
     pub async fn play_tone(&mut self, frequency: u32, duration_ms: u32) -> SystemResult<()> {
         info!("Playing tone: {}Hz for {}ms", frequency, duration_ms);
 

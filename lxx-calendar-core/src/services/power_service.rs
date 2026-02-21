@@ -4,34 +4,19 @@ pub struct PowerManager<B: Battery> {
     initialized: bool,
     battery_device: Option<B>,
     event_sender: Option<LxxChannelSender<'static, SystemEvent>>,
-    voltage_threshold: u16,
 }
 
 impl<B: Battery> PowerManager<B> {
-    pub fn new() -> Self {
-        Self {
-            initialized: false,
-            battery_device: None,
-            event_sender: None,
-            voltage_threshold: 3000,
-        }
-    }
-
-    pub fn new_with_event_sender(sender: LxxChannelSender<'static, SystemEvent>) -> Self {
+    pub fn new(sender: LxxChannelSender<'static, SystemEvent>) -> Self {
         Self {
             initialized: false,
             battery_device: None,
             event_sender: Some(sender),
-            voltage_threshold: 3000,
         }
     }
 
     pub fn set_battery_device(&mut self, device: B) {
         self.battery_device = Some(device);
-    }
-
-    pub fn set_voltage_threshold(&mut self, threshold_mv: u16) {
-        self.voltage_threshold = threshold_mv;
     }
 
     pub async fn initialize(&mut self) -> SystemResult<()> {
@@ -42,7 +27,7 @@ impl<B: Battery> PowerManager<B> {
 
             let sender = self.event_sender.clone();
             device
-                .enable_voltage_interrupt(self.voltage_threshold, move || {
+                .enable_voltage_interrupt(move || {
                     if let Some(ref s) = sender {
                         let _ = s.try_send(SystemEvent::PowerEvent(
                             PowerEvent::LowPowerModeChanged(true),

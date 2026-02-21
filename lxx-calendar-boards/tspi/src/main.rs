@@ -7,7 +7,7 @@ use lxx_calendar_core::main_task;
 
 pub mod drivers;
 
-use crate::drivers::{LinuxBuzzer, LinuxNetwork, LinuxWifi, TspiLED, TunTapNetwork};
+use crate::drivers::{LinuxBuzzer, LinuxWifi, TspiLED, TunTapNetwork};
 
 fn init_gpio(
     pin: u64,
@@ -42,7 +42,7 @@ impl PlatformTrait for Platform {
 
     type WifiDevice = LinuxWifi;
 
-    type NetworkStack = LinuxNetwork;
+    type NetworkStack = TunTapNetwork;
 
     type BatteryDevice = NoBattery;
 

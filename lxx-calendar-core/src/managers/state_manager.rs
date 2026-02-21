@@ -316,10 +316,6 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
         Ok(())
     }
 
-    fn get_last_chime_hour(&self) -> Option<u8> {
-        self.last_chime_hour
-    }
-
     async fn handle_network_event(&mut self, event: NetworkEvent) -> SystemResult<()> {
         match event {
             NetworkEvent::NetworkSyncRequested => {
