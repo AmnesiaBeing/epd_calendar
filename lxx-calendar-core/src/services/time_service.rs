@@ -4,7 +4,7 @@ use lxx_calendar_common::*;
 use sxtwl_rs::festival::{LunarFestival, SolarFestival};
 use sxtwl_rs::solar::SolarDay;
 
-pub struct TimeService<'a, R: Rtc> {
+pub struct TimeService<R: Rtc> {
     initialized: bool,
     boot_instant: Option<Instant>,
     cached_solar_time: Option<SolarTime>,
@@ -15,11 +15,11 @@ pub struct TimeService<'a, R: Rtc> {
     cached_lunar_festival: Option<LunarFestival>,
     last_calculation_date: Option<(u16, u8, u8, u8)>,
     timezone_offset: i32,
-    rtc: &'a R,
+    rtc: Option<R>,
 }
 
-impl<R: Rtc> TimeService<'a, R> {
-    pub fn new(rtc: &'a R) -> Self {
+impl<R: Rtc> TimeService<R> {
+    pub fn new() -> Self {
         Self {
             initialized: false,
             boot_instant: None,
@@ -31,8 +31,13 @@ impl<R: Rtc> TimeService<'a, R> {
             cached_lunar_festival: None,
             last_calculation_date: None,
             timezone_offset: 28800,
-            rtc,
+            rtc: None,
         }
+    }
+
+    pub fn with_rtc(mut self, rtc: R) -> Self {
+        self.rtc = Some(rtc);
+        self
     }
 
     pub async fn initialize(&mut self) -> SystemResult<()> {
@@ -356,7 +361,6 @@ impl<R: Rtc> TimeService<'a, R> {
         }
 
         let solar_time = self.get_solar_time().await?;
-        let current_hour = solar_time.get_hour() as u8;
         let current_minute = solar_time.get_minute() as u8;
         let current_second = solar_time.get_second() as u8;
 
@@ -533,7 +537,16 @@ impl<R: Rtc> TimeService<'a, R> {
     }
 
     pub async fn enter_light_sleep(&mut self) {
-        self.rtc.sleep_light().await;
+        if let Some(ref mut rtc) = self.rtc {
+            rtc.sleep_light().await;
+        }
+    }
+
+    pub async fn set_time(&mut self, timestamp: u64) -> SystemResult<()> {
+        if let Some(ref mut rtc) = self.rtc {
+            rtc.set_time(timestamp as i64).await.ok();
+        }
+        Ok(())
     }
 }
 

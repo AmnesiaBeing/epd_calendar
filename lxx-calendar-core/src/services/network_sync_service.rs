@@ -5,28 +5,28 @@ use lxx_calendar_common::sntp::{EmbassySntpWithStack, SntpClient};
 use lxx_calendar_common::weather::{API_HOST_DEFAULT, LOCATION_DEFAULT, QweatherJwtSigner};
 use lxx_calendar_common::*;
 
-pub struct NetworkSyncService<'a, R: Rtc> {
+use crate::TimeService;
+
+pub struct NetworkSyncService {
     initialized: bool,
     connected: bool,
     cached_weather: Option<WeatherInfo>,
     retry_count: u8,
     max_retries: u8,
-    rtc: &'a mut R,
     stack: Option<Stack<'static>>,
     api_host: heapless::String<128>,
     location: heapless::String<32>,
     jwt_signer: Option<QweatherJwtSigner>,
 }
 
-impl<R: Rtc> NetworkSyncService<'a, R> {
-    pub fn new(rtc: &'a mut R) -> Self {
+impl NetworkSyncService {
+    pub fn new() -> Self {
         Self {
             initialized: false,
             connected: false,
             cached_weather: None,
             retry_count: 0,
             max_retries: 2,
-            rtc,
             stack: None,
             api_host: heapless::String::try_from(API_HOST_DEFAULT).unwrap_or_default(),
             location: heapless::String::try_from(LOCATION_DEFAULT).unwrap_or_default(),
@@ -49,7 +49,10 @@ impl<R: Rtc> NetworkSyncService<'a, R> {
         Ok(())
     }
 
-    pub async fn sync(&mut self) -> SystemResult<SyncResult> {
+    pub async fn sync<'a, R: Rtc>(
+        &'a mut self,
+        time_service: &'a mut TimeService<R>,
+    ) -> SystemResult<SyncResult> {
         if !self.initialized {
             return Err(SystemError::HardwareError(HardwareError::NotInitialized));
         }
@@ -58,7 +61,7 @@ impl<R: Rtc> NetworkSyncService<'a, R> {
 
         info!("Starting network sync");
 
-        let time_synced = match self.sync_time().await {
+        let time_synced = match self.sync_time(time_service).await {
             Ok(_) => {
                 info!("Time synchronized successfully");
                 true
@@ -105,7 +108,7 @@ impl<R: Rtc> NetworkSyncService<'a, R> {
         })
     }
 
-    async fn sync_time(&mut self) -> SystemResult<()> {
+    async fn sync_time<R: Rtc>(&mut self, time_service: &mut TimeService<R>) -> SystemResult<()> {
         if !self.connected {
             self.connect().await?;
         }
@@ -119,15 +122,13 @@ impl<R: Rtc> NetworkSyncService<'a, R> {
         match sntp.get_time().await {
             Ok(unix_timestamp) => {
                 info!("SNTP time sync success: {}", unix_timestamp);
-                if let Some(ref mut rtc) = self.rtc {
-                    if let Err(e) = rtc.set_time(unix_timestamp).await {
-                        warn!("Failed to write time to RTC");
-                    } else {
-                        info!("Time written to RTC: {}", unix_timestamp);
-                    }
+                if let Err(e) = time_service.set_time(unix_timestamp as u64).await {
+                    warn!("Failed to set time: {:?}", e);
+                } else {
+                    info!("Time set: {}", unix_timestamp);
                 }
             }
-            Err(e) => {
+            Err(_) => {
                 warn!("SNTP time sync failed");
                 return Err(SystemError::NetworkError(NetworkError::Unknown));
             }
@@ -142,7 +143,7 @@ impl<R: Rtc> NetworkSyncService<'a, R> {
         }
 
         if let Some(signer) = &self.jwt_signer {
-            let timestamp = self.get_current_timestamp().await.unwrap_or(1700000000);
+            let timestamp = embassy_time::Instant::now().as_micros() as i64;
             match signer.sign_with_time("", timestamp) {
                 Ok(token) => {
                     info!(
@@ -269,16 +270,5 @@ impl<R: Rtc> NetworkSyncService<'a, R> {
     pub fn set_location(&mut self, location: &str) {
         self.location = String::try_from(location)
             .unwrap_or_else(|_| String::try_from(LOCATION_DEFAULT).unwrap());
-    }
-
-    async fn get_current_timestamp(&self) -> Option<i64> {
-        if let Some(ref rtc) = self.rtc {
-            match rtc.get_time().await {
-                Ok(timestamp) => Some(timestamp as i64),
-                Err(_) => None,
-            }
-        } else {
-            None
-        }
     }
 }

@@ -101,7 +101,7 @@ impl ConfigManager {
         Ok(())
     }
 
-    async fn notify_config_changed(&self, config: lxx_common::SystemConfig) {
+    async fn notify_config_changed(&self, _config: lxx_common::SystemConfig) {
         if let Some(ref sender) = self.event_sender {
             for change in [
                 lxx_calendar_common::ConfigChange::TimeConfig,

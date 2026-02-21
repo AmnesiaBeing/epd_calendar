@@ -1,14 +1,10 @@
-use alloc::boxed::Box;
-use embassy_executor::Spawner;
 use embassy_time::Duration;
 use lxx_calendar_common::*;
 
-use crate::managers::WatchdogManager;
+use crate::managers::{DisplayManager, WatchdogManager};
 use crate::services::{
     audio_service::AudioService,
     ble_service::BLEService,
-    display_manager::DisplayManager,
-    display_service::DisplayService,
     network_sync_service::NetworkSyncService,
     power_service::PowerManager,
     quote_service::QuoteService,
@@ -18,13 +14,12 @@ use crate::services::{
 pub struct StateManager<'a, P: PlatformTrait> {
     event_channel: LxxChannelReceiver<'a, SystemEvent>,
     current_state: SystemMode,
-    time_service: &'a mut TimeService<P::RtcDevice>,
-    display_service: &'a mut DisplayService,
-    quote_service: &'a mut QuoteService,
-    ble_service: &'a mut BLEService,
-    power_manager: &'a mut PowerManager,
-    audio_service: &'a mut AudioService<P::AudioDevice>,
-    network_service: &'a mut NetworkSyncService<P::RtcDevice>,
+    time_service: TimeService<P::RtcDevice>,
+    quote_service: QuoteService,
+    ble_service: BLEService,
+    power_manager: PowerManager,
+    audio_service: AudioService<P::AudioDevice>,
+    network_sync_service: NetworkSyncService,
     watchdog: WatchdogManager<P::WatchdogDevice>,
     config: Option<&'a lxx_calendar_common::SystemConfig>,
     last_chime_hour: Option<u8>,
@@ -34,25 +29,23 @@ pub struct StateManager<'a, P: PlatformTrait> {
 impl<'a, P: PlatformTrait> StateManager<'a, P> {
     pub fn new(
         event_receiver: LxxChannelReceiver<'a, SystemEvent>,
-        time_service: &'a mut TimeService<P::RtcDevice>,
-        display_service: &'a mut DisplayService,
-        quote_service: &'a mut QuoteService,
-        ble_service: &'a mut BLEService,
-        power_manager: &'a mut PowerManager,
-        audio_service: &'a mut AudioService<P::AudioDevice>,
-        network_service: &'a mut NetworkSyncService<P::RtcDevice>,
+        time_service: TimeService<P::RtcDevice>,
+        quote_service: QuoteService,
+        ble_service: BLEService,
+        power_manager: PowerManager,
+        audio_service: AudioService<P::AudioDevice>,
+        network_sync_service: NetworkSyncService,
         watchdog_device: P::WatchdogDevice,
     ) -> Self {
         Self {
             current_state: SystemMode::DeepSleep,
             event_channel: event_receiver,
             time_service,
-            display_service,
             quote_service,
             ble_service,
             power_manager,
             audio_service,
-            network_service,
+            network_sync_service,
             watchdog: WatchdogManager::new(watchdog_device),
             config: None,
             last_chime_hour: None,
@@ -67,14 +60,18 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
     }
 
     pub async fn initialize(&mut self) -> SystemResult<()> {
+        self.time_service.initialize().await?;
+        self.quote_service.initialize().await?;
+        self.ble_service.initialize().await?;
+        self.power_manager.initialize().await?;
+        self.audio_service.initialize().await?;
+        self.network_sync_service.initialize().await?;
+
+        info!("All services initialized");
+
         info!("Initializing state manager");
         self.watchdog.initialize().await?;
-        self.current_state = SystemMode::DeepSleep;
         Ok(())
-    }
-
-    pub fn feed_watchdog(&mut self) {
-        self.watchdog.feed();
     }
 
     pub async fn stop(&mut self) -> SystemResult<()> {
@@ -100,14 +97,6 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
     }
 
     pub async fn transition_to(&mut self, mode: SystemMode) -> SystemResult<()> {
-        if !self.can_transition(self.current_state, mode) {
-            warn!(
-                "Invalid transition from {:?} to {:?}",
-                self.current_state, mode
-            );
-            return Err(SystemError::HardwareError(HardwareError::InvalidParameter));
-        }
-
         info!("Transitioning from {:?} to {:?}", self.current_state, mode);
 
         self.on_state_exit(self.current_state).await?;
@@ -189,14 +178,16 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
 
         if !is_configured {
             let ssid = self.ble_service.get_device_name().await?;
-            self.display_service.show_qrcode(ssid.as_str()).await?;
+            let mut display_manager =
+                DisplayManager::new(&mut self.time_service, &mut self.quote_service);
+            display_manager.show_qrcode(ssid.as_str()).await?;
         } else {
             let is_need_sync =
                 self.last_sync_time.is_none() || (current_hour == 0 || current_hour == 12);
 
             if is_need_sync {
                 info!("Syncing network data (time, weather, quote)");
-                match self.network_service.sync().await {
+                match self.network_sync_service.sync(&mut self.time_service).await {
                     Ok(result) => {
                         info!(
                             "Sync completed: time={}, weather={}",
@@ -211,11 +202,10 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
                 }
             }
 
-            let mut display_manager = DisplayManager::with_network_service(
-                self.time_service,
-                self.display_service,
-                self.quote_service,
-                self.network_service,
+            let mut display_manager = DisplayManager::with_network_sync_service(
+                &mut self.time_service,
+                &mut self.quote_service,
+                &self.network_sync_service,
             );
             display_manager.update_display(is_low_battery).await?;
         }
@@ -262,19 +252,8 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
         Ok(())
     }
 
-    fn can_transition(&self, from: SystemMode, to: SystemMode) -> bool {
-        if from == to {
-            return true;
-        }
-        match (from, to) {
-            (SystemMode::DeepSleep, SystemMode::BleConnection) => true,
-            (SystemMode::DeepSleep, SystemMode::NormalWork) => true,
-            (SystemMode::NormalWork, SystemMode::BleConnection) => true,
-            (SystemMode::NormalWork, SystemMode::DeepSleep) => true,
-            (SystemMode::BleConnection, SystemMode::NormalWork) => true,
-            (SystemMode::BleConnection, SystemMode::DeepSleep) => true,
-            _ => false,
-        }
+    pub fn feed_watchdog(&mut self) {
+        self.watchdog.feed();
     }
 
     async fn handle_wakeup_event(&mut self, event: WakeupEvent) -> SystemResult<()> {
@@ -352,7 +331,7 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
         info!("Config changed: {:?}", change);
         match change {
             ConfigChange::TimeConfig => {
-                if let Some(ref config) = self.config {
+                if let Some(ref _config) = self.config {
                     let current_time = self.time_service.get_solar_time().await?;
                     info!(
                         "Checking hour chime after config change, current time: {:02}:{:02}:{:02}",
