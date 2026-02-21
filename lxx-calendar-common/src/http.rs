@@ -26,7 +26,10 @@ pub mod http {
     pub trait HttpClient: Debug + Send {
         type Error: Debug;
 
-        async fn request(&mut self, request: impl HttpRequest) -> Result<Self::Response, Self::Error>
+        async fn request(
+            &mut self,
+            request: impl HttpRequest,
+        ) -> Result<Self::Response, Self::Error>
         where
             Self::Response: HttpResponse;
 
@@ -38,7 +41,11 @@ pub mod jwt {
     use heapless::String;
 
     pub trait JwtSigner: Send + Sync {
-        fn sign_with_time(&self, payload: &str, timestamp_secs: i64) -> Result<String<256>, JwtError>;
+        fn sign_with_time(
+            &self,
+            payload: &str,
+            timestamp_secs: i64,
+        ) -> Result<String<256>, JwtError>;
         fn verify(&self, token: &str) -> Result<(), JwtError>;
     }
 

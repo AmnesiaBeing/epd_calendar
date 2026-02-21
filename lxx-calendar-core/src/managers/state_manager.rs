@@ -1,12 +1,18 @@
 use alloc::boxed::Box;
 use embassy_executor::Spawner;
+use embassy_time::Duration;
 use lxx_calendar_common::*;
 
 use crate::managers::WatchdogManager;
 use crate::services::{
-    audio_service::AudioService, ble_service::BLEService, display_manager::DisplayManager,
-    display_service::DisplayService, power_service::PowerManager, quote_service::QuoteService,
-    time_service::TimeService,
+    audio_service::AudioService,
+    ble_service::BLEService,
+    display_manager::DisplayManager,
+    display_service::DisplayService,
+    network_sync_service::NetworkSyncService,
+    power_service::PowerManager,
+    quote_service::QuoteService,
+    time_service::{TimeService, WakeupSource},
 };
 
 pub struct StateManager<'a, P: PlatformTrait> {
@@ -18,7 +24,11 @@ pub struct StateManager<'a, P: PlatformTrait> {
     ble_service: &'a mut BLEService,
     power_manager: &'a mut PowerManager,
     audio_service: &'a mut AudioService<P::AudioDevice>,
+    network_service: &'a mut NetworkSyncService<P::RtcDevice>,
     watchdog: WatchdogManager<P::WatchdogDevice>,
+    config: Option<&'a lxx_calendar_common::SystemConfig>,
+    last_chime_hour: Option<u8>,
+    last_sync_time: Option<u64>,
 }
 
 impl<'a, P: PlatformTrait> StateManager<'a, P> {
@@ -30,6 +40,7 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
         ble_service: &'a mut BLEService,
         power_manager: &'a mut PowerManager,
         audio_service: &'a mut AudioService<P::AudioDevice>,
+        network_service: &'a mut NetworkSyncService<P::RtcDevice>,
         watchdog_device: P::WatchdogDevice,
     ) -> Self {
         Self {
@@ -41,8 +52,18 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
             ble_service,
             power_manager,
             audio_service,
+            network_service,
             watchdog: WatchdogManager::new(watchdog_device),
+            config: None,
+            last_chime_hour: None,
+            last_sync_time: None,
         }
+    }
+
+    pub fn with_config(&mut self, config: &'a lxx_calendar_common::SystemConfig) {
+        self.config = Some(config);
+        self.last_chime_hour = None;
+        self.last_sync_time = None;
     }
 
     pub async fn initialize(&mut self) -> SystemResult<()> {
@@ -54,21 +75,6 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
 
     pub fn feed_watchdog(&mut self) {
         self.watchdog.feed();
-    }
-
-    #[allow(dead_code)]
-    pub async fn start_feed_task(&mut self, spawner: Spawner) {
-        self.watchdog.start_feed_task(spawner).await;
-    }
-
-    pub async fn start(&mut self) -> SystemResult<()> {
-        info!("Starting state manager");
-        Ok(())
-    }
-
-    #[allow(dead_code)]
-    pub async fn get_current_state(&self) -> SystemResult<SystemMode> {
-        Ok(self.current_state)
     }
 
     pub async fn stop(&mut self) -> SystemResult<()> {
@@ -87,6 +93,7 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
             SystemEvent::NetworkEvent(evt) => self.handle_network_event(evt).await?,
             SystemEvent::SystemStateEvent(evt) => self.handle_system_event(evt).await?,
             SystemEvent::PowerEvent(evt) => self.handle_power_event(evt).await?,
+            SystemEvent::ConfigChanged(change) => self.handle_config_changed(change).await?,
         }
 
         Ok(())
@@ -107,7 +114,7 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
 
         self.current_state = mode;
 
-        Box::pin(self.on_state_enter(mode)).await?;
+        self.on_state_enter(mode).await?;
 
         info!("Transitioned to {:?}", mode);
         Ok(())
@@ -151,43 +158,108 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
         Ok(())
     }
 
-    async fn execute_scheduled_tasks(&mut self) -> SystemResult<()> {
+    pub async fn execute_scheduled_tasks(&mut self) -> SystemResult<()> {
         info!("Executing scheduled tasks");
 
         self.watchdog.start_task().await;
 
-        let _is_low_battery = self.power_manager.is_low_battery().await?;
-        let schedule = self.time_service.calculate_wakeup_schedule().await?;
+        let is_low_battery = self.power_manager.is_low_battery().await?;
 
-        if schedule.scheduled_tasks.display_refresh {
-            info!("Updating display data");
-            self.watchdog.feed();
-            
-            let mut display_manager = DisplayManager::new(
+        let config = self
+            .config
+            .ok_or_else(|| SystemError::HardwareError(HardwareError::NotInitialized))?;
+
+        let current_time = self.time_service.get_solar_time().await?;
+        let current_hour = current_time.get_hour() as u8;
+        let current_minute = current_time.get_minute() as u8;
+
+        if config.time_config.hour_chime_enabled {
+            let last_chime_hour = self.last_chime_hour.unwrap_or(255);
+            if last_chime_hour != current_hour && (current_minute == 0 || current_minute == 59) {
+                info!("Playing hour chime for {}", current_hour);
+                self.last_chime_hour = Some(current_hour);
+                self.audio_service.play_hour_chime().await?;
+            }
+        }
+
+        info!("Updating display data");
+        self.watchdog.feed();
+
+        let is_configured = self.ble_service.is_configured().await?;
+
+        if !is_configured {
+            let ssid = self.ble_service.get_device_name().await?;
+            self.display_service.show_qrcode(ssid.as_str()).await?;
+        } else {
+            let is_need_sync =
+                self.last_sync_time.is_none() || (current_hour == 0 || current_hour == 12);
+
+            if is_need_sync {
+                info!("Syncing network data (time, weather, quote)");
+                match self.network_service.sync().await {
+                    Ok(result) => {
+                        info!(
+                            "Sync completed: time={}, weather={}",
+                            result.time_synced, result.weather_synced
+                        );
+                        self.last_sync_time =
+                            Some(embassy_time::Instant::now().elapsed().as_secs());
+                    }
+                    Err(e) => {
+                        error!("Sync failed: {:?}", e);
+                    }
+                }
+            }
+
+            let mut display_manager = DisplayManager::with_network_service(
                 self.time_service,
                 self.display_service,
                 self.quote_service,
+                self.network_service,
             );
-            display_manager.update_display().await?;
+            display_manager.update_display(is_low_battery).await?;
         }
 
-        if schedule.scheduled_tasks.alarm_check {
-            info!("Checking alarms");
-            self.watchdog.feed();
-        }
+        self.watchdog.feed();
 
-        let wakeup_time = self.time_service.calculate_next_wakeup_time().await?;
-        info!("Next wakeup scheduled at: {:?}", wakeup_time);
+        let next_wakeup = self.time_service.calculate_next_wakeup_time(config).await?;
+        if let Some((timestamp, source)) = &next_wakeup {
+            info!(
+                "Next wakeup scheduled at: {:?}, source: {:?}",
+                timestamp, source
+            );
+        }
 
         self.watchdog.end_task().await;
 
-        info!("Scheduled tasks completed, waiting for events");
+        if let Some((timestamp, _source)) = &next_wakeup {
+            let current_ts = self.time_service.get_timestamp().await?;
+            if *timestamp > current_ts {
+                let duration = Duration::from_millis((*timestamp - current_ts) * 1000);
+                info!("Entering light sleep for {:?}", duration);
+                self.time_service.enter_light_sleep().await;
+            }
+        }
+
+        info!("Scheduled tasks completed");
 
         Ok(())
     }
 
     pub async fn wait_for_event(&mut self) -> SystemResult<SystemEvent> {
         Ok(self.event_channel.receive().await)
+    }
+
+    pub async fn schedule_next_wakeup(&mut self) -> SystemResult<()> {
+        if let Some(ref config) = self.config {
+            if let Some((timestamp, _source)) =
+                self.time_service.calculate_next_wakeup_time(config).await?
+            {
+                info!("Setting RTC alarm for timestamp: {:?}", timestamp);
+                self.time_service.set_rtc_alarm(timestamp).await?;
+            }
+        }
+        Ok(())
     }
 
     fn can_transition(&self, from: SystemMode, to: SystemMode) -> bool {
@@ -236,7 +308,7 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
                 self.transition_to(SystemMode::BleConnection).await?;
             }
             UserEvent::BLEConfigReceived(_) => {
-                info!("BLE config received");
+                info!("BLE config received, syncing data");
             }
         }
         Ok(())
@@ -245,27 +317,20 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
     async fn handle_time_event(&mut self, event: TimeEvent) -> SystemResult<()> {
         match event {
             TimeEvent::MinuteTick => {
-                debug!("Minute tick");
-                self.watchdog.feed();
-                
-                let current_time = self.time_service.get_current_time().await?;
-                info!("Current time: {:02}:{:02}:{:02}", current_time.hour, current_time.minute, current_time.second);
-                
-                if current_time.minute == 59 && current_time.second >= 55 {
-                    info!("Hour chime starting at {:02}:{:02}:{:02}", current_time.hour, current_time.minute, current_time.second);
-                    self.audio_service.play_hour_chime().await?;
-                }
-                
-                self.display_service.refresh().await?;
+                debug!("Minute tick - not handled, rely on RTC wakeup");
             }
             TimeEvent::HourChimeTrigger => {
-                info!("Hour chime trigger (deprecated, using MinuteTick instead)");
+                debug!("HourChimeTrigger - handled in execute_scheduled_tasks");
             }
             TimeEvent::AlarmTrigger(_) => {
-                info!("Alarm trigger");
+                debug!("AlarmTrigger - handled in execute_scheduled_tasks");
             }
         }
         Ok(())
+    }
+
+    fn get_last_chime_hour(&self) -> Option<u8> {
+        self.last_chime_hour
     }
 
     async fn handle_network_event(&mut self, event: NetworkEvent) -> SystemResult<()> {
@@ -278,6 +343,36 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
             }
             NetworkEvent::NetworkSyncFailed(_) => {
                 error!("Network sync failed");
+            }
+        }
+        Ok(())
+    }
+
+    async fn handle_config_changed(&mut self, change: ConfigChange) -> SystemResult<()> {
+        info!("Config changed: {:?}", change);
+        match change {
+            ConfigChange::TimeConfig => {
+                if let Some(ref config) = self.config {
+                    let current_time = self.time_service.get_solar_time().await?;
+                    info!(
+                        "Checking hour chime after config change, current time: {:02}:{:02}:{:02}",
+                        current_time.get_hour(),
+                        current_time.get_minute(),
+                        current_time.get_second()
+                    );
+                }
+            }
+            ConfigChange::NetworkConfig => {
+                info!("Network config changed");
+            }
+            ConfigChange::DisplayConfig => {
+                info!("Display config changed");
+            }
+            ConfigChange::PowerConfig => {
+                info!("Power config changed");
+            }
+            ConfigChange::LogConfig => {
+                info!("Log config changed");
             }
         }
         Ok(())

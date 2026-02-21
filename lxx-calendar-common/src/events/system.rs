@@ -1,24 +1,21 @@
 use crate::types::{AlarmInfo, ConfigChange, NetworkError, SyncResult};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum SystemEvent {
-    WakeupEvent(WakeupEvent),
-    UserEvent(UserEvent),
-    TimeEvent(TimeEvent),
-    NetworkEvent(NetworkEvent),
-    SystemStateEvent(SystemStateEvent),
-    PowerEvent(PowerEvent),
+    WakeupEvent(crate::events::WakeupEvent),
+    UserEvent(crate::events::UserEvent),
+    TimeEvent(crate::events::TimeEvent),
+    NetworkEvent(crate::events::NetworkEvent),
+    SystemStateEvent(crate::events::SystemStateEvent),
+    PowerEvent(crate::events::PowerEvent),
+    ConfigChanged(ConfigChange),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SystemEvent {
-    WakeupEvent(WakeupEvent),
-    UserEvent(UserEvent),
-    TimeEvent(TimeEvent),
-    NetworkEvent(NetworkEvent),
-    SystemStateEvent(SystemStateEvent),
-    PowerEvent(PowerEvent),
-    ConfigChanged(ConfigChange),
+pub enum WakeupEvent {
+    WakeFromDeepSleep,
+    WakeByButton,
+    WakeByWDT,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -35,7 +32,7 @@ pub enum TimeEvent {
     AlarmTrigger(AlarmInfo),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NetworkEvent {
     NetworkSyncRequested,
     NetworkSyncComplete(SyncResult),

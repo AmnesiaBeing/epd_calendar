@@ -1,5 +1,4 @@
 use embassy_time::Duration;
-use heapless::String;
 use lxx_calendar_common::*;
 
 pub struct DisplayService {
@@ -93,25 +92,14 @@ impl DisplayService {
 
     async fn render_to_framebuffer(&mut self, data: &DisplayData) -> SystemResult<()> {
         info!(
-            "Rendering: time={}-{:02}-{:02} {:02}:{:02}",
-            data.time.year, data.time.month, data.time.day, data.time.hour, data.time.minute
+            "Rendering: time={}-{:02}-{:02} {:02}:{:02}, low_battery={}",
+            data.solar_time.get_year(),
+            data.solar_time.get_month(),
+            data.solar_time.get_day(),
+            data.solar_time.get_hour(),
+            data.solar_time.get_minute(),
+            data.low_battery
         );
-        Ok(())
-    }
-
-    pub async fn get_refresh_state(&self) -> SystemResult<RefreshState> {
-        if !self.initialized {
-            return Err(SystemError::HardwareError(HardwareError::NotInitialized));
-        }
-        Ok(self.state)
-    }
-
-    pub async fn set_layout(&mut self, layout: DisplayLayout) -> SystemResult<()> {
-        if !self.initialized {
-            return Err(SystemError::HardwareError(HardwareError::NotInitialized));
-        }
-        self.current_layout = layout;
-        info!("Display layout changed to {:?}", layout);
         Ok(())
     }
 
@@ -135,57 +123,12 @@ impl DisplayService {
         Ok(())
     }
 
-    pub async fn should_refresh(&self) -> bool {
-        if self.low_power_mode {
-            if let Some(_last_time) = self.last_refresh_time {
-                let elapsed = embassy_time::Instant::now().elapsed().as_secs();
-                return elapsed >= (self.refresh_interval_seconds as u64 * 4);
-            }
-        } else {
-            if let Some(_last_time) = self.last_refresh_time {
-                let elapsed = embassy_time::Instant::now().elapsed().as_secs();
-                return elapsed >= self.refresh_interval_seconds as u64;
-            }
-        }
-        true
-    }
-
-    pub async fn get_current_display_data(&self) -> Option<&DisplayData> {
-        self.current_display_data.as_ref()
-    }
-
-    pub async fn clear(&mut self) -> SystemResult<()> {
-        if !self.initialized {
-            return Err(SystemError::HardwareError(HardwareError::NotInitialized));
-        }
-        info!("Clearing display");
-        self.current_display_data = None;
-        Ok(())
-    }
-
-    pub async fn show_error(&mut self, message: &str) -> SystemResult<()> {
-        if !self.initialized {
-            return Err(SystemError::HardwareError(HardwareError::NotInitialized));
-        }
-        info!("Showing error: {}", message);
-        let error_data = DisplayData {
-            time: current_time.clone(),
-            lunar_date,
-            solar_term: None,
-            holiday: None,
-            weather: None,
-            quote: None,
-            layout: DisplayLayout::Default,
-        };
-        self.update_display(error_data).await
-    }
-
     pub async fn show_qrcode(&mut self, ssid: &str) -> SystemResult<()> {
         if !self.initialized {
             return Err(SystemError::HardwareError(HardwareError::NotInitialized));
         }
         info!("Showing QR code for SSID: {}", ssid);
-        self.set_layout(DisplayLayout::LargeTime).await?;
+        self.current_layout = DisplayLayout::LargeTime;
         Ok(())
     }
 }

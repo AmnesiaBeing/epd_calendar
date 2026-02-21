@@ -16,9 +16,7 @@ impl ConfigManager {
         }
     }
 
-    pub fn with_event_sender(
-        sender: lxx_common::LxxChannelSender<'static, SystemEvent>,
-    ) -> Self {
+    pub fn with_event_sender(sender: lxx_common::LxxChannelSender<'static, SystemEvent>) -> Self {
         Self {
             initialized: false,
             config: None,

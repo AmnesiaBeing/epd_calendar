@@ -2,57 +2,31 @@ use embassy_net::Stack;
 use heapless::String;
 use lxx_calendar_common::http::jwt::JwtSigner;
 use lxx_calendar_common::sntp::{EmbassySntpWithStack, SntpClient};
-use lxx_calendar_common::weather::{
-    API_HOST_DEFAULT, LOCATION_DEFAULT, QweatherJwtSigner,
-};
+use lxx_calendar_common::weather::{API_HOST_DEFAULT, LOCATION_DEFAULT, QweatherJwtSigner};
 use lxx_calendar_common::*;
 
-pub struct NetworkSyncService<R: Rtc> {
+pub struct NetworkSyncService<'a, R: Rtc> {
     initialized: bool,
     connected: bool,
-    last_sync_time: Option<u64>,
     cached_weather: Option<WeatherInfo>,
-    sync_interval_minutes: u16,
     retry_count: u8,
     max_retries: u8,
-    low_power_mode: bool,
-    rtc: Option<R>,
+    rtc: &'a mut R,
     stack: Option<Stack<'static>>,
     api_host: heapless::String<128>,
     location: heapless::String<32>,
     jwt_signer: Option<QweatherJwtSigner>,
 }
 
-impl<R: Rtc> NetworkSyncService<R> {
-    pub fn new() -> Self {
+impl<R: Rtc> NetworkSyncService<'a, R> {
+    pub fn new(rtc: &'a mut R) -> Self {
         Self {
             initialized: false,
             connected: false,
-            last_sync_time: None,
             cached_weather: None,
-            sync_interval_minutes: 120,
             retry_count: 0,
             max_retries: 2,
-            low_power_mode: false,
-            rtc: None,
-            stack: None,
-            api_host: heapless::String::try_from(API_HOST_DEFAULT).unwrap_or_default(),
-            location: heapless::String::try_from(LOCATION_DEFAULT).unwrap_or_default(),
-            jwt_signer: None,
-        }
-    }
-
-    pub fn with_rtc(rtc: R) -> Self {
-        Self {
-            initialized: false,
-            connected: false,
-            last_sync_time: None,
-            cached_weather: None,
-            sync_interval_minutes: 120,
-            retry_count: 0,
-            max_retries: 2,
-            low_power_mode: false,
-            rtc: Some(rtc),
+            rtc,
             stack: None,
             api_host: heapless::String::try_from(API_HOST_DEFAULT).unwrap_or_default(),
             location: heapless::String::try_from(LOCATION_DEFAULT).unwrap_or_default(),
@@ -69,17 +43,13 @@ impl<R: Rtc> NetworkSyncService<R> {
         info!("Initializing network sync service");
 
         self.retry_count = 0;
-        self.max_retries = if self.low_power_mode { 1 } else { 2 };
         self.initialized = true;
 
         info!("Network sync service initialized");
         Ok(())
     }
 
-    pub async fn sync(&mut self) -> SystemResult<SyncResult>
-    where
-        R::Error: core::fmt::Debug,
-    {
+    pub async fn sync(&mut self) -> SystemResult<SyncResult> {
         if !self.initialized {
             return Err(SystemError::HardwareError(HardwareError::NotInitialized));
         }
@@ -110,8 +80,6 @@ impl<R: Rtc> NetworkSyncService<R> {
             }
         };
 
-        self.last_sync_time = Some(embassy_time::Instant::now().elapsed().as_secs());
-
         let sync_duration = start_time.elapsed();
 
         if !time_synced || !weather_synced {
@@ -137,17 +105,14 @@ impl<R: Rtc> NetworkSyncService<R> {
         })
     }
 
-    async fn sync_time(&mut self) -> SystemResult<()>
-    where
-        R::Error: core::fmt::Debug,
-    {
+    async fn sync_time(&mut self) -> SystemResult<()> {
         if !self.connected {
             self.connect().await?;
         }
 
-        let stack = self.stack.ok_or_else(|| {
-            SystemError::HardwareError(HardwareError::NotInitialized)
-        })?;
+        let stack = self
+            .stack
+            .ok_or_else(|| SystemError::HardwareError(HardwareError::NotInitialized))?;
 
         let mut sntp = EmbassySntpWithStack::new(stack);
 
@@ -156,14 +121,14 @@ impl<R: Rtc> NetworkSyncService<R> {
                 info!("SNTP time sync success: {}", unix_timestamp);
                 if let Some(ref mut rtc) = self.rtc {
                     if let Err(e) = rtc.set_time(unix_timestamp).await {
-                        warn!("Failed to write time to RTC: {:?}", e);
+                        warn!("Failed to write time to RTC");
                     } else {
                         info!("Time written to RTC: {}", unix_timestamp);
                     }
                 }
             }
             Err(e) => {
-                warn!("SNTP time sync failed: {:?}", e);
+                warn!("SNTP time sync failed");
                 return Err(SystemError::NetworkError(NetworkError::Unknown));
             }
         }
@@ -172,11 +137,18 @@ impl<R: Rtc> NetworkSyncService<R> {
     }
 
     async fn sync_weather(&mut self) -> SystemResult<()> {
+        if !self.connected {
+            self.connect().await?;
+        }
+
         if let Some(signer) = &self.jwt_signer {
             let timestamp = self.get_current_timestamp().await.unwrap_or(1700000000);
             match signer.sign_with_time("", timestamp) {
                 Ok(token) => {
-                    info!("JWT token generated: {}...", &token.as_str()[..30.min(token.len())]);
+                    info!(
+                        "JWT token generated: {}...",
+                        &token.as_str()[..30.min(token.len())]
+                    );
                 }
                 Err(e) => {
                     warn!("Failed to generate JWT token: {:?}", e);
@@ -248,7 +220,7 @@ impl<R: Rtc> NetworkSyncService<R> {
         if let Some(ref weather) = self.cached_weather {
             Ok(weather.clone())
         } else {
-            Err(SystemError::NetworkError(NetworkError::Unknown))
+            Ok(self.get_default_weather()?)
         }
     }
 
@@ -259,7 +231,7 @@ impl<R: Rtc> NetworkSyncService<R> {
         Ok(self.connected)
     }
 
-    pub async fn connect(&mut self) -> SystemResult<()> {
+    async fn connect(&mut self) -> SystemResult<()> {
         if !self.initialized {
             return Err(SystemError::HardwareError(HardwareError::NotInitialized));
         }
@@ -276,7 +248,7 @@ impl<R: Rtc> NetworkSyncService<R> {
         Ok(())
     }
 
-    pub async fn disconnect(&mut self) -> SystemResult<()> {
+    async fn disconnect(&mut self) -> SystemResult<()> {
         if !self.initialized {
             return Err(SystemError::HardwareError(HardwareError::NotInitialized));
         }
@@ -294,90 +266,9 @@ impl<R: Rtc> NetworkSyncService<R> {
         Ok(())
     }
 
-    pub async fn should_sync(&self) -> bool {
-        if let Some(_last_sync) = self.last_sync_time {
-            let elapsed = embassy_time::Instant::now().elapsed().as_secs();
-            let interval = if self.low_power_mode {
-                (self.sync_interval_minutes * 2) as u64 * 60
-            } else {
-                self.sync_interval_minutes as u64 * 60
-            };
-
-            elapsed >= interval
-        } else {
-            true
-        }
-    }
-
-    pub async fn set_sync_interval(&mut self, minutes: u16) -> SystemResult<()> {
-        if !self.initialized {
-            return Err(SystemError::HardwareError(HardwareError::NotInitialized));
-        }
-
-        self.sync_interval_minutes = minutes;
-        info!("Sync interval set to {} minutes", minutes);
-
-        Ok(())
-    }
-
-    pub async fn set_low_power_mode(&mut self, enabled: bool) -> SystemResult<()> {
-        self.low_power_mode = enabled;
-        self.max_retries = if enabled { 1 } else { 2 };
-
-        if enabled {
-            info!("Network sync service entered low power mode");
-        } else {
-            info!("Network sync service exited low power mode");
-        }
-
-        Ok(())
-    }
-
-    pub async fn get_last_sync_time(&self) -> Option<u64> {
-        self.last_sync_time
-    }
-
-    pub async fn force_sync(&mut self) -> SystemResult<SyncResult>
-    where
-        R::Error: core::fmt::Debug,
-    {
-        self.retry_count = 0;
-        self.sync().await
-    }
-
-    pub fn set_api_config(
-        &mut self,
-        api_host: &str,
-        location: &str,
-        key_id: &str,
-        project_id: &str,
-        private_key: &str,
-    ) -> SystemResult<()> {
-        self.api_host = String::try_from(api_host).unwrap_or_else(|_| {
-            String::try_from(API_HOST_DEFAULT).unwrap()
-        });
-        self.location = String::try_from(location).unwrap_or_else(|_| {
-            String::try_from(LOCATION_DEFAULT).unwrap()
-        });
-
-        self.jwt_signer = match QweatherJwtSigner::new(key_id, project_id, private_key) {
-            Ok(signer) => {
-                info!("JWT signer initialized successfully");
-                Some(signer)
-            }
-            Err(e) => {
-                warn!("Failed to initialize JWT signer: {:?}", e);
-                None
-            }
-        };
-
-        Ok(())
-    }
-
     pub fn set_location(&mut self, location: &str) {
-        self.location = String::try_from(location).unwrap_or_else(|_| {
-            String::try_from(LOCATION_DEFAULT).unwrap()
-        });
+        self.location = String::try_from(location)
+            .unwrap_or_else(|_| String::try_from(LOCATION_DEFAULT).unwrap());
     }
 
     async fn get_current_timestamp(&self) -> Option<i64> {

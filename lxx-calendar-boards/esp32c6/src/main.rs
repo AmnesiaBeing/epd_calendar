@@ -63,7 +63,8 @@ impl PlatformTrait for Platform {
 
         let sys_watch_dog = Esp32Watchdog::new(&peripherals);
         let audio = Esp32Buzzer::new(&peripherals);
-        let rtc = Esp32Rtc::new();
+        let rtc_hal = esp_hal::rtc_cntl::Rtc::new(unsafe { peripherals.LPWR.clone_unchecked() });
+        let rtc = Esp32Rtc::new(rtc_hal);
         let (wifi, wifi_interface) = Esp32Wifi::new(&peripherals);
         let network = Esp32NetworkStack::new(spawner, wifi_interface);
         let epd = Self::init_epd(&peripherals).await;

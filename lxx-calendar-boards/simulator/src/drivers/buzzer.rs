@@ -1,4 +1,4 @@
-use lxx_calendar_common::{info, BuzzerDriver};
+use lxx_calendar_common::{BuzzerDriver, info};
 
 pub struct SimulatorBuzzer;
 

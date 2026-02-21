@@ -1,6 +1,7 @@
 mod buzzer;
 mod epd;
 mod network;
+mod rng;
 mod rtc;
 mod watchdog;
 mod wifi;

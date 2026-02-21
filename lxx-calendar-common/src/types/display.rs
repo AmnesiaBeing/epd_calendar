@@ -1,12 +1,19 @@
-use crate::types::{DateTime, LunarDate, WeatherInfo};
+use crate::types::{
+    LunarDay, LunarFestival, SolarFestival, SolarTerm, SolarTime, WeatherInfo, Week,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DisplayData {
-    pub time: DateTime,
-    pub lunar_date: LunarDate,
+    pub solar_time: SolarTime,
+    pub weekday: Week,
+    pub lunar_date: LunarDay,
     pub weather: Option<WeatherInfo>,
     pub quote: Option<heapless::String<128>>,
     pub layout: DisplayLayout,
+    pub solar_term: Option<SolarTerm>,
+    pub lunar_festival: Option<LunarFestival>,
+    pub solar_festival: Option<SolarFestival>,
+    pub low_battery: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

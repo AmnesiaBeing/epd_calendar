@@ -50,12 +50,12 @@ impl Watchdog for SimulatedWdt {
 async fn watchdog_task(timeout_ms: u64) {
     loop {
         embassy_time::Timer::after(Duration::from_millis(timeout_ms)).await;
-        
+
         if !WATCHDOG_ENABLED.load(Ordering::SeqCst) {
             log::debug!("Watchdog disabled, skipping check");
             continue;
         }
-        
+
         if !WATCHDOG_FED.load(Ordering::SeqCst) {
             log::warn!("Watchdog expired!");
         } else {

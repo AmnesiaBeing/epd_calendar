@@ -7,12 +7,10 @@
 //! - 网络事件 (NetworkEvent)
 //! - 系统状态事件 (SystemStateEvent)
 //! - 电源事件 (PowerEvent)
-//! - 配置变更事件 (ConfigChange)
 //!
 //! 所有事件都实现了Debug、Clone和Eq trait，便于日志记录和状态转换判断。
 
 pub mod system;
 pub use system::{
-    ConfigChange, NetworkEvent, PowerEvent, SystemEvent, SystemStateEvent, TimeEvent, UserEvent,
-    WakeupEvent,
+    NetworkEvent, PowerEvent, SystemEvent, SystemStateEvent, TimeEvent, UserEvent, WakeupEvent,
 };

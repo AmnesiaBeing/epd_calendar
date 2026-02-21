@@ -1,5 +1,5 @@
 use core::sync::atomic::{AtomicI64, Ordering};
-use embassy_time::Instant;
+use embassy_time::{Duration, Instant};
 use lxx_calendar_common::Rtc;
 
 static RTC_TIMESTAMP: AtomicI64 = AtomicI64::new(1771588453);
@@ -8,6 +8,7 @@ pub struct SimulatedRtc {
     initialized: bool,
     base_timestamp: i64,
     boot_instant: Option<Instant>,
+    wakeup_duration: Option<Duration>,
 }
 
 impl SimulatedRtc {
@@ -16,6 +17,7 @@ impl SimulatedRtc {
             initialized: false,
             base_timestamp: 1771588453,
             boot_instant: None,
+            wakeup_duration: None,
         }
     }
 
@@ -64,5 +66,21 @@ impl Rtc for SimulatedRtc {
         self.boot_instant = Some(Instant::now());
         log::info!("Simulated RTC time set to: {}", timestamp);
         Ok(())
+    }
+
+    async fn set_wakeup(&mut self, duration: Duration) -> Result<(), Self::Error> {
+        self.wakeup_duration = Some(duration);
+        log::info!("Simulated RTC wakeup set for {:?}", duration);
+        Ok(())
+    }
+
+    async fn sleep_light(&mut self) {
+        if let Some(duration) = self.wakeup_duration.take() {
+            log::info!("Simulated light sleep for {:?}", duration);
+            embassy_time::block_for(duration);
+            log::info!("Simulated wakeup from light sleep");
+        } else {
+            log::info!("Simulated light sleep (no wakeup duration set)");
+        }
     }
 }

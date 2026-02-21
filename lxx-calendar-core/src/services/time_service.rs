@@ -4,7 +4,7 @@ use lxx_calendar_common::*;
 use sxtwl_rs::festival::{LunarFestival, SolarFestival};
 use sxtwl_rs::solar::SolarDay;
 
-pub struct TimeService<R: Rtc> {
+pub struct TimeService<'a, R: Rtc> {
     initialized: bool,
     boot_instant: Option<Instant>,
     cached_solar_time: Option<SolarTime>,
@@ -15,11 +15,11 @@ pub struct TimeService<R: Rtc> {
     cached_lunar_festival: Option<LunarFestival>,
     last_calculation_date: Option<(u16, u8, u8, u8)>,
     timezone_offset: i32,
-    rtc: Option<R>,
+    rtc: &'a R,
 }
 
-impl<R: Rtc> TimeService<R> {
-    pub fn new(rtc: R) -> Self {
+impl<R: Rtc> TimeService<'a, R> {
+    pub fn new(rtc: &'a R) -> Self {
         Self {
             initialized: false,
             boot_instant: None,
@@ -31,7 +31,7 @@ impl<R: Rtc> TimeService<R> {
             cached_lunar_festival: None,
             last_calculation_date: None,
             timezone_offset: 28800,
-            rtc: Some(rtc),
+            rtc,
         }
     }
 
@@ -183,7 +183,11 @@ impl<R: Rtc> TimeService<R> {
 
         if let Some(ref cached) = self.cached_lunar {
             if let Some(ref last_date) = self.last_calculation_date {
-                if last_date.0 == year && last_date.1 == month && last_date.2 == day && last_date.3 == 0 {
+                if last_date.0 == year
+                    && last_date.1 == month
+                    && last_date.2 == day
+                    && last_date.3 == 0
+                {
                     return Ok(cached.clone());
                 }
             }
@@ -214,7 +218,11 @@ impl<R: Rtc> TimeService<R> {
 
         if let Some(ref cached) = self.cached_solar_term {
             if let Some(ref last_date) = self.last_calculation_date {
-                if last_date.0 == year && last_date.1 == month && last_date.2 == day && last_date.3 == 1 {
+                if last_date.0 == year
+                    && last_date.1 == month
+                    && last_date.2 == day
+                    && last_date.3 == 1
+                {
                     return Ok(Some(cached.clone()));
                 }
             }
@@ -249,7 +257,11 @@ impl<R: Rtc> TimeService<R> {
 
         if let Some(ref cached) = self.cached_solar_festival {
             if let Some(ref last_date) = self.last_calculation_date {
-                if last_date.0 == year && last_date.1 == month && last_date.2 == day && last_date.3 == 2 {
+                if last_date.0 == year
+                    && last_date.1 == month
+                    && last_date.2 == day
+                    && last_date.3 == 2
+                {
                     return Ok(Some(cached.clone()));
                 }
             }
@@ -279,7 +291,11 @@ impl<R: Rtc> TimeService<R> {
 
         if let Some(ref cached) = self.cached_lunar_festival {
             if let Some(ref last_date) = self.last_calculation_date {
-                if last_date.0 == year && last_date.1 == month && last_date.2 == day && last_date.3 == 3 {
+                if last_date.0 == year
+                    && last_date.1 == month
+                    && last_date.2 == day
+                    && last_date.3 == 3
+                {
                     return Ok(Some(cached.clone()));
                 }
             }
@@ -350,7 +366,7 @@ impl<R: Rtc> TimeService<R> {
         if current_minute == 59 && current_second >= 55 {
         } else if current_minute < 59 {
             next_timestamp += (59 - current_minute as u64 - 1) * 60;
-            next_timestamp += (60 - current_second as u64);
+            next_timestamp += 60 - current_second as u64;
         } else {
             next_timestamp += (24 * 3600) - (current_minute as u64 * 60) - current_second as u64;
             next_timestamp += 55 * 60;
@@ -380,9 +396,15 @@ impl<R: Rtc> TimeService<R> {
             let mut alarm_timestamp = current_timestamp;
 
             let (hour_diff, minute_diff) = if alarm.hour > current_hour {
-                (alarm.hour - current_hour, alarm.minute as i16 - current_minute as i16)
+                (
+                    alarm.hour - current_hour,
+                    alarm.minute as i16 - current_minute as i16,
+                )
             } else if alarm.hour < current_hour {
-                (24 - current_hour + alarm.hour, alarm.minute as i16 - current_minute as i16)
+                (
+                    24 - current_hour + alarm.hour,
+                    alarm.minute as i16 - current_minute as i16,
+                )
             } else {
                 if alarm.minute > current_minute {
                     (0, alarm.minute as i16 - current_minute as i16)
@@ -391,10 +413,13 @@ impl<R: Rtc> TimeService<R> {
                 }
             };
 
-            let total_seconds = (hour_diff as i64 * 3600) + (minute_diff as i64 * 60) - current_second as i64;
+            let total_seconds =
+                (hour_diff as i64 * 3600) + (minute_diff as i64 * 60) - current_second as i64;
             alarm_timestamp += total_seconds as u64;
 
-            if nearest_alarm_timestamp.is_none() || alarm_timestamp < nearest_alarm_timestamp.unwrap() {
+            if nearest_alarm_timestamp.is_none()
+                || alarm_timestamp < nearest_alarm_timestamp.unwrap()
+            {
                 nearest_alarm_timestamp = Some(alarm_timestamp);
             }
         }
@@ -402,7 +427,10 @@ impl<R: Rtc> TimeService<R> {
         Ok(nearest_alarm_timestamp)
     }
 
-    pub async fn get_next_display_refresh_time(&mut self, refresh_interval_minutes: u8) -> SystemResult<Option<u64>> {
+    pub async fn get_next_display_refresh_time(
+        &mut self,
+        refresh_interval_minutes: u8,
+    ) -> SystemResult<Option<u64>> {
         if !self.initialized {
             return Err(SystemError::HardwareError(HardwareError::NotInitialized));
         }
@@ -412,13 +440,15 @@ impl<R: Rtc> TimeService<R> {
         let current_minute = solar_time.get_minute() as u8;
         let current_second = solar_time.get_second() as u8;
 
-        let next_refresh_minute = ((current_minute / refresh_interval_minutes + 1) * refresh_interval_minutes) % 60;
+        let next_refresh_minute =
+            ((current_minute / refresh_interval_minutes + 1) * refresh_interval_minutes) % 60;
         let mut next_refresh_timestamp = current_timestamp + (60 - current_second as u64) % 60;
-        
+
         if next_refresh_minute > current_minute {
             next_refresh_timestamp += (next_refresh_minute - current_minute) as u64 * 60;
         } else {
-            next_refresh_timestamp += (60 - current_minute as u64 + next_refresh_minute as u64) * 60;
+            next_refresh_timestamp +=
+                (60 - current_minute as u64 + next_refresh_minute as u64) * 60;
         }
 
         Ok(Some(next_refresh_timestamp))
@@ -436,15 +466,26 @@ impl<R: Rtc> TimeService<R> {
 
         let mut candidates: Vec<(u64, WakeupSource)> = Vec::new();
 
-        if let Some(ts) = self.get_next_hour_chime_time(config.time_config.hour_chime_enabled).await? {
-            candidates.push((ts, WakeupSource::HourChime(((solar_time.get_hour() as u8) + 1) % 24)));
+        if let Some(ts) = self
+            .get_next_hour_chime_time(config.time_config.hour_chime_enabled)
+            .await?
+        {
+            candidates.push((
+                ts,
+                WakeupSource::HourChime(((solar_time.get_hour() as u8) + 1) % 24),
+            ));
         }
 
         if let Some(ts) = self.get_next_alarm_time(&config.time_config.alarms).await? {
             candidates.push((ts, WakeupSource::Alarm));
         }
 
-        if let Some(ts) = self.get_next_display_refresh_time((config.display_config.refresh_interval_seconds / 60) as u8).await? {
+        if let Some(ts) = self
+            .get_next_display_refresh_time(
+                (config.display_config.refresh_interval_seconds / 60) as u8,
+            )
+            .await?
+        {
             candidates.push((ts, WakeupSource::DisplayRefresh));
         }
 
@@ -482,16 +523,17 @@ impl<R: Rtc> TimeService<R> {
             if timestamp > current_time {
                 let duration = Duration::from_millis((timestamp - current_time) * 1000);
                 rtc.set_wakeup(duration).await.ok();
-                info!("RTC alarm set for {} seconds later", timestamp - current_time);
+                info!(
+                    "RTC alarm set for {} seconds later",
+                    timestamp - current_time
+                );
             }
         }
         Ok(())
     }
 
     pub async fn enter_light_sleep(&mut self) {
-        if let Some(ref mut rtc) = self.rtc {
-            rtc.sleep_light().await;
-        }
+        self.rtc.sleep_light().await;
     }
 }
 

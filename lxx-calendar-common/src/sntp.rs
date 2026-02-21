@@ -46,10 +46,7 @@ impl<'a> SntpClient for EmbassySntpWithStack<'a> {
 }
 
 impl<'a> EmbassySntpWithStack<'a> {
-    pub async fn get_time_with_timeout(
-        &mut self,
-        timeout: Duration,
-    ) -> Result<i64, SntpError> {
+    pub async fn get_time_with_timeout(&mut self, timeout: Duration) -> Result<i64, SntpError> {
         for server in NTP_SERVERS {
             if let Ok(timestamp) = self.try_get_time_from_server(server, timeout).await {
                 return Ok(timestamp);
