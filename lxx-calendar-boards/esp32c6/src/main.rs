@@ -21,7 +21,9 @@ esp_bootloader_esp_idf::esp_app_desc!();
 
 use panic_rtt_target as _;
 
-use crate::drivers::{Esp32Buzzer, Esp32NetworkStack, Esp32Rtc, Esp32Watchdog, Esp32Wifi};
+use crate::drivers::{
+    Esp32Battery, Esp32Buzzer, Esp32LED, Esp32NetworkStack, Esp32Rtc, Esp32Watchdog, Esp32Wifi,
+};
 
 pub struct Platform;
 
@@ -43,18 +45,20 @@ impl PlatformTrait for Platform {
 
     type AudioDevice = Esp32Buzzer;
 
+    type LEDDevice = Esp32LED;
+
     type RtcDevice = Esp32Rtc;
 
     type WifiDevice = Esp32Wifi;
 
     type NetworkStack = Esp32NetworkStack;
 
-    async fn init(spawner: embassy_executor::Spawner) -> PlatformContext<Self> {
+    type BatteryDevice = Esp32Battery;
+
+    async fn init(spawner: embassy_executor::Spawner) -> SystemResult<PlatformContext<Self>> {
         let peripherals = esp_hal::init(
             esp_hal::Config::default().with_cpu_clock(esp_hal::clock::CpuClock::max()),
         );
-        esp_alloc::heap_allocator!(#[esp_hal::ram(reclaimed)] size: 64 * 1024);
-        esp_alloc::heap_allocator!(size: 64 * 1024);
 
         let timg0 = TimerGroup::new(unsafe { peripherals.TIMG0.clone_unchecked() });
         let sw_int =
@@ -63,20 +67,24 @@ impl PlatformTrait for Platform {
 
         let sys_watch_dog = Esp32Watchdog::new(&peripherals);
         let audio = Esp32Buzzer::new(&peripherals);
+        let led = Esp32LED::new(&peripherals, spawner);
+        let battery = Esp32Battery::new(&peripherals);
         let rtc_hal = esp_hal::rtc_cntl::Rtc::new(unsafe { peripherals.LPWR.clone_unchecked() });
         let rtc = Esp32Rtc::new(rtc_hal);
         let (wifi, wifi_interface) = Esp32Wifi::new(&peripherals);
         let network = Esp32NetworkStack::new(spawner, wifi_interface);
         let epd = Self::init_epd(&peripherals).await;
 
-        PlatformContext {
+        Ok(PlatformContext {
             sys_watch_dog,
             epd,
             audio,
+            led,
             rtc,
             wifi,
             network,
-        }
+            battery,
+        })
     }
 
     fn sys_reset() {
@@ -86,12 +94,25 @@ impl PlatformTrait for Platform {
     fn sys_stop() {
         todo!()
     }
+
+    fn init_logger() {}
+
+    fn init_heap() {
+        esp_alloc::heap_allocator!(#[esp_hal::ram(reclaimed)] size: 64 * 1024);
+        esp_alloc::heap_allocator!(size: 64 * 1024);
+    }
 }
 
 #[platform_main]
 async fn main(spawner: embassy_executor::Spawner) {
-    let platform_ctx = Platform::init(spawner).await;
-    if let Err(e) = main_task::<Platform>(spawner, platform_ctx).await {
-        error!("Main task error: {:?}", e);
+    match Platform::init(spawner).await {
+        Ok(platform_ctx) => {
+            if let Err(e) = main_task::<Platform>(spawner, platform_ctx).await {
+                error!("Main task error: {:?}", e);
+            }
+        }
+        Err(e) => {
+            error!("Platform init error: {:?}", e);
+        }
     }
 }

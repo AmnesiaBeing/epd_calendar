@@ -58,7 +58,12 @@ impl<'a, R: Rtc> DisplayManager<'a, R> {
         Ok(())
     }
 
-    pub async fn update_display(&mut self, low_battery: bool) -> SystemResult<()> {
+    pub async fn update_display(
+        &mut self,
+        low_battery: bool,
+        charging: bool,
+        voltage: Option<u16>,
+    ) -> SystemResult<()> {
         let solar_time = self.time_service.get_solar_time().await?;
         let weekday = self.time_service.get_weekday().await?;
 
@@ -129,6 +134,8 @@ impl<'a, R: Rtc> DisplayManager<'a, R> {
             lunar_festival,
             solar_festival,
             low_battery,
+            charging,
+            voltage,
         };
 
         info!("Updating display data");

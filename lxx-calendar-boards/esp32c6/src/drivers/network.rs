@@ -49,8 +49,8 @@ impl NetworkStack for Esp32NetworkStack {
         Ok(())
     }
 
-    fn is_config_up(&self) -> bool {
-        self.stack.config_v4().is_some()
+    fn get_stack(&self) -> Option<&embassy_net::Stack<'static>> {
+        Some(&self.stack)
     }
 }
 

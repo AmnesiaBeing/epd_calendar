@@ -1,6 +1,8 @@
 use embassy_sync::channel::{Channel, Receiver, Sender};
 
-use super::{BuzzerDriver, NetworkStack, Rtc, Watchdog, WifiController};
+use crate::SystemResult;
+
+use super::{Battery, BuzzerDriver, LEDDriver, NetworkStack, Rtc, Watchdog, WifiController};
 
 const CAP: usize = 10;
 
@@ -21,9 +23,7 @@ pub trait PlatformTrait: Sized {
 
     fn init_heap() {}
 
-    fn init(
-        spawner: embassy_executor::Spawner,
-    ) -> impl core::future::Future<Output = PlatformContext<Self>>;
+    async fn init(spawner: embassy_executor::Spawner) -> SystemResult<PlatformContext<Self>>;
 
     fn sys_reset();
 
@@ -46,6 +46,12 @@ pub trait PlatformTrait: Sized {
 
     /// 网络协议栈
     type NetworkStack: NetworkStack;
+
+    /// LED 指示灯设备
+    type LEDDevice: LEDDriver;
+
+    /// 电池监控设备
+    type BatteryDevice: Battery;
 }
 
 pub struct PlatformContext<C: PlatformTrait + Sized> {
@@ -61,4 +67,8 @@ pub struct PlatformContext<C: PlatformTrait + Sized> {
     pub wifi: C::WifiDevice,
     /// 网络协议栈
     pub network: C::NetworkStack,
+    /// LED 指示灯设备
+    pub led: C::LEDDevice,
+    /// 电池监控设备
+    pub battery: C::BatteryDevice,
 }

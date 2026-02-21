@@ -1,4 +1,3 @@
-use embassy_executor::Spawner;
 use lxx_calendar_common::*;
 
 pub struct WatchdogManager<W: Watchdog> {
@@ -6,7 +5,6 @@ pub struct WatchdogManager<W: Watchdog> {
     initialized: bool,
     timeout_ms: u64,
     enabled: bool,
-    feed_interval_ms: u64,
 }
 
 impl<W: Watchdog> WatchdogManager<W> {
@@ -16,7 +14,6 @@ impl<W: Watchdog> WatchdogManager<W> {
             initialized: false,
             timeout_ms: 30000,
             enabled: true,
-            feed_interval_ms: 5000,
         }
     }
 
@@ -60,38 +57,6 @@ impl<W: Watchdog> WatchdogManager<W> {
         info!("Watchdog task ended");
     }
 
-    pub async fn start_feed_task(&mut self, _spawner: Spawner) {
-        info!("Watchdog feed task not implemented, using event loop feeding");
-    }
-
-    #[allow(dead_code)]
-    pub async fn set_timeout(&mut self, timeout_ms: u64) -> SystemResult<()> {
-        if !self.initialized {
-            return Err(SystemError::HardwareError(HardwareError::NotInitialized));
-        }
-
-        if timeout_ms < 1000 || timeout_ms > 300000 {
-            return Err(SystemError::HardwareError(HardwareError::InvalidParameter));
-        }
-
-        self.timeout_ms = timeout_ms;
-
-        if let Some(ref mut wdt) = self.wdt {
-            wdt.set_timeout(timeout_ms as u32).ok();
-        }
-
-        info!("Watchdog timeout set to {}ms", timeout_ms);
-
-        Ok(())
-    }
-
-    pub async fn get_timeout(&self) -> SystemResult<u64> {
-        if !self.initialized {
-            return Err(SystemError::HardwareError(HardwareError::NotInitialized));
-        }
-        Ok(self.timeout_ms)
-    }
-
     pub async fn enable(&mut self) -> SystemResult<()> {
         if !self.initialized {
             return Err(SystemError::HardwareError(HardwareError::NotInitialized));
@@ -120,34 +85,6 @@ impl<W: Watchdog> WatchdogManager<W> {
         }
 
         info!("Watchdog disabled");
-
-        Ok(())
-    }
-
-    pub async fn is_enabled(&self) -> SystemResult<bool> {
-        if !self.initialized {
-            return Err(SystemError::HardwareError(HardwareError::NotInitialized));
-        }
-        Ok(self.enabled)
-    }
-
-    pub async fn is_about_to_timeout(&self) -> SystemResult<bool> {
-        if !self.initialized || !self.enabled {
-            return Ok(false);
-        }
-
-        Ok(false)
-    }
-
-    pub async fn check_and_feed(&mut self) -> SystemResult<()> {
-        if !self.initialized {
-            return Err(SystemError::HardwareError(HardwareError::NotInitialized));
-        }
-
-        if self.is_about_to_timeout().await? {
-            warn!("Watchdog about to timeout, feeding");
-            self.feed();
-        }
 
         Ok(())
     }

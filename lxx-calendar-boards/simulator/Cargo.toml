@@ -19,6 +19,7 @@ critical-section = { workspace = true, features = ["std"] }
 embedded-hal-mock = { path = "../../libs/embedded-hal-mock", features = ["eh1", "embedded-hal-async"] }
 async-trait = { workspace = true }
 env_logger = "0.11.9"
+getrandom = { workspace = true, features = ["std"] }
 
 [dependencies.embassy-sync]
 workspace = true
@@ -30,3 +31,12 @@ features = ["std"]
 [dependencies.embassy-executor]
 workspace = true
 features = ["arch-std", "executor-thread"]
+
+[dependencies.embassy-net]
+workspace = true
+
+[dependencies.embassy-net-tuntap]
+workspace = true
+
+[dependencies.heapless]
+workspace = true

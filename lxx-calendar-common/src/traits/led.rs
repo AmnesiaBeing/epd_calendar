@@ -1,13 +1,31 @@
+use crate::*;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LEDIndicatorState {
+    Off,
+    BlinkFast,
+    BlinkSlow,
+    On,
+}
+
 pub trait LEDDriver {
     type Error;
+    fn set_state(&mut self, state: LEDIndicatorState) -> Result<(), Self::Error>;
+}
 
-    async fn initialize(&mut self) -> Result<(), Self::Error>;
+pub struct NoLED;
 
-    async fn set_on(&mut self) -> Result<(), Self::Error>;
+impl NoLED {
+    pub fn new() -> Self {
+        Self
+    }
+}
 
-    async fn set_off(&mut self) -> Result<(), Self::Error>;
+impl LEDDriver for NoLED {
+    type Error = core::convert::Infallible;
 
-    async fn toggle(&mut self) -> Result<(), Self::Error>;
-
-    async fn is_on(&self) -> Result<bool, Self::Error>;
+    fn set_state(&mut self, state: LEDIndicatorState) -> Result<(), Self::Error> {
+        info!("[No LED] State: {:?}", state);
+        Ok(())
+    }
 }

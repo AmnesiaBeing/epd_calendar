@@ -1,16 +1,23 @@
 {
   "rust-analyzer.cargo.allTargets": false,
-  // "rust-analyzer.cargo.target": "riscv32imac-unknown-none-elf",
-  // "rust-analyzer.cargo.features": [
-  //   "simulator",
-  //   "esp32c6",
-  //   "tspi"
-  // ],
+  "rust-analyzer.cargo.noDefaultFeatures": true,
+  "rust-analyzer.cargo.features": [
+    "simulator"
+  ],
+  "rust-analyzer.cargo.target": "x86_64-unknown-linux-gnu",
+  "rust-analyzer.check.noDefaultFeatures": true,
+  "rust-analyzer.check.features": [
+    "simulator"
+  ],
+  "rust-analyzer.check.targets": [
+    "x86_64-unknown-linux-gnu"
+  ],
   "rust-analyzer.linkedProjects": [
     "lxx-calendar-graphics/Cargo.toml",
     "lxx-calendar-quotes/Cargo.toml",
     "lxx-calendar-core/Cargo.toml",
     "lxx-calendar-common/Cargo.toml",
-    "lxx-calendar-boards/simulator/Cargo.toml"
+    "lxx-calendar-boards/simulator/Cargo.toml",
+    "lxx-calendar-boards/esp32c6/Cargo.toml"
   ]
 }

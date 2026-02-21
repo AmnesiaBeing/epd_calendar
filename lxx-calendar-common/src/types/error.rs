@@ -59,3 +59,27 @@ pub enum NetworkError {
     ServerError,
     Unknown,
 }
+
+impl From<HardwareError> for SystemError {
+    fn from(value: HardwareError) -> Self {
+        Self::HardwareError(value)
+    }
+}
+
+impl From<ServiceError> for SystemError {
+    fn from(value: ServiceError) -> Self {
+        Self::ServiceError(value)
+    }
+}
+
+impl From<StorageError> for SystemError {
+    fn from(value: StorageError) -> Self {
+        Self::StorageError(value)
+    }
+}
+
+impl From<NetworkError> for SystemError {
+    fn from(value: NetworkError) -> Self {
+        Self::NetworkError(value)
+    }
+}

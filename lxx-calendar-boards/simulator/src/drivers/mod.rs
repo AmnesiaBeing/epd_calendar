@@ -4,4 +4,4 @@ mod network;
 
 pub use buzzer::SimulatorBuzzer;
 pub use epd::init_epd;
-pub use network::SimulatorNetwork;
+pub use network::TunTapNetwork;

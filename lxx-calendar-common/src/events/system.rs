@@ -52,7 +52,6 @@ pub enum SystemStateEvent {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PowerEvent {
-    BatteryLevelChanged(u8),
     ChargingStateChanged(bool),
     LowPowerModeChanged(bool),
 }

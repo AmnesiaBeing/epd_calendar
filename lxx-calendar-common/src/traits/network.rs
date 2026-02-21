@@ -5,7 +5,7 @@ pub trait NetworkStack {
 
     async fn wait_config_up(&self) -> Result<(), Self::Error>;
 
-    fn is_config_up(&self) -> bool;
+    fn get_stack(&self) -> Option<&embassy_net::Stack<'static>>;
 }
 
 pub struct NoNetwork;
@@ -21,7 +21,7 @@ impl NetworkStack for NoNetwork {
         Ok(())
     }
 
-    fn is_config_up(&self) -> bool {
-        false
+    fn get_stack(&self) -> Option<&embassy_net::Stack<'static>> {
+        None
     }
 }

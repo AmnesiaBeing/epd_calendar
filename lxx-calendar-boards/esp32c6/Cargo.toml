@@ -43,6 +43,7 @@ panic-rtt-target = { version = "0.2.0" }
 rtt-target = { version = "0.6.2", features = ["defmt"] }
 
 static_cell.workspace = true
+nb.workspace = true
 embassy-executor.workspace = true
 defmt.workspace = true
 embassy-sync.workspace = true

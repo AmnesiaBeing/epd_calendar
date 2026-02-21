@@ -16,34 +16,41 @@ impl PlatformTrait for Platform {
 
     type AudioDevice = drivers::SimulatorBuzzer;
 
+    type LEDDevice = NoLED;
+
     type RtcDevice = SimulatedRtc;
 
     type WifiDevice = NoWifi;
 
-    type NetworkStack = drivers::SimulatorNetwork;
+    type NetworkStack = drivers::TunTapNetwork;
 
-    async fn init(spawner: Spawner) -> PlatformContext<Self> {
+    type BatteryDevice = NoBattery;
+
+    async fn init(spawner: Spawner) -> SystemResult<PlatformContext<Self>> {
         let wdt = simulated_wdt::SimulatedWdt::new(30000);
         simulated_wdt::start_watchdog(&spawner, 30000);
 
         let epd = drivers::init_epd().await;
 
         let audio = drivers::SimulatorBuzzer;
-
         let mut rtc = simulated_rtc::SimulatedRtc::new();
         rtc.initialize().await.ok();
 
         let wifi = NoWifi::new();
-        let network = drivers::SimulatorNetwork::new();
+        let network = drivers::TunTapNetwork::new(spawner)?;
+        let led = NoLED::new();
+        let battery = NoBattery::new(3700, false, false);
 
-        PlatformContext {
+        Ok(PlatformContext {
             sys_watch_dog: wdt,
             epd,
             audio,
             rtc,
             wifi,
             network,
-        }
+            led,
+            battery,
+        })
     }
 
     fn sys_reset() {
@@ -53,14 +60,26 @@ impl PlatformTrait for Platform {
     fn sys_stop() {
         info!("Simulator platform stop");
     }
+
+    fn init_logger() {
+        env_logger::init();
+    }
+
+    fn init_heap() {}
 }
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
-    env_logger::init();
-
-    let platform_ctx = Platform::init(spawner).await;
-    if let Err(e) = main_task::<Platform>(spawner, platform_ctx).await {
-        error!("Main task error: {:?}", e);
+    Platform::init_heap();
+    Platform::init_logger();
+    match Platform::init(spawner).await {
+        Ok(platform_ctx) => {
+            if let Err(e) = main_task::<Platform>(spawner, platform_ctx).await {
+                error!("Main task error: {:?}", e);
+            }
+        }
+        Err(e) => {
+            error!("Platform init error: {:?}", e);
+        }
     }
 }

@@ -14,6 +14,8 @@ pub struct DisplayData {
     pub lunar_festival: Option<LunarFestival>,
     pub solar_festival: Option<SolarFestival>,
     pub low_battery: bool,
+    pub charging: bool,
+    pub voltage: Option<u16>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

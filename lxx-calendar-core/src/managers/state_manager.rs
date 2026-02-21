@@ -3,12 +3,8 @@ use lxx_calendar_common::*;
 
 use crate::managers::{DisplayManager, WatchdogManager};
 use crate::services::{
-    audio_service::AudioService,
-    ble_service::BLEService,
-    network_sync_service::NetworkSyncService,
-    power_service::PowerManager,
-    quote_service::QuoteService,
-    time_service::{TimeService, WakeupSource},
+    audio_service::AudioService, ble_service::BLEService, network_sync_service::NetworkSyncService,
+    power_service::PowerManager, quote_service::QuoteService, time_service::TimeService,
 };
 
 pub struct StateManager<'a, P: PlatformTrait> {
@@ -17,13 +13,15 @@ pub struct StateManager<'a, P: PlatformTrait> {
     time_service: TimeService<P::RtcDevice>,
     quote_service: QuoteService,
     ble_service: BLEService,
-    power_manager: PowerManager,
+    power_manager: PowerManager<P::BatteryDevice>,
     audio_service: AudioService<P::AudioDevice>,
     network_sync_service: NetworkSyncService,
     watchdog: WatchdogManager<P::WatchdogDevice>,
     config: Option<&'a lxx_calendar_common::SystemConfig>,
     last_chime_hour: Option<u8>,
     last_sync_time: Option<u64>,
+    is_charging: bool,
+    low_battery_blocked: bool,
 }
 
 impl<'a, P: PlatformTrait> StateManager<'a, P> {
@@ -32,7 +30,7 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
         time_service: TimeService<P::RtcDevice>,
         quote_service: QuoteService,
         ble_service: BLEService,
-        power_manager: PowerManager,
+        power_manager: PowerManager<P::BatteryDevice>,
         audio_service: AudioService<P::AudioDevice>,
         network_sync_service: NetworkSyncService,
         watchdog_device: P::WatchdogDevice,
@@ -50,6 +48,8 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
             config: None,
             last_chime_hour: None,
             last_sync_time: None,
+            is_charging: false,
+            low_battery_blocked: false,
         }
     }
 
@@ -153,6 +153,8 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
         self.watchdog.start_task().await;
 
         let is_low_battery = self.power_manager.is_low_battery().await?;
+        let charging = self.power_manager.is_charging().await?;
+        let voltage = self.power_manager.get_voltage().await.ok();
 
         let config = self
             .config
@@ -162,13 +164,15 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
         let current_hour = current_time.get_hour() as u8;
         let current_minute = current_time.get_minute() as u8;
 
-        if config.time_config.hour_chime_enabled {
+        if config.time_config.hour_chime_enabled && !self.low_battery_blocked {
             let last_chime_hour = self.last_chime_hour.unwrap_or(255);
             if last_chime_hour != current_hour && (current_minute == 0 || current_minute == 59) {
                 info!("Playing hour chime for {}", current_hour);
                 self.last_chime_hour = Some(current_hour);
                 self.audio_service.play_hour_chime().await?;
             }
+        } else if self.low_battery_blocked {
+            debug!("Skipping hour chime due to low battery (not charging)");
         }
 
         info!("Updating display data");
@@ -185,7 +189,7 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
             let is_need_sync =
                 self.last_sync_time.is_none() || (current_hour == 0 || current_hour == 12);
 
-            if is_need_sync {
+            if is_need_sync && !self.low_battery_blocked {
                 info!("Syncing network data (time, weather, quote)");
                 match self.network_sync_service.sync(&mut self.time_service).await {
                     Ok(result) => {
@@ -200,6 +204,8 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
                         error!("Sync failed: {:?}", e);
                     }
                 }
+            } else if self.low_battery_blocked {
+                debug!("Skipping network sync due to low battery (not charging)");
             }
 
             let mut display_manager = DisplayManager::with_network_sync_service(
@@ -207,7 +213,9 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
                 &mut self.quote_service,
                 &self.network_sync_service,
             );
-            display_manager.update_display(is_low_battery).await?;
+            display_manager
+                .update_display(is_low_battery, charging, voltage)
+                .await?;
         }
 
         self.watchdog.feed();
@@ -389,14 +397,25 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
 
     async fn handle_power_event(&mut self, event: PowerEvent) -> SystemResult<()> {
         match event {
-            PowerEvent::BatteryLevelChanged(_level) => {
-                info!("Battery level changed");
+            PowerEvent::ChargingStateChanged(charging) => {
+                info!("Charging state changed: {}", charging);
+                self.is_charging = charging;
+                if !charging && self.low_battery_blocked {
+                    info!("Not charging and low battery - operations remain blocked");
+                } else if charging {
+                    self.low_battery_blocked = false;
+                    info!("Charging - low battery blocking cleared");
+                }
             }
-            PowerEvent::ChargingStateChanged(_charging) => {
-                info!("Charging state changed");
-            }
-            PowerEvent::LowPowerModeChanged(_enabled) => {
-                info!("Low power mode changed");
+            PowerEvent::LowPowerModeChanged(enabled) => {
+                info!("Low power mode changed: {}", enabled);
+                if enabled && !self.is_charging {
+                    self.low_battery_blocked = true;
+                    warn!("Low battery detected and not charging - time sync and alarm blocked");
+                } else {
+                    self.low_battery_blocked = false;
+                    info!("Low battery condition cleared");
+                }
             }
         }
         Ok(())
