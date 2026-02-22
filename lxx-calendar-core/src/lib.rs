@@ -22,7 +22,7 @@ mod services;
 static EVENT_CHANNEL: StaticCell<LxxSystemEventChannel> = StaticCell::new();
 
 pub async fn main_task<P: PlatformTrait>(
-    _spawner: Spawner,
+    spawner: Spawner,
     platform_ctx: PlatformContext<P>,
 ) -> SystemResult<()> {
     info!("lxx-calendar starting...");
@@ -50,6 +50,8 @@ pub async fn main_task<P: PlatformTrait>(
 
     let mut state_manager: StateManager<P> = StateManager::new(
         event_receiver,
+        event_sender,
+        spawner,
         time_service,
         quote_service,
         ble_service,

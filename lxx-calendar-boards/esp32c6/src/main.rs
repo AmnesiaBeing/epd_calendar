@@ -22,7 +22,8 @@ esp_bootloader_esp_idf::esp_app_desc!();
 use panic_rtt_target as _;
 
 use crate::drivers::{
-    Esp32Battery, Esp32Buzzer, Esp32LED, Esp32NetworkStack, Esp32Rtc, Esp32Watchdog, Esp32Wifi,
+    Esp32Battery, Esp32Buzzer, Esp32Button, Esp32LED, Esp32NetworkStack, Esp32Rtc,
+    Esp32Watchdog, Esp32Wifi,
 };
 
 pub struct Platform;
@@ -55,6 +56,8 @@ impl PlatformTrait for Platform {
 
     type BatteryDevice = Esp32Battery;
 
+    type ButtonDevice = Esp32Button;
+
     async fn init(spawner: embassy_executor::Spawner) -> SystemResult<PlatformContext<Self>> {
         let peripherals = esp_hal::init(
             esp_hal::Config::default().with_cpu_clock(esp_hal::clock::CpuClock::max()),
@@ -75,6 +78,8 @@ impl PlatformTrait for Platform {
         let network = Esp32NetworkStack::new(spawner, wifi_interface);
         let epd = Self::init_epd(&peripherals).await;
 
+        let button = Esp32Button::new();
+
         Ok(PlatformContext {
             sys_watch_dog,
             epd,
@@ -84,6 +89,7 @@ impl PlatformTrait for Platform {
             wifi,
             network,
             battery,
+            button,
         })
     }
 

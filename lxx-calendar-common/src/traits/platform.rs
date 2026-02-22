@@ -1,8 +1,9 @@
+use embassy_executor::Spawner;
 use embassy_sync::channel::{Channel, Receiver, Sender};
 
 use crate::SystemResult;
 
-use super::{Battery, BuzzerDriver, LEDDriver, NetworkStack, Rtc, Watchdog, WifiController};
+use super::{Battery, BuzzerDriver, LEDDriver, NetworkStack, Rtc, Watchdog, WifiController, ButtonDriver};
 
 const CAP: usize = 10;
 
@@ -50,6 +51,9 @@ pub trait PlatformTrait: Sized {
 
     /// 电池监控设备
     type BatteryDevice: Battery;
+
+    /// 按钮设备
+    type ButtonDevice: ButtonDriver;
 }
 
 pub struct PlatformContext<C: PlatformTrait + Sized> {
@@ -69,4 +73,6 @@ pub struct PlatformContext<C: PlatformTrait + Sized> {
     pub led: C::LEDDevice,
     /// 电池监控设备
     pub battery: C::BatteryDevice,
+    /// 按钮设备
+    pub button: C::ButtonDevice,
 }

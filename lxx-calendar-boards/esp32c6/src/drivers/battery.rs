@@ -59,7 +59,10 @@ impl Battery for Esp32Battery {
     where
         F: Fn() + Send + 'static,
     {
-        info!("Voltage interrupt enabled, threshold: {}mV", VOLTAGE_THRESHOLD_MV);
+        info!(
+            "Voltage interrupt enabled, threshold: {}mV",
+            VOLTAGE_THRESHOLD_MV
+        );
         Ok(())
     }
 

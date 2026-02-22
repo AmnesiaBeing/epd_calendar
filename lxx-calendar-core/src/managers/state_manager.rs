@@ -1,7 +1,9 @@
+use embassy_executor::Spawner;
+use embassy_sync::channel::Sender;
 use embassy_time::Duration;
 use lxx_calendar_common::*;
 
-use crate::managers::{DisplayManager, WatchdogManager};
+use crate::managers::{ButtonTask, DisplayManager, WatchdogManager};
 use crate::services::{
     audio_service::AudioService, ble_service::BLEService, network_sync_service::NetworkSyncService,
     power_service::PowerManager, quote_service::QuoteService, time_service::TimeService,
@@ -9,6 +11,7 @@ use crate::services::{
 
 pub struct StateManager<'a, P: PlatformTrait> {
     event_channel: LxxChannelReceiver<'a, SystemEvent>,
+    event_sender: LxxChannelSender<'a, SystemEvent>,
     current_state: SystemMode,
     time_service: TimeService<P::RtcDevice>,
     quote_service: QuoteService,
@@ -17,6 +20,7 @@ pub struct StateManager<'a, P: PlatformTrait> {
     audio_service: AudioService<P::AudioDevice>,
     network_sync_service: NetworkSyncService,
     watchdog: WatchdogManager<P::WatchdogDevice>,
+    button: Option<P::ButtonDevice>,
     config: Option<&'a lxx_calendar_common::SystemConfig>,
     last_chime_hour: Option<u8>,
     last_sync_time: Option<u64>,
@@ -27,6 +31,8 @@ pub struct StateManager<'a, P: PlatformTrait> {
 impl<'a, P: PlatformTrait> StateManager<'a, P> {
     pub fn new(
         event_receiver: LxxChannelReceiver<'a, SystemEvent>,
+        event_sender: LxxChannelSender<'a, SystemEvent>,
+        button_spawner: Spawner,
         time_service: TimeService<P::RtcDevice>,
         quote_service: QuoteService,
         ble_service: BLEService,
@@ -38,6 +44,8 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
         Self {
             current_state: SystemMode::LightSleep,
             event_channel: event_receiver,
+            event_sender,
+            button_task_spawner: button_spawner,
             time_service,
             quote_service,
             ble_service,
@@ -59,7 +67,7 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
         self.last_sync_time = None;
     }
 
-    pub async fn initialize(&mut self) -> SystemResult<()> {
+    pub     async fn initialize(&mut self) -> SystemResult<()> {
         self.time_service.initialize().await?;
         self.quote_service.initialize().await?;
         self.ble_service.initialize().await?;
@@ -71,6 +79,14 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
 
         info!("Initializing state manager");
         self.watchdog.initialize().await?;
+
+        info!("Starting button task");
+        let sender = self.event_sender.clone();
+        self.button_task_spawner
+            .spawn(ButtonTask::new(sender))
+            .await
+            .ok_or_else(|| lxx_calendar_common::SystemError::ButtonTaskError)?;
+
         Ok(())
     }
 
@@ -285,6 +301,23 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
 
     async fn handle_user_event(&mut self, event: UserEvent) -> SystemResult<()> {
         match event {
+            UserEvent::ButtonDoubleClick => {
+                info!("Button double click - No function yet");
+            }
+            UserEvent::ButtonTripleClick => {
+                info!("Button triple click detected - Entering pairing mode");
+                self.transition_to(SystemMode::BleConnection).await?;
+
+                let is_configured = self.ble_service.is_configured().await?;
+                if !is_configured {
+                    let ssid = self.ble_service.get_device_name().await?;
+                    info!("Showing QR code for pairing: {}", ssid);
+
+                    let mut display_manager =
+                        crate::managers::DisplayManager::new(&mut self.time_service, &mut self.quote_service);
+                    display_manager.show_qrcode(ssid.as_str()).await?;
+                }
+            }
             UserEvent::ButtonShortPress => {
                 info!("Button short press");
                 if self.current_state == SystemMode::NormalWork {
@@ -292,8 +325,12 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
                 }
             }
             UserEvent::ButtonLongPress => {
-                info!("Button long press");
+                info!("Button long press detected (>15s) - Restoring factory defaults");
                 self.transition_to(SystemMode::BleConnection).await?;
+
+                info!("Factory reset triggered");
+                info!("This feature is not yet implemented");
+                info!("TODO: Clear configuration and reboot");
             }
             UserEvent::BLEConfigReceived(_) => {
                 info!("BLE config received, syncing data");

@@ -8,6 +8,7 @@ pub enum SystemError {
     StorageError(StorageError),
     NetworkError(NetworkError),
     DataError(DataError),
+    ButtonTaskError,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -449,12 +449,12 @@ impl<R: Rtc> TimeService<R> {
         let mut next_refresh_timestamp = current_timestamp;
 
         if next_refresh_minute > current_minute {
-            next_refresh_timestamp += (next_refresh_minute - current_minute) as u64 * 60
-                - current_second as u64;
-        } else {
             next_refresh_timestamp +=
-                (60 - current_minute as u64 + next_refresh_minute as u64) * 60
-                    - current_second as u64;
+                (next_refresh_minute - current_minute) as u64 * 60 - current_second as u64;
+        } else {
+            next_refresh_timestamp += (60 - current_minute as u64 + next_refresh_minute as u64)
+                * 60
+                - current_second as u64;
         }
 
         Ok(Some(next_refresh_timestamp))

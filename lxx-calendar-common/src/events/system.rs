@@ -20,6 +20,8 @@ pub enum WakeupEvent {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UserEvent {
+    ButtonDoubleClick,
+    ButtonTripleClick,
     ButtonShortPress,
     ButtonLongPress,
     BLEConfigReceived(heapless::Vec<u8, 64>),

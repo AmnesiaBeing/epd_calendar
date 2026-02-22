@@ -87,10 +87,6 @@ impl PlatformTrait for Platform {
         info!("TSPI platform reset");
     }
 
-    fn sys_stop() {
-        info!("TSPI platform stop");
-    }
-
     fn init_logger() {
         env_logger::init();
     }

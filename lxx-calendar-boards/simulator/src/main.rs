@@ -26,6 +26,8 @@ impl PlatformTrait for Platform {
 
     type BatteryDevice = NoBattery;
 
+    type ButtonDevice = drivers::SimulatorButton;
+
     async fn init(spawner: Spawner) -> SystemResult<PlatformContext<Self>> {
         let wdt = simulated_wdt::SimulatedWdt::new(30000);
         simulated_wdt::start_watchdog(&spawner, 30000);
@@ -41,6 +43,8 @@ impl PlatformTrait for Platform {
         let led = NoLED::new();
         let battery = NoBattery::new(3700, false, false);
 
+        let button = drivers::SimulatorButton::new();
+
         Ok(PlatformContext {
             sys_watch_dog: wdt,
             epd,
@@ -50,15 +54,12 @@ impl PlatformTrait for Platform {
             network,
             led,
             battery,
+            button,
         })
     }
 
     fn sys_reset() {
         info!("Simulator platform reset");
-    }
-
-    fn sys_stop() {
-        info!("Simulator platform stop");
     }
 
     fn init_logger() {
@@ -72,6 +73,7 @@ impl PlatformTrait for Platform {
 async fn main(spawner: Spawner) {
     Platform::init_heap();
     Platform::init_logger();
+
     match Platform::init(spawner).await {
         Ok(platform_ctx) => {
             if let Err(e) = main_task::<Platform>(spawner, platform_ctx).await {

@@ -1,4 +1,5 @@
 pub mod battery;
+pub mod button;
 pub mod buzzer;
 pub mod led;
 pub mod network;
@@ -8,6 +9,7 @@ pub mod watchdog;
 pub mod wifi;
 
 pub use battery::*;
+pub use button::*;
 pub use buzzer::*;
 pub use led::*;
 pub use network::*;
