@@ -27,8 +27,6 @@ pub trait PlatformTrait: Sized {
 
     fn sys_reset();
 
-    fn sys_stop();
-
     /// 看门狗设备，必须实现 Watchdog trait
     type WatchdogDevice: Watchdog;
 

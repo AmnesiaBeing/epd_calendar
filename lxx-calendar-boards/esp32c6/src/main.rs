@@ -88,14 +88,12 @@ impl PlatformTrait for Platform {
     }
 
     fn sys_reset() {
-        todo!()
+        esp_hal::system::software_reset()
     }
 
-    fn sys_stop() {
-        todo!()
+    fn init_logger() {
+        rtt_target::rtt_init_defmt!();
     }
-
-    fn init_logger() {}
 
     fn init_heap() {
         esp_alloc::heap_allocator!(#[esp_hal::ram(reclaimed)] size: 64 * 1024);
