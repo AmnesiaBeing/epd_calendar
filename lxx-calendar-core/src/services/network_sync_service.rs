@@ -5,7 +5,8 @@ use lxx_calendar_common::sntp::{EmbassySntpWithStack, SntpClient};
 use lxx_calendar_common::weather::{API_HOST_DEFAULT, LOCATION_DEFAULT, QweatherJwtSigner};
 use lxx_calendar_common::*;
 
-use crate::TimeService;
+extern crate alloc;
+use alloc::format;
 
 pub struct NetworkSyncService {
     initialized: bool,
@@ -142,23 +143,64 @@ impl NetworkSyncService {
             self.connect().await?;
         }
 
-        if let Some(signer) = &self.jwt_signer {
-            let timestamp = embassy_time::Instant::now().as_micros() as i64;
-            match signer.sign_with_time("", timestamp) {
-                Ok(token) => {
-                    info!(
-                        "JWT token generated: {}...",
-                        &token.as_str()[..30.min(token.len())]
-                    );
-                }
-                Err(e) => {
-                    warn!("Failed to generate JWT token: {:?}", e);
-                }
-            }
+        let stack = self.stack.ok_or_else(|| SystemError::HardwareError(HardwareError::NotInitialized))?;
+
+        let Some(signer) = &self.jwt_signer else {
+            warn!("JWT signer not configured, using default weather");
+            let weather = self.get_default_weather()?;
+            self.cached_weather = Some(weather);
+            return Ok(());
+        };
+
+        let timestamp = embassy_time::Instant::now().as_micros() as i64;
+        let token = signer.sign_with_time("", timestamp).map_err(|e| {
+            warn!("Failed to generate JWT token: {:?}", e);
+            SystemError::NetworkError(NetworkError::Unknown)
+        })?;
+
+        info!("JWT token generated successfully");
+
+        // Build API URL
+        let url = format!(
+            "https://{}/v7/weather/3d?location={}",
+            self.api_host.as_str(),
+            self.location.as_str()
+        );
+
+        // Direct reqwless usage
+        let mut client = reqwless::client::HttpClient::new(&stack, "reqwless-client");
+        let request = client.request(reqwless::request::Method::GET, &url);
+        let response = request.send().await.map_err(|e| {
+            warn!("HTTP request failed: {:?}", e);
+            SystemError::NetworkError(NetworkError::Unknown)
+        })?;
+
+        if response.status().to_u16() != 200 {
+            warn!("Weather API returned status: {}", response.status().to_u16());
+            return Err(SystemError::NetworkError(NetworkError::Unknown));
         }
 
-        info!("Weather sync using default data (HTTP client not fully implemented)");
-        let weather = self.get_default_weather()?;
+        let body = response.body().as_slice();
+        let response_str = core::str::from_utf8(body).map_err(|_| {
+            warn!("Failed to parse response as UTF-8");
+            SystemError::NetworkError(NetworkError::Unknown)
+        })?;
+
+        info!("Weather API response received");
+
+        // Parse JSON response
+        let api_response: lxx_calendar_common::weather::api::WeatherDailyResponse =
+            serde_json::from_str(response_str).map_err(|e| {
+                warn!("Failed to parse weather JSON: {:?}", e);
+                SystemError::NetworkError(NetworkError::Unknown)
+            })?;
+
+        // Convert to WeatherInfo
+        let weather = lxx_calendar_common::weather::converter::convert_daily_response(
+            &api_response,
+            self.location.as_str(),
+        )?;
+
         self.cached_weather = Some(weather);
 
         Ok(())
@@ -270,5 +312,9 @@ impl NetworkSyncService {
     pub fn set_location(&mut self, location: &str) {
         self.location = String::try_from(location)
             .unwrap_or_else(|_| String::try_from(LOCATION_DEFAULT).unwrap());
+    }
+
+    pub fn set_jwt_signer(&mut self, signer: QweatherJwtSigner) {
+        self.jwt_signer = Some(signer);
     }
 }

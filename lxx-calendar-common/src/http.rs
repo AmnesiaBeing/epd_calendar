@@ -28,10 +28,8 @@ pub mod http {
 
         async fn request(
             &mut self,
-            request: impl HttpRequest,
-        ) -> Result<Self::Response, Self::Error>
-        where
-            Self::Response: HttpResponse;
+            request: &impl HttpRequest,
+        ) -> Result<Self::Response, Self::Error>;
 
         type Response: HttpResponse;
     }

@@ -28,6 +28,12 @@ embassy-net = { workspace = true }
 embassy-embedded-hal = { workspace = true }
 embassy-futures = "0.1.2"
 
+# HTTP客户端
+reqwless = { workspace = true }
+
+# 序列化
+serde_json = { workspace = true }
+
 # 随机数
 getrandom = { workspace = true }
 
