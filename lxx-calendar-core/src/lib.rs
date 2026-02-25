@@ -8,7 +8,7 @@ use lxx_calendar_common::*;
 use crate::{
     managers::StateManager,
     services::{
-        audio_service::AudioService, ble_service::BLEService,
+        audio_service::AudioService, ble_service::BLEService, button_service::ButtonService,
         network_sync_service::NetworkSyncService, power_service::PowerManager,
         quote_service::QuoteService, time_service::TimeService,
     },
@@ -33,6 +33,8 @@ pub async fn main_task<P: PlatformTrait>(
     power_manager.set_battery_device(platform_ctx.battery);
     let audio_service = AudioService::new(platform_ctx.audio);
     let network_sync_service = NetworkSyncService::new();
+    let mut button_service = ButtonService::<P::ButtonDevice>::new(event_sender);
+    button_service.set_button_device(platform_ctx.button);
 
     let mut config_manager = managers::ConfigManager::with_event_sender(event_sender);
     config_manager.initialize().await?;
@@ -44,7 +46,7 @@ pub async fn main_task<P: PlatformTrait>(
 
     let mut state_manager: StateManager<P> = StateManager::new(
         event_receiver,
-        event_sender,
+        button_service,
         time_service,
         quote_service,
         ble_service,

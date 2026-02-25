@@ -1,16 +1,15 @@
-use embassy_executor::Spawner;
 use embassy_time::Duration;
 use lxx_calendar_common::*;
 
 use crate::managers::{DisplayManager, WatchdogManager};
 use crate::services::{
-    audio_service::AudioService, ble_service::BLEService, network_sync_service::NetworkSyncService,
-    power_service::PowerManager, quote_service::QuoteService, time_service::TimeService,
+    audio_service::AudioService, ble_service::BLEService, button_service::ButtonService,
+    network_sync_service::NetworkSyncService, power_service::PowerManager, quote_service::QuoteService,
+    time_service::TimeService,
 };
 
 pub struct StateManager<'a, P: PlatformTrait> {
     event_channel: LxxChannelReceiver<'a, SystemEvent>,
-    event_sender: LxxChannelSender<'a, SystemEvent>,
     current_state: SystemMode,
     time_service: TimeService<P::RtcDevice>,
     quote_service: QuoteService,
@@ -18,7 +17,7 @@ pub struct StateManager<'a, P: PlatformTrait> {
     power_manager: PowerManager<P::BatteryDevice>,
     audio_service: AudioService<P::AudioDevice>,
     network_sync_service: NetworkSyncService,
-    button_service: ButtonService,
+    button_service: ButtonService<P::ButtonDevice>,
     watchdog: WatchdogManager<P::WatchdogDevice>,
     config: Option<&'a lxx_calendar_common::SystemConfig>,
     last_chime_hour: Option<u8>,
@@ -30,8 +29,7 @@ pub struct StateManager<'a, P: PlatformTrait> {
 impl<'a, P: PlatformTrait> StateManager<'a, P> {
     pub fn new(
         event_receiver: LxxChannelReceiver<'a, SystemEvent>,
-        event_sender: LxxChannelSender<'a, SystemEvent>,
-        button_service: ButtonService,
+        button_service: ButtonService<P::ButtonDevice>,
         time_service: TimeService<P::RtcDevice>,
         quote_service: QuoteService,
         ble_service: BLEService,
@@ -43,7 +41,6 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
         Self {
             current_state: SystemMode::LightSleep,
             event_channel: event_receiver,
-            event_sender,
             button_service,
             time_service,
             quote_service,
@@ -73,6 +70,7 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
         self.power_manager.initialize().await?;
         self.audio_service.initialize().await?;
         self.network_sync_service.initialize().await?;
+        self.button_service.initialize().await?;
 
         info!("All services initialized");
 

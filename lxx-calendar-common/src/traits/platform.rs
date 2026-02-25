@@ -9,11 +9,8 @@ use super::{
 
 const CAP: usize = 10;
 
-pub type LxxSystemEventChannel = Channel<
-    embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
-    crate::events::SystemEvent,
-    CAP,
->;
+pub type LxxSystemEventChannel =
+    Channel<embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex, SystemEvent, CAP>;
 
 pub type LxxChannelSender<'a, T> =
     Sender<'a, embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex, T, CAP>;
@@ -26,12 +23,15 @@ pub trait PlatformTrait: Sized {
 
     fn init_heap() {}
 
-    async fn init(spawner: Spawner, event_sender: LxxChannelSender<'static, SystemEvent>) -> SystemResult<PlatformContext<Self>>;
+    async fn init(spawner: Spawner) -> SystemResult<PlatformContext<Self>>;
 
     fn sys_reset();
 
-    /// 看门狗设备，必须实现 Watchdog trait
+    /// 看门狗设备
     type WatchdogDevice: Watchdog;
+
+    /// 按钮设备
+    type ButtonDevice: ButtonDriver;
 
     /// EPD 设备
     type EpdDevice;
@@ -72,4 +72,6 @@ pub struct PlatformContext<C: PlatformTrait + Sized> {
     pub led: C::LEDDevice,
     /// 电池监控设备
     pub battery: C::BatteryDevice,
+    /// 按钮设备
+    pub button: C::ButtonDevice,
 }

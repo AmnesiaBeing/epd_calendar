@@ -10,8 +10,7 @@ use lxx_calendar_common::traits::button::{
 use lxx_calendar_common::*;
 use static_cell::StaticCell;
 
-static BUTTON_SIGNAL: StaticCell<Signal<CriticalSectionRawMutex, ButtonEvent>> =
-    StaticCell::new();
+static BUTTON_SIGNAL: StaticCell<Signal<CriticalSectionRawMutex, ButtonEvent>> = StaticCell::new();
 
 pub struct Esp32Button;
 
@@ -30,10 +29,45 @@ impl ButtonDriver for Esp32Button {
         F: Fn(ButtonEvent) + Send + 'static,
     {
         let signal = BUTTON_SIGNAL.init(Signal::new());
-        
+
         loop {
             let event = signal.wait().await;
             info!("Button event: {:?}", event);
         }
+    }
+}
+
+#[embassy_executor::task]
+async fn button_monitor_task(peripherals: Peripherals) {
+    let button = Input::new(
+        unsafe { peripherals.GPIO0.clone_unchecked() },
+        esp_hal::gpio::InputConfig::default().with_pull(Pull::Up),
+    );
+
+    let mut last_state = button.is_high();
+    let mut press_start: Option<embassy_time::Instant> = None;
+
+    loop {
+        let current_state = button.is_low();
+
+        if current_state && !last_state {
+            press_start = Some(embassy_time::Instant::now());
+        } else if !current_state && last_state {
+            press_start = None;
+        }
+
+        if current_state {
+            if let Some(start) = press_start {
+                let duration = embassy_time::Instant::now().duration_since(start);
+                if duration.as_millis() >= LONG_PRESS_MIN_MS as u64 {
+                    press_start = None;
+                    let signal = BUTTON_SIGNAL.init(Signal::new());
+                    signal.signal(ButtonEvent::LongPress);
+                }
+            }
+        }
+
+        last_state = current_state;
+        Timer::after_millis(DEBOUNCE_MS as u64).await;
     }
 }

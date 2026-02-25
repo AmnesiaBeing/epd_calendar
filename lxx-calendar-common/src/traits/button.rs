@@ -1,5 +1,3 @@
-use embassy_executor::task;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ButtonEvent {
     DoubleClick,

@@ -58,7 +58,10 @@ impl PlatformTrait for Platform {
 
     type BatteryDevice = Esp32Battery;
 
-    async fn init(spawner: embassy_executor::Spawner, event_sender: LxxChannelSender<'static, SystemEvent>) -> SystemResult<PlatformContext<Self>> {
+    async fn init(
+        spawner: embassy_executor::Spawner,
+        event_sender: LxxChannelSender<'static, SystemEvent>,
+    ) -> SystemResult<PlatformContext<Self>> {
         let peripherals = esp_hal::init(
             esp_hal::Config::default().with_cpu_clock(esp_hal::clock::CpuClock::max()),
         );
@@ -117,7 +120,9 @@ async fn main(spawner: embassy_executor::Spawner) {
 
     match Platform::init(spawner, event_sender).await {
         Ok(platform_ctx) => {
-            if let Err(e) = main_task::<Platform>(spawner, event_receiver, event_sender, platform_ctx).await {
+            if let Err(e) =
+                main_task::<Platform>(spawner, event_receiver, event_sender, platform_ctx).await
+            {
                 error!("Main task error: {:?}", e);
             }
         }
