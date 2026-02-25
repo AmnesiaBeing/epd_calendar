@@ -1,4 +1,5 @@
 use embassy_time::Duration as EmbassyDuration;
+use esp_hal::peripherals::Peripherals;
 use esp_hal::rtc_cntl::Rtc as EspHalRtc;
 use esp_hal::rtc_cntl::sleep::TimerWakeupSource;
 use lxx_calendar_common::Rtc;
@@ -10,17 +11,11 @@ pub struct Esp32Rtc {
 }
 
 impl Esp32Rtc {
-    pub fn new(rtc: EspHalRtc<'static>) -> Self {
+    pub fn new(peripherals: &Peripherals) -> Self {
         Self {
-            rtc,
+            rtc: esp_hal::rtc_cntl::Rtc::new(unsafe { peripherals.LPWR.clone_unchecked() }),
             wakeup_source: None,
         }
-    }
-}
-
-impl Default for Esp32Rtc {
-    fn default() -> Self {
-        panic!("Esp32Rtc must be created with Esp32Rtc::new()")
     }
 }
 

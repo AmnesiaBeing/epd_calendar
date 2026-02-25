@@ -48,6 +48,8 @@ impl PlatformTrait for Platform {
 
     type AudioDevice = Esp32Buzzer;
 
+    type ButtonDevice = Esp32Button;
+
     type LEDDevice = Esp32LED;
 
     type RtcDevice = Esp32Rtc;
@@ -58,10 +60,7 @@ impl PlatformTrait for Platform {
 
     type BatteryDevice = Esp32Battery;
 
-    async fn init(
-        spawner: embassy_executor::Spawner,
-        event_sender: LxxChannelSender<'static, SystemEvent>,
-    ) -> SystemResult<PlatformContext<Self>> {
+    async fn init(spawner: embassy_executor::Spawner) -> SystemResult<PlatformContext<Self>> {
         let peripherals = esp_hal::init(
             esp_hal::Config::default().with_cpu_clock(esp_hal::clock::CpuClock::max()),
         );
@@ -75,19 +74,16 @@ impl PlatformTrait for Platform {
         let audio = Esp32Buzzer::new(&peripherals);
         let led = Esp32LED::new(&peripherals, spawner);
         let battery = Esp32Battery::new(&peripherals);
-        let rtc_hal = esp_hal::rtc_cntl::Rtc::new(unsafe { peripherals.LPWR.clone_unchecked() });
-        let rtc = Esp32Rtc::new(rtc_hal);
+        let rtc = Esp32Rtc::new(&peripherals);
         let (wifi, wifi_interface) = Esp32Wifi::new(&peripherals);
         let network = Esp32NetworkStack::new(spawner, wifi_interface);
         let epd = Self::init_epd(&peripherals).await;
-
-        let button = Esp32Button::new();
-        button.init(&peripherals);
-        button.start_monitoring(spawner, peripherals);
+        let button = Esp32Button::new(&peripherals, spawner);
 
         Ok(PlatformContext {
             sys_watch_dog,
             epd,
+            button,
             audio,
             led,
             rtc,
@@ -118,7 +114,7 @@ async fn main(spawner: embassy_executor::Spawner) {
     let event_sender = event_channel.sender();
     let event_receiver = event_channel.receiver();
 
-    match Platform::init(spawner, event_sender).await {
+    match Platform::init(spawner).await {
         Ok(platform_ctx) => {
             if let Err(e) =
                 main_task::<Platform>(spawner, event_receiver, event_sender, platform_ctx).await

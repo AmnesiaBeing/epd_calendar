@@ -4,8 +4,8 @@ use lxx_calendar_common::*;
 use crate::managers::{DisplayManager, WatchdogManager};
 use crate::services::{
     audio_service::AudioService, ble_service::BLEService, button_service::ButtonService,
-    network_sync_service::NetworkSyncService, power_service::PowerManager, quote_service::QuoteService,
-    time_service::TimeService,
+    network_sync_service::NetworkSyncService, power_service::PowerManager,
+    quote_service::QuoteService, time_service::TimeService,
 };
 
 pub struct StateManager<'a, P: PlatformTrait> {
