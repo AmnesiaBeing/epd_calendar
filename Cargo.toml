@@ -5,19 +5,19 @@ members = [
     "lxx-calendar-graphics",
     "lxx-calendar-quotes",
     "lxx-calendar-boards/esp32c6",
-    "lxx-calendar-boards/tspi",
-    "lxx-calendar-boards/simulator",
+    # "lxx-calendar-boards/tspi",
+    # "lxx-calendar-boards/simulator",
     "libs/epd",
     "libs/sxtwl-rs",
-    "libs/linux-embedded-hal",
-    "libs/simulated-wdt",
-    "libs/simulated-rtc",
-    "libs/embedded-hal-mock",
+    # "libs/linux-embedded-hal",
+    # "libs/simulated-wdt",
+    # "libs/simulated-rtc",
+    # "libs/embedded-hal-mock",
 ]
 default-members = [
-    # "lxx-calendar-boards/esp32c6",
+    "lxx-calendar-boards/esp32c6",
     # "lxx-calendar-boards/tspi",
-    "lxx-calendar-boards/simulator",
+    # "lxx-calendar-boards/simulator",
 ]
 resolver = "2"
 

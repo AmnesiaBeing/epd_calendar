@@ -1,9 +1,8 @@
 use embassy_executor::Spawner;
-use embassy_sync::channel::Sender;
 use embassy_time::Duration;
 use lxx_calendar_common::*;
 
-use crate::managers::{ButtonTask, DisplayManager, WatchdogManager};
+use crate::managers::{DisplayManager, WatchdogManager};
 use crate::services::{
     audio_service::AudioService, ble_service::BLEService, network_sync_service::NetworkSyncService,
     power_service::PowerManager, quote_service::QuoteService, time_service::TimeService,
@@ -20,7 +19,6 @@ pub struct StateManager<'a, P: PlatformTrait> {
     audio_service: AudioService<P::AudioDevice>,
     network_sync_service: NetworkSyncService,
     watchdog: WatchdogManager<P::WatchdogDevice>,
-    button: Option<P::ButtonDevice>,
     config: Option<&'a lxx_calendar_common::SystemConfig>,
     last_chime_hour: Option<u8>,
     last_sync_time: Option<u64>,
@@ -32,7 +30,6 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
     pub fn new(
         event_receiver: LxxChannelReceiver<'a, SystemEvent>,
         event_sender: LxxChannelSender<'a, SystemEvent>,
-        button_spawner: Spawner,
         time_service: TimeService<P::RtcDevice>,
         quote_service: QuoteService,
         ble_service: BLEService,
@@ -45,7 +42,6 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
             current_state: SystemMode::LightSleep,
             event_channel: event_receiver,
             event_sender,
-            button_task_spawner: button_spawner,
             time_service,
             quote_service,
             ble_service,
@@ -67,7 +63,7 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
         self.last_sync_time = None;
     }
 
-    pub     async fn initialize(&mut self) -> SystemResult<()> {
+    pub async fn initialize(&mut self) -> SystemResult<()> {
         self.time_service.initialize().await?;
         self.quote_service.initialize().await?;
         self.ble_service.initialize().await?;
@@ -82,10 +78,6 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
 
         info!("Starting button task");
         let sender = self.event_sender.clone();
-        self.button_task_spawner
-            .spawn(ButtonTask::new(sender))
-            .await
-            .ok_or_else(|| lxx_calendar_common::SystemError::ButtonTaskError)?;
 
         Ok(())
     }
@@ -313,8 +305,10 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
                     let ssid = self.ble_service.get_device_name().await?;
                     info!("Showing QR code for pairing: {}", ssid);
 
-                    let mut display_manager =
-                        crate::managers::DisplayManager::new(&mut self.time_service, &mut self.quote_service);
+                    let mut display_manager = crate::managers::DisplayManager::new(
+                        &mut self.time_service,
+                        &mut self.quote_service,
+                    );
                     display_manager.show_qrcode(ssid.as_str()).await?;
                 }
             }

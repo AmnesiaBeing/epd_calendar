@@ -1,4 +1,4 @@
-use embassy_time::Duration;
+use embassy_executor::task;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ButtonEvent {
@@ -17,36 +17,20 @@ pub const DEBOUNCE_MS: u32 = 50;
 pub trait ButtonDriver {
     type Error;
 
-    async fn initialize(&mut self) -> Result<(), Self::Error>;
-
-    async fn wait_for_press(&mut self, timeout: Duration) -> Result<ButtonEvent, Self::Error>;
+    async fn register_press_callback<F>(&mut self, callback: F) -> Result<(), Self::Error>
+    where
+        F: Fn(ButtonEvent) + Send + 'static;
 }
 
-pub trait ButtonEventTrait {
-    fn is_short_press(&self) -> bool;
-    fn is_long_press(&self) -> bool;
-    fn is_triple_click(&self) -> bool;
-    fn get_duration(&self) -> Duration;
-}
+pub struct NoButtonDriver {}
 
-impl ButtonEventTrait for ButtonEvent {
-    fn is_short_press(&self) -> bool {
-        matches!(self, ButtonEvent::ShortPress)
-    }
+impl ButtonDriver for NoButtonDriver {
+    type Error = core::convert::Infallible;
 
-    fn is_long_press(&self) -> bool {
-        matches!(self, ButtonEvent::LongPress)
-    }
-
-    fn is_triple_click(&self) -> bool {
-        matches!(self, ButtonEvent::TripleClick)
-    }
-
-    fn get_duration(&self) -> Duration {
-        match self {
-            ButtonEvent::ShortPress => Duration::from_millis(100),
-            ButtonEvent::LongPress => Duration::from_secs(15),
-            _ => Duration::from_millis(0),
-        }
+    async fn register_press_callback<F>(&mut self, _callback: F) -> Result<(), Self::Error>
+    where
+        F: Fn(ButtonEvent) + Send + 'static,
+    {
+        Ok(())
     }
 }

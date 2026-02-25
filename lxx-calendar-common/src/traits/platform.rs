@@ -3,7 +3,9 @@ use embassy_sync::channel::{Channel, Receiver, Sender};
 
 use crate::SystemResult;
 
-use super::{Battery, BuzzerDriver, LEDDriver, NetworkStack, Rtc, Watchdog, WifiController, ButtonDriver};
+use super::{
+    Battery, ButtonDriver, BuzzerDriver, LEDDriver, NetworkStack, Rtc, Watchdog, WifiController,
+};
 
 const CAP: usize = 10;
 
