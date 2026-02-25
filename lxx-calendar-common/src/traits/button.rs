@@ -14,7 +14,7 @@ pub const SHORT_PRESS_MAX_MS: u32 = 200;
 pub const LONG_PRESS_MIN_MS: u32 = 15000;
 pub const DEBOUNCE_MS: u32 = 50;
 
-pub trait ButtonDriver {
+pub trait ButtonDriver: Send {
     type Error;
 
     async fn register_press_callback<F>(&mut self, callback: F) -> Result<(), Self::Error>

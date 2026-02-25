@@ -1,7 +1,7 @@
 use embassy_executor::Spawner;
 use embassy_sync::channel::{Channel, Receiver, Sender};
 
-use crate::SystemResult;
+use crate::{SystemEvent, SystemResult};
 
 use super::{
     Battery, ButtonDriver, BuzzerDriver, LEDDriver, NetworkStack, Rtc, Watchdog, WifiController,
@@ -26,7 +26,7 @@ pub trait PlatformTrait: Sized {
 
     fn init_heap() {}
 
-    async fn init(spawner: embassy_executor::Spawner) -> SystemResult<PlatformContext<Self>>;
+    async fn init(spawner: Spawner, event_sender: LxxChannelSender<'static, SystemEvent>) -> SystemResult<PlatformContext<Self>>;
 
     fn sys_reset();
 
@@ -53,9 +53,6 @@ pub trait PlatformTrait: Sized {
 
     /// 电池监控设备
     type BatteryDevice: Battery;
-
-    /// 按钮设备
-    type ButtonDevice: ButtonDriver;
 }
 
 pub struct PlatformContext<C: PlatformTrait + Sized> {
@@ -75,6 +72,4 @@ pub struct PlatformContext<C: PlatformTrait + Sized> {
     pub led: C::LEDDevice,
     /// 电池监控设备
     pub battery: C::BatteryDevice,
-    /// 按钮设备
-    pub button: C::ButtonDevice,
 }

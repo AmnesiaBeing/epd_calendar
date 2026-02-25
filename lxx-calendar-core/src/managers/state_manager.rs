@@ -18,6 +18,7 @@ pub struct StateManager<'a, P: PlatformTrait> {
     power_manager: PowerManager<P::BatteryDevice>,
     audio_service: AudioService<P::AudioDevice>,
     network_sync_service: NetworkSyncService,
+    button_service: ButtonService,
     watchdog: WatchdogManager<P::WatchdogDevice>,
     config: Option<&'a lxx_calendar_common::SystemConfig>,
     last_chime_hour: Option<u8>,
@@ -30,6 +31,7 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
     pub fn new(
         event_receiver: LxxChannelReceiver<'a, SystemEvent>,
         event_sender: LxxChannelSender<'a, SystemEvent>,
+        button_service: ButtonService,
         time_service: TimeService<P::RtcDevice>,
         quote_service: QuoteService,
         ble_service: BLEService,
@@ -42,6 +44,7 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
             current_state: SystemMode::LightSleep,
             event_channel: event_receiver,
             event_sender,
+            button_service,
             time_service,
             quote_service,
             ble_service,
@@ -75,9 +78,6 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
 
         info!("Initializing state manager");
         self.watchdog.initialize().await?;
-
-        info!("Starting button task");
-        let sender = self.event_sender.clone();
 
         Ok(())
     }

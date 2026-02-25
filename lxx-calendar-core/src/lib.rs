@@ -4,7 +4,6 @@ extern crate alloc;
 
 use embassy_executor::Spawner;
 use lxx_calendar_common::*;
-use static_cell::StaticCell;
 
 use crate::{
     managers::StateManager,
@@ -19,18 +18,13 @@ mod managers;
 mod platform;
 mod services;
 
-static EVENT_CHANNEL: StaticCell<LxxSystemEventChannel> = StaticCell::new();
-
 pub async fn main_task<P: PlatformTrait>(
-    spawner: Spawner,
+    _spawner: Spawner,
+    event_receiver: LxxChannelReceiver<'static, SystemEvent>,
+    event_sender: LxxChannelSender<'static, SystemEvent>,
     platform_ctx: PlatformContext<P>,
 ) -> SystemResult<()> {
     info!("lxx-calendar starting...");
-
-    let event_channel: &'static LxxSystemEventChannel =
-        EVENT_CHANNEL.init(LxxSystemEventChannel::new());
-    let event_receiver = event_channel.receiver();
-    let event_sender = event_channel.sender();
 
     let time_service = TimeService::new().with_rtc(platform_ctx.rtc);
     let quote_service = QuoteService::new();

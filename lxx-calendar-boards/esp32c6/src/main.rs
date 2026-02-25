@@ -21,6 +21,8 @@ esp_bootloader_esp_idf::esp_app_desc!();
 
 use panic_rtt_target as _;
 
+use static_cell::StaticCell;
+
 use crate::drivers::{
     Esp32Battery, Esp32Button, Esp32Buzzer, Esp32LED, Esp32NetworkStack, Esp32Rtc, Esp32Watchdog,
     Esp32Wifi,
@@ -56,9 +58,7 @@ impl PlatformTrait for Platform {
 
     type BatteryDevice = Esp32Battery;
 
-    type ButtonDevice = Esp32Button;
-
-    async fn init(spawner: embassy_executor::Spawner) -> SystemResult<PlatformContext<Self>> {
+    async fn init(spawner: embassy_executor::Spawner, event_sender: LxxChannelSender<'static, SystemEvent>) -> SystemResult<PlatformContext<Self>> {
         let peripherals = esp_hal::init(
             esp_hal::Config::default().with_cpu_clock(esp_hal::clock::CpuClock::max()),
         );
@@ -91,7 +91,6 @@ impl PlatformTrait for Platform {
             wifi,
             network,
             battery,
-            button,
         })
     }
 
@@ -111,9 +110,14 @@ impl PlatformTrait for Platform {
 
 #[platform_main]
 async fn main(spawner: embassy_executor::Spawner) {
-    match Platform::init(spawner).await {
+    static EVENT_CHANNEL: StaticCell<LxxSystemEventChannel> = StaticCell::new();
+    let event_channel = EVENT_CHANNEL.init(LxxSystemEventChannel::new());
+    let event_sender = event_channel.sender();
+    let event_receiver = event_channel.receiver();
+
+    match Platform::init(spawner, event_sender).await {
         Ok(platform_ctx) => {
-            if let Err(e) = main_task::<Platform>(spawner, platform_ctx).await {
+            if let Err(e) = main_task::<Platform>(spawner, event_receiver, event_sender, platform_ctx).await {
                 error!("Main task error: {:?}", e);
             }
         }
