@@ -4,10 +4,11 @@ use linux_embedded_hal::{SpidevDevice, SysfsPin};
 use lxx_calendar_common::platform::PlatformTrait;
 use lxx_calendar_common::*;
 use lxx_calendar_core::main_task;
+use static_cell::StaticCell;
 
 pub mod drivers;
 
-use crate::drivers::{LinuxBuzzer, LinuxWifi, TspiLED, TunTapNetwork};
+use crate::drivers::{LinuxBuzzer, LinuxWifi, TspiButton, TspiLED, TunTapNetwork};
 
 fn init_gpio(
     pin: u64,
@@ -46,6 +47,8 @@ impl PlatformTrait for Platform {
 
     type BatteryDevice = NoBattery;
 
+    type ButtonDevice = TspiButton;
+
     async fn init(spawner: Spawner) -> SystemResult<PlatformContext<Self>> {
         let epd_busy = init_gpio(101, linux_embedded_hal::sysfs_gpio::Direction::In).unwrap();
         let epd_dc = init_gpio(102, linux_embedded_hal::sysfs_gpio::Direction::Out).unwrap();
@@ -70,6 +73,7 @@ impl PlatformTrait for Platform {
         let network = TunTapNetwork::new(spawner)?;
         let led = TspiLED;
         let battery = NoBattery::new(3700, false, false);
+        let button = TspiButton::new();
 
         Ok(PlatformContext {
             sys_watch_dog: wdt,
@@ -80,6 +84,7 @@ impl PlatformTrait for Platform {
             network,
             led,
             battery,
+            button,
         })
     }
 

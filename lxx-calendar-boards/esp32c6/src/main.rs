@@ -109,16 +109,9 @@ impl PlatformTrait for Platform {
 
 #[platform_main]
 async fn main(spawner: embassy_executor::Spawner) {
-    static EVENT_CHANNEL: StaticCell<LxxSystemEventChannel> = StaticCell::new();
-    let event_channel = EVENT_CHANNEL.init(LxxSystemEventChannel::new());
-    let event_sender = event_channel.sender();
-    let event_receiver = event_channel.receiver();
-
     match Platform::init(spawner).await {
         Ok(platform_ctx) => {
-            if let Err(e) =
-                main_task::<Platform>(spawner, event_receiver, event_sender, platform_ctx).await
-            {
+            if let Err(e) = main_task::<Platform>(spawner, platform_ctx).await {
                 error!("Main task error: {:?}", e);
             }
         }

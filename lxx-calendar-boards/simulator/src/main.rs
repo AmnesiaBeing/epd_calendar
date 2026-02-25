@@ -4,8 +4,12 @@ use epd_yrd0750ryf665f60::yrd0750ryf665f60::Epd7in5;
 use lxx_calendar_common::*;
 use lxx_calendar_core::main_task;
 use simulated_rtc::SimulatedRtc;
+use static_cell::StaticCell;
 
 pub mod drivers;
+
+// 创建静态事件通道
+static EVENT_CHANNEL: StaticCell<LxxSystemEventChannel> = StaticCell::new();
 
 struct Platform;
 

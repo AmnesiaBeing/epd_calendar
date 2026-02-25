@@ -1,6 +1,5 @@
-
-use embassy_time::Duration;
-use lxx_calendar_common::traits::button::ButtonDriver;
+use lxx_calendar_common::traits::button::{ButtonDriver, ButtonEvent};
+use lxx_calendar_common::*;
 
 pub struct TspiButton;
 
@@ -13,18 +12,11 @@ impl TspiButton {
 impl ButtonDriver for TspiButton {
     type Error = std::io::Error;
 
-    async fn initialize(&mut self) -> Result<(), Self::Error> {
-        info!("TSPI button initialized (not implemented)");
+    async fn register_press_callback<F>(&mut self, _callback: F) -> Result<(), Self::Error>
+    where
+        F: Fn(ButtonEvent) + Send + 'static,
+    {
+        info!("TSPI button callback registered (not implemented)");
         Ok(())
-    }
-
-    async fn wait_for_press(&mut self, timeout: Duration) -> Result<lxx_calendar_common::traits::button::ButtonEvent, Self::Error> {
-        // TODO: Implement button reading based on Linux event subsystem
-        // For now, return a mock event (mainly for testing)
-
-        embassy_time::sleep(timeout);
-
-        info!("TSPI button press (not implemented)");
-        Ok(lxx_calendar_common::traits::button::ButtonEvent::ShortPress)
     }
 }

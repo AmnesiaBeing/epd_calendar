@@ -1,6 +1,5 @@
-
-use embassy_time::Duration;
-use lxx_calendar_common::traits::button::ButtonDriver;
+use log::info;
+use lxx_calendar_common::traits::button::{ButtonDriver, ButtonEvent};
 
 pub struct SimulatorButton;
 
@@ -13,17 +12,11 @@ impl SimulatorButton {
 impl ButtonDriver for SimulatorButton {
     type Error = std::convert::Infallible;
 
-    async fn initialize(&mut self) -> Result<(), Self::Error> {
-        info!("Simulator button initialized (not implemented)");
+    async fn register_press_callback<F>(&mut self, _callback: F) -> Result<(), Self::Error>
+    where
+        F: Fn(ButtonEvent) + Send + 'static,
+    {
+        info!("Simulator button callback registered (not implemented)");
         Ok(())
-    }
-
-    async fn wait_for_press(&mut self, timeout: Duration) -> Result<lxx_calendar_common::traits::button::ButtonEvent, Self::Error> {
-        // Simulate button press events (mainly for testing)
-        // In actual use, button events should be sent by the test harness
-        embassy_time::sleep(timeout);
-
-        info!("Simulator button press (mock event)");
-        Ok(lxx_calendar_common::traits::button::ButtonEvent::ShortPress)
     }
 }
