@@ -23,7 +23,7 @@ pub mod http {
         fn body(&self) -> &[u8];
     }
 
-    pub trait HttpClient: Debug + Send {
+    pub trait HttpClient: Debug {
         type Error: Debug;
 
         async fn request(

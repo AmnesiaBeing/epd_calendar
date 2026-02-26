@@ -1,12 +1,19 @@
 use embassy_net::Stack;
 use heapless::String;
 use lxx_calendar_common::http::jwt::JwtSigner;
+use lxx_calendar_common::http::http::{HttpClient, HttpResponse};
 use lxx_calendar_common::sntp::{EmbassySntpWithStack, SntpClient};
 use lxx_calendar_common::weather::{API_HOST_DEFAULT, LOCATION_DEFAULT, QweatherJwtSigner};
 use lxx_calendar_common::*;
 
+use crate::services::http_client::{HttpClientImpl, RequestImpl};
+use crate::services::time_service::TimeService;
+
 extern crate alloc;
 use alloc::format;
+
+const HTTP_RX_SIZE: usize = 4096;
+const HTTP_TX_SIZE: usize = 4096;
 
 pub struct NetworkSyncService {
     initialized: bool,
@@ -15,6 +22,8 @@ pub struct NetworkSyncService {
     retry_count: u8,
     max_retries: u8,
     stack: Option<Stack<'static>>,
+    http_rx_buffer: Option<[u8; HTTP_RX_SIZE]>,
+    http_tx_buffer: Option<[u8; HTTP_TX_SIZE]>,
     api_host: heapless::String<128>,
     location: heapless::String<32>,
     jwt_signer: Option<QweatherJwtSigner>,
@@ -29,6 +38,8 @@ impl NetworkSyncService {
             retry_count: 0,
             max_retries: 2,
             stack: None,
+            http_rx_buffer: None,
+            http_tx_buffer: None,
             api_host: heapless::String::try_from(API_HOST_DEFAULT).unwrap_or_default(),
             location: heapless::String::try_from(LOCATION_DEFAULT).unwrap_or_default(),
             jwt_signer: None,
@@ -37,6 +48,8 @@ impl NetworkSyncService {
 
     pub fn with_stack(mut self, stack: Stack<'static>) -> Self {
         self.stack = Some(stack);
+        self.http_rx_buffer = Some([0u8; HTTP_RX_SIZE]);
+        self.http_tx_buffer = Some([0u8; HTTP_TX_SIZE]);
         self
     }
 
@@ -160,27 +173,29 @@ impl NetworkSyncService {
 
         info!("JWT token generated successfully");
 
-        // Build API URL
+        let stack = self.stack.take().ok_or_else(|| SystemError::HardwareError(HardwareError::NotInitialized))?;
+        let mut rx_buf = self.http_rx_buffer.take().ok_or_else(|| SystemError::HardwareError(HardwareError::NotInitialized))?;
+        let mut tx_buf = self.http_tx_buffer.take().ok_or_else(|| SystemError::HardwareError(HardwareError::NotInitialized))?;
+
+        let mut http_client = HttpClientImpl::new(stack);
+
         let url = format!(
-            "https://{}/v7/weather/3d?location={}",
+            "http://{}/v7/weather/3d?location={}",
             self.api_host.as_str(),
             self.location.as_str()
         );
 
-        // Direct reqwless usage
-        let mut client = reqwless::client::HttpClient::new(&stack, "reqwless-client");
-        let request = client.request(reqwless::request::Method::GET, &url);
-        let response = request.send().await.map_err(|e| {
+        let (status, body) = http_client.request(&mut rx_buf, &mut tx_buf, lxx_calendar_common::http::http::HttpMethod::GET, &url, None).await.map_err(|e| {
             warn!("HTTP request failed: {:?}", e);
             SystemError::NetworkError(NetworkError::Unknown)
         })?;
 
-        if response.status().to_u16() != 200 {
-            warn!("Weather API returned status: {}", response.status().to_u16());
+        if status != 200 {
+            warn!("Weather API returned status: {}", status);
             return Err(SystemError::NetworkError(NetworkError::Unknown));
         }
 
-        let body = response.body().as_slice();
+        let body = body.as_slice();
         let response_str = core::str::from_utf8(body).map_err(|_| {
             warn!("Failed to parse response as UTF-8");
             SystemError::NetworkError(NetworkError::Unknown)
@@ -188,14 +203,12 @@ impl NetworkSyncService {
 
         info!("Weather API response received");
 
-        // Parse JSON response
         let api_response: lxx_calendar_common::weather::api::WeatherDailyResponse =
             serde_json::from_str(response_str).map_err(|e| {
                 warn!("Failed to parse weather JSON: {:?}", e);
                 SystemError::NetworkError(NetworkError::Unknown)
             })?;
 
-        // Convert to WeatherInfo
         let weather = lxx_calendar_common::weather::converter::convert_daily_response(
             &api_response,
             self.location.as_str(),

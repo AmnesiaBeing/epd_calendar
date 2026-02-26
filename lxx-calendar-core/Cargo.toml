@@ -30,12 +30,16 @@ embassy-futures = "0.1.2"
 
 # HTTP客户端
 reqwless = { workspace = true }
+embedded-tls = { workspace = true }
+embedded-io = { workspace = true }
+embedded-io-async = { workspace = true }
 
 # 序列化
 serde_json = { workspace = true }
 
 # 随机数
 getrandom = { workspace = true }
+rand = { workspace = true }
 
 # SNTP时间同步
 sntpc = { workspace = true }
