@@ -28,9 +28,12 @@ embassy-net = { workspace = true }
 embassy-embedded-hal = { workspace = true }
 embassy-futures = "0.1.2"
 
-# HTTP客户端
+# HTTP客户端 - 使用embedded-tls (默认)
 reqwless = { workspace = true }
-embedded-tls = { workspace = true }
+
+# HTTP客户端 - 使用esp-mbedtls (通过use-esp-mbedtls特征启用)
+esp-mbedtls = { workspace = true }
+
 embedded-io = { workspace = true }
 embedded-io-async = { workspace = true }
 

@@ -9,7 +9,7 @@ esp32c6 = []
 
 [dependencies]
 lxx-calendar-common = { path = "../../lxx-calendar-common" }
-lxx-calendar-core = { path = "../../lxx-calendar-core" }
+lxx-calendar-core = { path = "../../lxx-calendar-core", default-features = false, features = ["use-esp-mbedtls"] }
 
 riscv.workspace = true
 
