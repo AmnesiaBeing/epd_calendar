@@ -1,5 +1,8 @@
 #![allow(async_fn_in_trait)]
 
+use alloc::string::String;
+use alloc::string::ToString;
+use alloc::vec::Vec;
 use serde::{Deserialize, Serialize};
 
 /// BLE 状态
@@ -25,14 +28,24 @@ pub enum ConfigSection {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum BleCommand {
     // 配置查询/设置
-    GetConfig { section: ConfigSection },
-    SetConfig { section: ConfigSection, data: String },
+    GetConfig {
+        section: ConfigSection,
+    },
+    SetConfig {
+        section: ConfigSection,
+        data: String,
+    },
 
     // 时间同步
-    SyncTime { timestamp: i64 },
+    SyncTime {
+        timestamp: i64,
+    },
 
     // 网络操作
-    SetWiFi { ssid: String, password: String },
+    SetWiFi {
+        ssid: String,
+        password: String,
+    },
     TestWiFi,
 
     // 设备控制
@@ -42,7 +55,10 @@ pub enum BleCommand {
 
     // OTA
     StartOta,
-    OtaFirmware { chunk: Vec<u8>, offset: u32 },
+    OtaFirmware {
+        chunk: Vec<u8>,
+        offset: u32,
+    },
     FinishOta,
 }
 

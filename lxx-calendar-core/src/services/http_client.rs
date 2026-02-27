@@ -1,7 +1,8 @@
-use core::fmt::{Debug, Write};
+use core::fmt::Debug;
 use embassy_net::Stack;
 use embassy_net::dns::DnsQueryType;
 use embassy_net::tcp::TcpSocket;
+use embedded_io_async::Read;
 use heapless::String;
 
 // TLS support
@@ -31,92 +32,6 @@ impl HttpClientImpl {
         Self { stack }
     }
 
-    // helper: perform the actual HTTP/1.1 exchange on an arbitrary transport
-    async fn exchange<S>(
-        sock: &mut S,
-        method_str: &str,
-        host: &str,
-        path: &str,
-        body: Option<&[u8]>,
-    ) -> Result<(u16, heapless::Vec<u8, 16384>), HttpError>
-    where
-        S: embedded_io_async::Read + embedded_io_async::Write + Unpin,
-    {
-        // build request line
-        let mut req_line: heapless::String<512> = heapless::String::new();
-        write!(
-            req_line,
-            "{} {} HTTP/1.1\r\nHost: {}\r\nConnection: close\r\n",
-            method_str, path, host
-        )
-        .unwrap();
-        if let Some(body) = body {
-            write!(
-                req_line,
-                "Content-Length: {}\r\nContent-Type: application/json\r\n",
-                body.len()
-            )
-            .unwrap();
-        }
-        write!(req_line, "\r\n").unwrap();
-
-        sock.write(req_line.as_bytes())
-            .await
-            .map_err(|_| HttpError::RequestFailed)?;
-        if let Some(body) = body {
-            sock.write(body)
-                .await
-                .map_err(|_| HttpError::RequestFailed)?;
-        }
-        sock.flush().await.map_err(|_| HttpError::RequestFailed)?;
-
-        // read header
-        let mut header_buf = [0u8; RX_BUFFER_SIZE];
-        let mut header_len = 0;
-        loop {
-            let n = sock
-                .read(&mut header_buf[header_len..])
-                .await
-                .map_err(|_| HttpError::RequestFailed)?;
-            if n == 0 {
-                break;
-            }
-            header_len += n;
-            if header_len >= 4 && &header_buf[header_len - 4..header_len] == b"\r\n\r\n" {
-                break;
-            }
-            if header_len == header_buf.len() {
-                break;
-            }
-        }
-
-        let header_str = core::str::from_utf8(&header_buf[..header_len])
-            .map_err(|_| HttpError::RequestFailed)?;
-        let status = header_str
-            .lines()
-            .next()
-            .and_then(|line| line.split(' ').nth(1))
-            .and_then(|s| s.parse::<u16>().ok())
-            .ok_or(HttpError::RequestFailed)?;
-
-        let mut body_vec = heapless::Vec::<u8, 16384>::new();
-        let mut buf = [0u8; 1024];
-        loop {
-            let n = sock
-                .read(&mut buf)
-                .await
-                .map_err(|_| HttpError::RequestFailed)?;
-            if n == 0 {
-                break;
-            }
-            body_vec
-                .extend_from_slice(&buf[..n])
-                .map_err(|_| HttpError::RequestFailed)?;
-        }
-
-        Ok((status, body_vec))
-    }
-
     pub async fn request(
         &mut self,
         rx_buffer: &mut [u8; RX_BUFFER_SIZE],
@@ -125,31 +40,32 @@ impl HttpClientImpl {
         url: &str,
         body: Option<&[u8]>,
     ) -> Result<(u16, heapless::Vec<u8, 16384>), HttpError> {
-        let (scheme, host, port, path) = parse_full_url(url)?;
-        let use_tls = scheme.eq_ignore_ascii_case("https");
+        let (_scheme, host, port, path) = parse_full_url(url)?;
+
+        let port = if port.is_empty() {
+            if url.starts_with("https") {
+                443u16
+            } else {
+                80u16
+            }
+        } else {
+            port.parse().map_err(|_| HttpError::InvalidUrl)?
+        };
 
         let ip_addrs = self
             .stack
             .dns_query(host, DnsQueryType::A)
             .await
             .map_err(|_| HttpError::DnsFailed)?;
-        let ip = ip_addrs.first().ok_or(HttpError::DnsFailed)?;
 
-        let port_num: u16 = if !port.is_empty() {
-            port.parse().map_err(|_| HttpError::InvalidUrl)?
-        } else if use_tls {
-            443
-        } else {
-            80
-        };
+        let ip = ip_addrs.first().ok_or(HttpError::DnsFailed)?;
 
         let mut socket = TcpSocket::new(self.stack, rx_buffer, tx_buffer);
         socket
-            .connect((*ip, port_num))
+            .connect((*ip, port))
             .await
             .map_err(|_| HttpError::ConnectionFailed)?;
 
-        // string representation of method for the helper
         let method_str = match method {
             HttpMethod::GET => "GET",
             HttpMethod::POST => "POST",
@@ -158,28 +74,57 @@ impl HttpClientImpl {
             HttpMethod::PATCH => "PATCH",
         };
 
-        if use_tls {
-            // perform TLS handshake
-            let mut tls_read_buf = [0u8; TLS_RECORD_BUF_SIZE];
-            let mut tls_write_buf = [0u8; TLS_RECORD_BUF_SIZE];
-            let mut tls = TlsConnection::new(socket, &mut tls_read_buf, &mut tls_write_buf);
+        let mut http_request = heapless::String::<4096>::new();
 
-            let config = TlsConfig::new().with_server_name(host);
-            tls.open(TlsContext::new(
-                &config,
-                UnsecureProvider::new::<Aes128GcmSha256>(rand_core::OsRng),
-            ))
-            .await
-            .map_err(|_| HttpError::TlsHandshakeFailed)?;
-
-            let result = Self::exchange(&mut tls, method_str, host, path, body).await;
-            // closing tls will drop underlying socket automatically
-            result
+        if let Some(body) = body {
+            core::fmt::write(&mut http_request, format_args!("{} {} HTTP/1.1\r\nHost: {}\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n", 
+                method_str, path, host, body.len())).map_err(|_| HttpError::RequestFailed)?;
         } else {
-            let result = Self::exchange(&mut socket, method_str, host, path, body).await;
-            socket.close();
-            result
+            core::fmt::write(
+                &mut http_request,
+                format_args!("{} {} HTTP/1.1\r\nHost: {}\r\n\r\n", method_str, path, host),
+            )
+            .map_err(|_| HttpError::RequestFailed)?;
         }
+
+        embedded_io_async::Write::write_all(&mut socket, http_request.as_bytes())
+            .await
+            .map_err(|_| HttpError::RequestFailed)?;
+
+        if let Some(body) = body {
+            embedded_io_async::Write::write_all(&mut socket, body)
+                .await
+                .map_err(|_| HttpError::RequestFailed)?;
+        }
+
+        embedded_io_async::Write::flush(&mut socket)
+            .await
+            .map_err(|_| HttpError::RequestFailed)?;
+
+        let mut response_buf = [0u8; 4096];
+        let n = Read::read(&mut socket, &mut response_buf)
+            .await
+            .map_err(|_| HttpError::RequestFailed)?;
+
+        let response_str =
+            core::str::from_utf8(&response_buf[..n]).map_err(|_| HttpError::RequestFailed)?;
+
+        let (status_line, body_start) = response_str
+            .split_once("\r\n\r\n")
+            .ok_or(HttpError::RequestFailed)?;
+
+        let status = status_line
+            .split_whitespace()
+            .nth(1)
+            .and_then(|s| s.parse().ok())
+            .ok_or(HttpError::RequestFailed)?;
+
+        let mut body_vec = heapless::Vec::<u8, 16384>::new();
+        body_vec.extend_from_slice(body_start.as_bytes()).ok();
+
+        socket.close();
+
+        Ok((status, body_vec))
     }
 }
 

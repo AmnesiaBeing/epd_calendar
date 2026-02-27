@@ -1,10 +1,10 @@
 //! HTTP Control Server for Simulator
 
-use tiny_http::{Server, Request, Response, Header, Method, StatusCode};
+use crate::{SimulatedBle, SimulatedWifi};
+use lxx_calendar_common::traits::ble::{BleCommand, ConfigSection};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use crate::{SimulatorConfig, SimulatedBle, SimulatedWifi, SimulatorState};
-use lxx_calendar_common::traits::ble::{BleCommand, ConfigSection};
+use tiny_http::{Header, Method, Request, Response, Server, StatusCode};
 
 /// HTTP Response structure
 #[derive(Debug, Serialize)]
@@ -92,11 +92,12 @@ impl HttpServer {
             StatusCode(400)
         };
 
-        let http_response = Response::from_string(
-            serde_json::to_string(&response).unwrap_or_else(|_| r#"{"success":false,"message":"Serialization error"}"#.to_string())
-        )
-        .with_status_code(status_code)
-        .with_header(Header::build("Content-Type", "application/json"));
+        let http_response =
+            Response::from_string(serde_json::to_string(&response).unwrap_or_else(|_| {
+                r#"{"success":false,"message":"Serialization error"}"#.to_string()
+            }))
+            .with_status_code(status_code)
+            .with_header(Header::build("Content-Type", "application/json"));
 
         let _ = request.respond(http_response);
     }

@@ -1,11 +1,11 @@
 //! Simulated BLE Service
 
+use crate::SimulatedWifi;
 use lxx_calendar_common::traits::ble::{
-    BleService, BleState, BleCommand, BleResponse, ConfigSection,
+    BleCommand, BleResponse, BleService, BleState, ConfigSection,
 };
-use crate::{SimulatorConfig, SimulatedWifi};
-use tokio::sync::{mpsc, RwLock};
 use std::sync::Arc;
+use tokio::sync::{mpsc, RwLock};
 
 /// Simulated BLE
 pub struct SimulatedBle {
@@ -13,12 +13,10 @@ pub struct SimulatedBle {
     cmd_tx: mpsc::Sender<BleCommand>,
     cmd_rx: Arc<RwLock<mpsc::Receiver<BleCommand>>>,
     resp_tx: mpsc::Sender<BleResponse>,
-    config: Arc<SimulatorConfig>,
-    wifi: Arc<SimulatedWifi>,
 }
 
 impl SimulatedBle {
-    pub fn new(config: Arc<SimulatorConfig>, wifi: Arc<SimulatedWifi>) -> Arc<Self> {
+    pub fn new() -> Arc<Self> {
         let (cmd_tx, cmd_rx) = mpsc::channel(32);
         let (resp_tx, resp_rx) = mpsc::channel(32);
 
@@ -27,14 +25,14 @@ impl SimulatedBle {
             cmd_tx,
             cmd_rx: Arc::new(RwLock::new(cmd_rx)),
             resp_tx,
-            config,
-            wifi,
         })
     }
 
     /// 外部注入命令 (通过 HTTP API)
     pub async fn inject_command(&self, cmd: BleCommand) -> Result<BleResponse, std::io::Error> {
-        self.cmd_tx.send(cmd).await
+        self.cmd_tx
+            .send(cmd)
+            .await
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::BrokenPipe, e))?;
 
         // 简化处理：立即返回接收确认
@@ -47,11 +45,14 @@ impl SimulatedBle {
 
     /// 获取响应 (供外部查询)
     pub async fn get_response(&self) -> Option<BleResponse> {
-        self.resp_tx.send(BleResponse {
-            success: true,
-            message: "Response placeholder".to_string(),
-            data: None,
-        }).await.ok();
+        self.resp_tx
+            .send(BleResponse {
+                success: true,
+                message: "Response placeholder".to_string(),
+                data: None,
+            })
+            .await
+            .ok();
         None // 简化实现
     }
 }
@@ -105,34 +106,26 @@ impl BleService for SimulatedBle {
                             data: Some("{\"ssid\":\"configured\"}".to_string()),
                         })
                     }
-                    ConfigSection::Time => {
-                        Ok(BleResponse {
-                            success: true,
-                            message: "Time config retrieved".to_string(),
-                            data: None,
-                        })
-                    }
-                    ConfigSection::Display => {
-                        Ok(BleResponse {
-                            success: true,
-                            message: "Display config retrieved".to_string(),
-                            data: None,
-                        })
-                    }
-                    ConfigSection::Power => {
-                        Ok(BleResponse {
-                            success: true,
-                            message: "Power config retrieved".to_string(),
-                            data: None,
-                        })
-                    }
-                    ConfigSection::Log => {
-                        Ok(BleResponse {
-                            success: true,
-                            message: "Log config retrieved".to_string(),
-                            data: None,
-                        })
-                    }
+                    ConfigSection::Time => Ok(BleResponse {
+                        success: true,
+                        message: "Time config retrieved".to_string(),
+                        data: None,
+                    }),
+                    ConfigSection::Display => Ok(BleResponse {
+                        success: true,
+                        message: "Display config retrieved".to_string(),
+                        data: None,
+                    }),
+                    ConfigSection::Power => Ok(BleResponse {
+                        success: true,
+                        message: "Power config retrieved".to_string(),
+                        data: None,
+                    }),
+                    ConfigSection::Log => Ok(BleResponse {
+                        success: true,
+                        message: "Log config retrieved".to_string(),
+                        data: None,
+                    }),
                 }
             }
 
@@ -164,15 +157,13 @@ impl BleService for SimulatedBle {
                 })
             }
 
-            BleCommand::TestWiFi => {
-                match self.wifi.test_connection().await {
-                    result => Ok(BleResponse {
-                        success: result.success,
-                        message: result.message,
-                        data: Some(serde_json::to_string(&result).unwrap_or_default()),
-                    }),
-                }
-            }
+            BleCommand::TestWiFi => match self.wifi.test_connection().await {
+                result => Ok(BleResponse {
+                    success: result.success,
+                    message: result.message,
+                    data: Some(serde_json::to_string(&result).unwrap_or_default()),
+                }),
+            },
 
             BleCommand::RefreshWeather => {
                 log::info!("Weather refresh requested");
@@ -192,13 +183,11 @@ impl BleService for SimulatedBle {
                 })
             }
 
-            BleCommand::GetStatus => {
-                Ok(BleResponse {
-                    success: true,
-                    message: "Status OK".to_string(),
-                    data: None,
-                })
-            }
+            BleCommand::GetStatus => Ok(BleResponse {
+                success: true,
+                message: "Status OK".to_string(),
+                data: None,
+            }),
 
             BleCommand::StartOta => {
                 log::info!("OTA started");
@@ -210,7 +199,11 @@ impl BleService for SimulatedBle {
             }
 
             BleCommand::OtaFirmware { chunk, offset } => {
-                log::debug!("OTA chunk received at offset {}: {} bytes", offset, chunk.len());
+                log::debug!(
+                    "OTA chunk received at offset {}: {} bytes",
+                    offset,
+                    chunk.len()
+                );
                 Ok(BleResponse {
                     success: true,
                     message: format!("Received {} bytes", chunk.len()),

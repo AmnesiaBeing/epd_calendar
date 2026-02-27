@@ -1,7 +1,7 @@
 use embassy_net::Stack;
 use heapless::String;
-use lxx_calendar_common::http::jwt::JwtSigner;
 use lxx_calendar_common::http::http::{HttpClient, HttpResponse};
+use lxx_calendar_common::http::jwt::JwtSigner;
 use lxx_calendar_common::sntp::{EmbassySntpWithStack, SntpClient};
 use lxx_calendar_common::weather::{API_HOST_DEFAULT, LOCATION_DEFAULT, QweatherJwtSigner};
 use lxx_calendar_common::*;
@@ -156,7 +156,9 @@ impl NetworkSyncService {
             self.connect().await?;
         }
 
-        let stack = self.stack.ok_or_else(|| SystemError::HardwareError(HardwareError::NotInitialized))?;
+        let stack = self
+            .stack
+            .ok_or_else(|| SystemError::HardwareError(HardwareError::NotInitialized))?;
 
         let Some(signer) = &self.jwt_signer else {
             warn!("JWT signer not configured, using default weather");
@@ -173,9 +175,18 @@ impl NetworkSyncService {
 
         info!("JWT token generated successfully");
 
-        let stack = self.stack.take().ok_or_else(|| SystemError::HardwareError(HardwareError::NotInitialized))?;
-        let mut rx_buf = self.http_rx_buffer.take().ok_or_else(|| SystemError::HardwareError(HardwareError::NotInitialized))?;
-        let mut tx_buf = self.http_tx_buffer.take().ok_or_else(|| SystemError::HardwareError(HardwareError::NotInitialized))?;
+        let stack = self
+            .stack
+            .take()
+            .ok_or_else(|| SystemError::HardwareError(HardwareError::NotInitialized))?;
+        let mut rx_buf = self
+            .http_rx_buffer
+            .take()
+            .ok_or_else(|| SystemError::HardwareError(HardwareError::NotInitialized))?;
+        let mut tx_buf = self
+            .http_tx_buffer
+            .take()
+            .ok_or_else(|| SystemError::HardwareError(HardwareError::NotInitialized))?;
 
         let mut http_client = HttpClientImpl::new(stack);
 
@@ -185,10 +196,19 @@ impl NetworkSyncService {
             self.location.as_str()
         );
 
-        let (status, body) = http_client.request(&mut rx_buf, &mut tx_buf, lxx_calendar_common::http::http::HttpMethod::GET, &url, None).await.map_err(|e| {
-            warn!("HTTP request failed: {:?}", e);
-            SystemError::NetworkError(NetworkError::Unknown)
-        })?;
+        let (status, body) = http_client
+            .request(
+                &mut rx_buf,
+                &mut tx_buf,
+                lxx_calendar_common::http::http::HttpMethod::GET,
+                &url,
+                None,
+            )
+            .await
+            .map_err(|e| {
+                warn!("HTTP request failed: {:?}", e);
+                SystemError::NetworkError(NetworkError::Unknown)
+            })?;
 
         if status != 200 {
             warn!("Weather API returned status: {}", status);

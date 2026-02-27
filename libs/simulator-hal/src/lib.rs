@@ -1,5 +1,5 @@
 //! Simulator HAL - Hardware Abstraction Layer for simulator target
-//! 
+//!
 //! This library provides simulated implementations of:
 //! - RTC (Real-Time Clock)
 //! - WDT (Watchdog Timer)
@@ -7,14 +7,14 @@
 //! - WiFi
 //! - HTTP Control Server
 
-pub mod config;
 pub mod ble;
-pub mod wifi;
 pub mod http_server;
-pub mod state;
+pub mod rtc;
+pub mod wdt;
+pub mod wifi;
 
-pub use config::SimulatorConfig;
 pub use ble::SimulatedBle;
-pub use wifi::SimulatedWifi;
 pub use http_server::HttpServer;
-pub use state::SimulatorState;
+pub use rtc::SimulatedRtc;
+pub use wdt::SimulatedWdt;
+pub use wifi::SimulatedWifi;

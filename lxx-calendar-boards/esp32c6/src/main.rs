@@ -21,8 +21,6 @@ esp_bootloader_esp_idf::esp_app_desc!();
 
 use panic_rtt_target as _;
 
-use static_cell::StaticCell;
-
 use crate::drivers::{
     Esp32Battery, Esp32Button, Esp32Buzzer, Esp32LED, Esp32NetworkStack, Esp32Rtc, Esp32Watchdog,
     Esp32Wifi,

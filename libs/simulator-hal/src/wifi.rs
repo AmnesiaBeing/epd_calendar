@@ -1,8 +1,8 @@
 //! Simulated WiFi Driver
 
-use lxx_calendar_common::traits::wifi::{WifiController, WifiMode, WifiConfig};
-use tokio::sync::RwLock;
+use lxx_calendar_common::traits::wifi::{WifiConfig, WifiController, WifiMode};
 use std::sync::Arc;
+use tokio::sync::RwLock;
 
 /// WiFi 连接状态
 #[derive(Debug, Clone)]
@@ -34,8 +34,16 @@ impl SimulatedWifi {
     pub async fn set_connected(&self, connected: bool, ssid: &str, ip: &str) {
         let mut state = self.state.write().await;
         state.connected = connected;
-        state.ssid = if connected { Some(ssid.to_string()) } else { None };
-        state.ip = if connected { Some(ip.to_string()) } else { None };
+        state.ssid = if connected {
+            Some(ssid.to_string())
+        } else {
+            None
+        };
+        state.ip = if connected {
+            Some(ip.to_string())
+        } else {
+            None
+        };
         state.rssi = if connected { Some(-50) } else { None };
         log::info!("WiFi state updated: connected={}, ssid={}", connected, ssid);
     }
@@ -74,12 +82,6 @@ impl SimulatedWifi {
                 "Partial connectivity".to_string()
             },
         }
-    }
-}
-
-impl Default for SimulatedWifi {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
