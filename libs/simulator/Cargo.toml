@@ -1,0 +1,23 @@
+[package]
+name = "simulator"
+version = "0.1.0"
+edition.workspace = true
+
+[features]
+default = ["std"]
+std = ["tiny_http", "tokio"]
+
+[dependencies]
+lxx-calendar-common = { path = "../../lxx-calendar-common" }
+embassy-sync = { workspace = true }
+embassy-executor = { workspace = true }
+embassy-time = { workspace = true }
+log = { workspace = true }
+heapless = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+static_cell = { workspace = true }
+critical-section = { workspace = true }
+
+tiny_http = { version = "0.12", optional = true, default-features = false }
+tokio = { version = "1.0", optional = true, features = ["rt-multi-thread", "macros", "sync"] }

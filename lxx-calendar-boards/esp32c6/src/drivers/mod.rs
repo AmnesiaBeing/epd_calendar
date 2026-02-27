@@ -1,4 +1,5 @@
 mod battery;
+mod ble;
 mod button;
 mod buzzer;
 mod epd;
@@ -10,6 +11,7 @@ mod watchdog;
 mod wifi;
 
 pub use battery::Esp32Battery;
+pub use ble::Esp32BLE;
 pub use button::Esp32Button;
 pub use buzzer::Esp32Buzzer;
 pub use led::Esp32LED;

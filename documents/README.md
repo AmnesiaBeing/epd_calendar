@@ -40,3 +40,9 @@
 9. **[09-硬件接口.md](./09-硬件接口.md)** - GPIO引脚分配
 10. **[10-错误处理.md](./10-错误处理.md)** - 错误处理策略
 11. **[11-Cargo构建系统.md](./11-Cargo构建系统.md)** - 构建配置和多平台支持
+
+---
+
+## 开发调试文档
+
+- **[libs/simulator/README.md](../libs/simulator/README.md)** - Simulator 平台调试接口 (HTTP API)

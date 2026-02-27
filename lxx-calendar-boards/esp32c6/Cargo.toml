@@ -31,9 +31,16 @@ esp-backtrace = { version = "0.18.1", features = [
 esp-radio = { version = "0.17.0", features = [
     "esp32c6",
     "wifi",
+    "ble",
     "esp-alloc",
     "unstable",
 ] }
+
+bleps = { git = "https://github.com/bjoernQ/bleps", package = "bleps", rev = "a5148d8", features = [
+    "async",
+    "macros",
+] }
+
 esp-sync = { version = "0.1.1", features = [
     "esp32c6",
 ], default-features = false }

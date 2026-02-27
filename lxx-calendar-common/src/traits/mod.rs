@@ -10,6 +10,7 @@ pub mod watchdog;
 pub mod wifi;
 
 pub use battery::*;
+pub use ble::*;
 pub use button::*;
 pub use buzzer::*;
 pub use led::*;

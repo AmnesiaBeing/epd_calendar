@@ -9,10 +9,16 @@ members = [
     "lxx-calendar-boards/simulator",
     "libs/epd",
     "libs/sxtwl-rs",
+    "libs/simulator",
+    # "libs/linux-embedded-hal",
+    # "libs/simulated-wdt",
+    # "libs/simulated-rtc",
+    # "libs/embedded-hal-mock",
 ]
 default-members = [
     "lxx-calendar-boards/esp32c6",
 ]
+exclude = ["libs/esp-hal"]
 resolver = "2"
 
 [workspace.package]

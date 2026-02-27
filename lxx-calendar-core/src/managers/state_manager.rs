@@ -1,4 +1,5 @@
 use embassy_time::Duration;
+use lxx_calendar_common::traits::ble::BLEDriver;
 use lxx_calendar_common::*;
 
 use crate::managers::{DisplayManager, WatchdogManager};
@@ -13,7 +14,7 @@ pub struct StateManager<'a, P: PlatformTrait> {
     current_state: SystemMode,
     time_service: TimeService<P::RtcDevice>,
     quote_service: QuoteService,
-    ble_service: BLEService,
+    ble_service: BLEService<P::BLEDevice>,
     power_manager: PowerManager<P::BatteryDevice>,
     audio_service: AudioService<P::AudioDevice>,
     network_sync_service: NetworkSyncService,
@@ -32,7 +33,7 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
         button_service: ButtonService<P::ButtonDevice>,
         time_service: TimeService<P::RtcDevice>,
         quote_service: QuoteService,
-        ble_service: BLEService,
+        ble_service: BLEService<P::BLEDevice>,
         power_manager: PowerManager<P::BatteryDevice>,
         audio_service: AudioService<P::AudioDevice>,
         network_sync_service: NetworkSyncService,

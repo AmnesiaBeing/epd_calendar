@@ -34,7 +34,7 @@ pub async fn main_task<P: PlatformTrait>(
 
     let time_service = TimeService::new().with_rtc(platform_ctx.rtc);
     let quote_service = QuoteService::new();
-    let ble_service = BLEService::new();
+    let mut ble_service = BLEService::new(platform_ctx.ble);
     let mut power_manager = PowerManager::<P::BatteryDevice>::new(event_sender);
     power_manager.set_battery_device(platform_ctx.battery);
     let audio_service = AudioService::new(platform_ctx.audio);

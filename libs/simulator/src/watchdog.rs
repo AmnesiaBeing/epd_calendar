@@ -1,5 +1,5 @@
 use core::sync::atomic::{AtomicBool, Ordering};
-use embassy_executor::{task, Spawner};
+use embassy_executor::{Spawner, task};
 use embassy_time::Duration;
 use lxx_calendar_common::Watchdog;
 
@@ -13,6 +13,18 @@ pub struct SimulatedWdt {
 impl SimulatedWdt {
     pub fn new(timeout_ms: u64) -> Self {
         Self { timeout_ms }
+    }
+
+    pub fn is_enabled(&self) -> bool {
+        WATCHDOG_ENABLED.load(Ordering::SeqCst)
+    }
+
+    pub fn is_fed(&self) -> bool {
+        WATCHDOG_FED.load(Ordering::SeqCst)
+    }
+
+    pub fn get_timeout_ms(&self) -> u64 {
+        self.timeout_ms
     }
 }
 

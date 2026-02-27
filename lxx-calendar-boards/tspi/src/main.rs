@@ -1,13 +1,23 @@
 use embassy_executor::Spawner;
+use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
+use embassy_sync::channel::Channel;
 use epd_yrd0750ryf665f60::{prelude::WaveshareDisplay as _, yrd0750ryf665f60::Epd7in5};
 use linux_embedded_hal::{SpidevDevice, SysfsPin};
 use lxx_calendar_common::platform::PlatformTrait;
 use lxx_calendar_common::*;
 use lxx_calendar_core::main_task;
+use simulator::{HttpServer, SimulatedRtc, SimulatedWdt, SimulatorControl};
+use static_cell::StaticCell;
+use std::sync::Arc;
+use std::thread;
 
 pub mod drivers;
 
 use crate::drivers::{LinuxBuzzer, LinuxWifi, TspiButton, TspiLED, TunTapNetwork};
+
+static SIMULATOR_CONTROL: StaticCell<Option<Arc<SimulatorControl>>> = StaticCell::new();
+static EVENT_CHANNEL: StaticCell<Channel<CriticalSectionRawMutex, SystemEvent, 10>> =
+    StaticCell::new();
 
 fn init_gpio(
     pin: u64,
@@ -30,7 +40,7 @@ fn init_gpio(
 struct Platform;
 
 impl PlatformTrait for Platform {
-    type WatchdogDevice = simulated_wdt::SimulatedWdt;
+    type WatchdogDevice = SimulatedWdt;
 
     type EpdDevice = SpidevDevice;
 
@@ -38,7 +48,7 @@ impl PlatformTrait for Platform {
 
     type LEDDevice = TspiLED;
 
-    type RtcDevice = simulated_rtc::SimulatedRtc;
+    type RtcDevice = SimulatedRtc;
 
     type WifiDevice = LinuxWifi;
 
@@ -60,12 +70,12 @@ impl PlatformTrait for Platform {
             .await
             .unwrap();
 
-        let wdt = simulated_wdt::SimulatedWdt::new(5000);
-        simulated_wdt::start_watchdog(&spawner, 5000);
+        let wdt = SimulatedWdt::new(5000);
+        simulator::start_watchdog(&spawner, 5000);
 
         let audio = LinuxBuzzer;
 
-        let mut rtc = simulated_rtc::SimulatedRtc::new();
+        let mut rtc = SimulatedRtc::new();
         rtc.initialize().await.ok();
 
         let wifi = LinuxWifi::new();
@@ -73,6 +83,19 @@ impl PlatformTrait for Platform {
         let led = TspiLED;
         let battery = NoBattery::new(3700, false, false);
         let button = TspiButton::new();
+
+        let control = SIMULATOR_CONTROL.init(None);
+        if let Some(ref ctrl) = *control {
+            let port = std::env::var("SIMULATOR_PORT")
+                .ok()
+                .and_then(|p| p.parse().ok())
+                .unwrap_or(8080);
+
+            let ctrl_clone = Arc::clone(ctrl);
+            thread::spawn(move || {
+                HttpServer::new(ctrl_clone, port).run();
+            });
+        }
 
         Ok(PlatformContext {
             sys_watch_dog: wdt,
@@ -102,6 +125,17 @@ impl PlatformTrait for Platform {
 async fn main(spawner: Spawner) {
     Platform::init_heap();
     Platform::init_logger();
+
+    let event_channel = EVENT_CHANNEL.init(Channel::new());
+    let event_sender = event_channel.sender();
+
+    let rtc = SimulatedRtc::new();
+    let watchdog = SimulatedWdt::new(5000);
+
+    let simulator_control = Arc::new(SimulatorControl::new(rtc, watchdog, event_sender));
+
+    SIMULATOR_CONTROL.init(Some(simulator_control));
+
     match Platform::init(spawner).await {
         Ok(platform_ctx) => {
             if let Err(e) = main_task::<Platform>(spawner, platform_ctx).await {
