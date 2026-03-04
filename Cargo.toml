@@ -27,19 +27,20 @@ edition = "2024"
 [workspace.dependencies]
 # 核心依赖
 log = { version = "0.4.29", default-features = false }
-thiserror = { version = "2.0.17", default-features = false }
+thiserror = { version = "2.0.18", default-features = false }
 async-trait = "0.1.89"
 cfg-if = "1.0.4"
 defmt = { version = "1.0.1" }
 defmt-rtt = { version = "1.1.0" }
 defmt-macros = { version = "1.0.1" }
-riscv = { version = "0.11.0" }
+riscv = { version = "0.16.0" }
 
 # 嵌入式相关依赖
 embedded-hal = "1.0.0"
 embedded-hal-bus = "0.3.0"
 embedded-hal-async = "1.0.0"
 embedded-graphics = "0.8.2"
+embedded-graphics-core = "0.4.1"
 embedded-io = "0.7.1"
 embedded-io-async = "0.7.0"
 embedded-storage = "0.3.1"
@@ -79,19 +80,16 @@ postcard = { version = "1.1.3", default-features = false, features = ["alloc"] }
 nb = "1.1.0"
 
 # 网络相关
-# reqwless: 使用GitHub主分支以支持esp-mbedtls特征
-reqwless = { git = "https://github.com/drogue-iot/reqwless", branch = "main", default-features = false, features = [
+# reqwless: 
+reqwless = { version = "0.14.0", default-features = false, features = [
     "alloc",
     "log",
 ] }
-# esp-mbedtls: 仅用于ESP32系列
-esp-mbedtls = { version = "0.1", git = "https://github.com/esp-rs/mbedtls-rs", branch = "main" }
-embedded-tls = { git = "https://github.com/drogue-iot/embedded-tls", branch = "main", default-features = false, features = [
+embedded-tls = { version = "0.18.0", default-features = false, features = [
     "alloc",
 ] }
-sntpc = { git = "https://github.com/vpetrigo/sntpc", branch = "master", default-features = false }
-sntpc-net-embassy = { git = "https://github.com/vpetrigo/sntpc", branch = "master", default-features = false }
-
+sntpc = { version = "0.8.1", default-features = false }
+sntpc-net-embassy = { version = "0.8.0", default-features = false }
 # GZip解压
 miniz_oxide = "0.9.0"
 
@@ -99,14 +97,10 @@ miniz_oxide = "0.9.0"
 ed25519-compact = { version = "2.2.0", default-features = false }
 
 # 随机数相关
-getrandom = { version = "0.3.4", default-features = false }
-rand = { version = "0.8.5", default-features = false, features = [
-    "small_rng",
-    "std_rng",
-] }
+getrandom = { version = "0.4.2", default-features = false }
 
 # 时间相关
-jiff = { version = "0.2.18", default-features = false, features = ["alloc"] }
+jiff = { version = "0.2.23", default-features = false, features = ["alloc"] }
 
 # 二维码生成
 qrcode = { path = "libs/qrcode", default-features = false }

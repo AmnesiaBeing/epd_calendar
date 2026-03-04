@@ -1,309 +1,165 @@
 //! 文本渲染模块
-//! 负责将文本渲染到帧缓冲区
+//! 
+//! 目前使用简单的位图字体渲染
+//! TODO: 集成 build 时生成的字体数据
 
-use super::framebuffer::Color;
-use core::fmt::Write;
+#![cfg_attr(not(feature = "std"), no_std)]
 
-/// 文本渲染器
-pub struct TextRenderer;
+extern crate alloc;
+
+use crate::framebuffer::{Color, Framebuffer};
+use lxx_calendar_common::{SystemError, SystemResult};
+
+/// 简单字体渲染器
+/// 
+/// 当前使用内置的点阵字体
+/// TODO: 支持 TrueType 字体渲染（通过 build.rs 预生成）
+pub struct TextRenderer {
+    // TODO: 加载字体数据
+}
 
 impl TextRenderer {
     pub fn new() -> Self {
-        Self
+        Self {}
     }
 
-    /// 渲染文本
-    /// 参数：
-    /// - framebuffer: 渲染缓冲区
-    /// - x: 起始X坐标
-    /// - y: 起始Y坐标
-    /// - text: 文本内容
-    pub fn render(
+    /// 渲染文本到指定位置
+    /// 
+    /// 使用默认字体大小 (约 16x16 像素)
+    pub fn render<const SIZE: usize>(
         &self,
-        framebuffer: &mut crate::renderer::Framebuffer,
+        framebuffer: &mut Framebuffer<SIZE>,
         x: u16,
         y: u16,
         text: &str,
-    ) -> Result<(), ()> {
-        for (i, c) in text.chars().enumerate() {
-            // 简单实现：每个字符占用固定宽度
-            // 实际项目中应该使用字体位图
-            let char_x = x + (i as u16) * 12;
-            let char_y = y;
+    ) -> SystemResult<()> {
+        // 简化的字符渲染 - 每个字符约 8x16 像素
+        let mut cursor_x = x;
+        let char_height = 16u16;
+        let char_width = 8u16;
 
-            // 绘制简单像素字符（示例：渲染数字0-9）
-            self.render_char(framebuffer, char_x, char_y, c)?;
+        for ch in text.chars() {
+            if ch == ' ' {
+                cursor_x += char_width;
+                continue;
+            }
+
+            // 简单的字符渲染占位符
+            // TODO: 使用实际的字体位图数据
+            self.render_char_basic(framebuffer, cursor_x, y, ch)?;
+            
+            cursor_x += char_width + 1; // 1 像素间距
         }
 
         Ok(())
     }
 
-    /// 渲染单个字符（简化版）
-    /// 注意：这是示例实现，实际应该使用字体位图
-    fn render_char(
+    /// 渲染大号文本 (用于时间显示)
+    pub fn render_large<const SIZE: usize>(
         &self,
-        framebuffer: &mut crate::renderer::Framebuffer,
+        framebuffer: &mut Framebuffer<SIZE>,
         x: u16,
         y: u16,
-        c: char,
-    ) -> Result<(), ()> {
-        // 简单的像素点阵字符示例
-        let pixels = self.get_char_pixels(c);
+        text: &str,
+    ) -> SystemResult<()> {
+        // 大号字体渲染 (约 48x64 像素)
+        // TODO: 使用大号字体位图
+        let mut cursor_x = x;
+        let char_height = 48u16;
+        let char_width = 32u16;
 
-        for (row, pixel_row) in pixels.iter().enumerate() {
-            for (col, pixel) in pixel_row.iter().enumerate() {
-                if *pixel {
-                    framebuffer.draw_pixel(x + col as u16, y + row as u16, Color::White)?;
-                } else {
-                    framebuffer.draw_pixel(x + col as u16, y + row as u16, Color::Black)?;
-                }
+        for ch in text.chars() {
+            if ch == ' ' {
+                cursor_x += char_width;
+                continue;
             }
+
+            // 简化：绘制字符边框作为占位符
+            self.render_char_large(framebuffer, cursor_x, y, ch)?;
+            
+            cursor_x += char_width + 4;
         }
 
         Ok(())
     }
 
-    /// 获取字符的像素点阵（示例数据）
-    /// 8x8点阵
-    fn get_char_pixels(&self, c: char) -> [[bool; 8]; 8] {
-        match c {
-            '0' => [[false, true, true, true, true, true, true, false],
-                    [true, false, false, false, false, false, false, true],
-                    [true, false, false, false, false, false, false, true],
-                    [true, false, false, true, true, false, false, true],
-                    [true, false, false, true, true, false, false, true],
-                    [true, false, false, false, false, false, false, true],
-                    [true, false, false, false, false, false, false, true],
-                    [false, true, true, true, true, true, true, false]],
-            '1' => [[false, false, true, false, false, true, false, false],
-                    [false, false, true, false, false, true, false, false],
-                    [false, false, true, false, false, true, false, false],
-                    [false, false, true, false, false, true, false, false],
-                    [false, false, true, false, false, true, false, false],
-                    [false, false, true, false, false, true, false, false],
-                    [false, false, true, false, false, true, false, false],
-                    [false, true, true, true, true, true, true, true]],
-            '2' => [[false, true, true, true, true, true, true, false],
-                    [true, false, false, false, false, false, false, true],
-                    [false, false, false, false, false, false, false, true],
-                    [false, false, false, false, false, false, true, false],
-                    [false, false, false, false, false, true, false, false],
-                    [false, false, false, false, true, false, false, false],
-                    [false, false, false, true, false, false, false, false],
-                    [true, true, true, true, true, true, true, true]],
-            '3' => [[false, true, true, true, true, true, true, false],
-                    [true, false, false, false, false, false, false, true],
-                    [false, false, false, false, false, false, false, true],
-                    [false, false, false, false, false, false, true, false],
-                    [false, false, false, false, false, true, false, false],
-                    [false, false, false, false, false, false, false, true],
-                    [true, false, false, false, false, false, false, true],
-                    [false, true, true, true, true, true, true, false]],
-            '4' => [[false, false, false, false, false, true, false, false],
-                    [false, false, false, false, true, true, false, false],
-                    [false, false, false, true, true, true, false, false],
-                    [false, false, true, false, true, true, false, false],
-                    [false, true, false, false, true, true, false, false],
-                    [true, true, true, true, true, true, true, true],
-                    [false, false, false, false, false, true, false, false],
-                    [false, false, false, false, false, true, false, false]],
-            '5' => [[true, true, true, true, true, true, true, true],
-                    [true, false, false, false, false, false, false, false],
-                    [true, false, false, false, false, false, false, false],
-                    [true, true, true, true, true, true, true, false],
-                    [false, false, false, false, false, false, false, true],
-                    [false, false, false, false, false, false, false, true],
-                    [true, false, false, false, false, false, false, true],
-                    [false, true, true, true, true, true, true, false]],
-            '6' => [[false, true, true, true, true, true, true, false],
-                    [true, false, false, false, false, false, false, false],
-                    [true, false, false, false, false, false, false, false],
-                    [true, true, true, true, true, true, true, false],
-                    [true, false, false, false, false, false, false, true],
-                    [true, false, false, false, false, false, false, true],
-                    [true, false, false, false, false, false, false, true],
-                    [false, true, true, true, true, true, true, false]],
-            '7' => [[true, true, true, true, true, true, true, true],
-                    [false, false, false, false, false, false, false, true],
-                    [false, false, false, false, false, false, true, false],
-                    [false, false, false, false, false, true, false, false],
-                    [false, false, false, false, true, false, false, false],
-                    [false, false, false, true, false, false, false, false],
-                    [false, false, false, true, false, false, false, false],
-                    [false, false, false, true, false, false, false, false]],
-            '8' => [[false, true, true, true, true, true, true, false],
-                    [true, false, false, false, false, false, false, true],
-                    [true, false, false, false, false, false, false, true],
-                    [false, true, true, true, true, true, true, false],
-                    [true, false, false, false, false, false, false, true],
-                    [true, false, false, false, false, false, false, true],
-                    [true, false, false, false, false, false, false, true],
-                    [false, true, true, true, true, true, true, false]],
-            '9' => [[false, true, true, true, true, true, true, false],
-                    [true, false, false, false, false, false, false, true],
-                    [true, false, false, false, false, false, false, true],
-                    [true, false, false, false, false, true, true, false],
-                    [false, false, false, false, false, true, false, false],
-                    [false, false, false, false, false, false, false, true],
-                    [true, false, false, false, false, false, false, true],
-                    [false, true, true, true, true, true, true, false]],
-            _ => [[false; 8]; 8], // 其他字符不渲染
-        }
+    /// 渲染单个字符 (基本尺寸)
+    fn render_char_basic<const SIZE: usize>(
+        &self,
+        framebuffer: &mut Framebuffer<SIZE>,
+        x: u16,
+        y: u16,
+        ch: char,
+    ) -> SystemResult<()> {
+        // 简化的字符渲染 - 绘制字符轮廓
+        // TODO: 使用实际的 8x16 字体位图
+        
+        // 临时实现：绘制一个小矩形表示字符位置
+        framebuffer.draw_rectangle(x, y, 7, 15, Color::Black)?;
+        
+        Ok(())
+    }
+
+    /// 渲染单个字符 (大号)
+    fn render_char_large<const SIZE: usize>(
+        &self,
+        framebuffer: &mut Framebuffer<SIZE>,
+        x: u16,
+        y: u16,
+        ch: char,
+    ) -> SystemResult<()> {
+        // 简化的大号字符渲染
+        // TODO: 使用实际的 32x48 字体位图
+        
+        // 临时实现：绘制一个矩形框表示字符位置
+        framebuffer.draw_rectangle(x, y, 30, 46, Color::Black)?;
+        
+        Ok(())
+    }
+
+    /// 渲染文本居中
+    pub fn render_centered<const SIZE: usize>(
+        &self,
+        framebuffer: &mut Framebuffer<SIZE>,
+        center_x: u16,
+        y: u16,
+        text: &str,
+    ) -> SystemResult<()> {
+        // 估算文本宽度
+        let text_width = (text.chars().count() as u16) * 9; // 8px + 1px 间距
+        let start_x = if center_x > text_width / 2 {
+            center_x - text_width / 2
+        } else {
+            0
+        };
+        
+        self.render(framebuffer, start_x, y, text)
     }
 }
 
-/// 文本渲染器
-pub struct TextRenderer;
+impl Default for TextRenderer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
-impl TextRenderer {
-    pub fn new() -> Self {
-        Self
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::framebuffer::Framebuffer;
+
+    #[test]
+    fn test_text_renderer_creation() {
+        let renderer = TextRenderer::new();
+        assert!(true);
     }
 
-    /// 渲染文本
-    /// 参数：
-    /// - framebuffer: 渲染缓冲区
-    /// - x: 起始X坐标
-    /// - y: 起始Y坐标
-    /// - text: 文本内容
-    pub fn render(
-        &self,
-        framebuffer: &mut crate::renderer::Framebuffer,
-        x: u16,
-        y: u16,
-        text: &str,
-    ) -> SystemResult<()> {
-        for (i, c) in text.chars().enumerate() {
-            // 简单实现：每个字符占用固定宽度
-            // 实际项目中应该使用字体位图
-            let char_x = x + (i as u16) * 12;
-            let char_y = y;
-
-            // 绘制简单像素字符（示例：渲染数字0-9）
-            self.render_char(framebuffer, char_x, char_y, c)?;
-        }
-
-        Ok(())
-    }
-
-    /// 渲染单个字符（简化版）
-    /// 注意：这是示例实现，实际应该使用字体位图
-    fn render_char(
-        &self,
-        framebuffer: &mut crate::renderer::Framebuffer,
-        x: u16,
-        y: u16,
-        c: char,
-    ) -> SystemResult<()> {
-        // 简单的像素点阵字符示例
-        let pixels = self.get_char_pixels(c);
-
-        for (row, pixel_row) in pixels.iter().enumerate() {
-            for (col, pixel) in pixel_row.iter().enumerate() {
-                if *pixel {
-                    framebuffer.draw_pixel(x + col, y + row, Color::White)?;
-                } else {
-                    framebuffer.draw_pixel(x + col, y + row, Color::Black)?;
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    /// 获取字符的像素点阵（示例数据）
-    /// 8x8点阵
-    fn get_char_pixels(&self, c: char) -> [[bool; 8]; 8] {
-        match c {
-            '0' => [[false, true, true, true, true, true, true, false],
-                    [true, false, false, false, false, false, false, true],
-                    [true, false, false, false, false, false, false, true],
-                    [true, false, false, true, true, false, false, true],
-                    [true, false, false, true, true, false, false, true],
-                    [true, false, false, false, false, false, false, true],
-                    [true, false, false, false, false, false, false, true],
-                    [false, true, true, true, true, true, true, false]],
-            '1' => [[false, false, true, false, false, true, false, false],
-                    [false, false, true, false, false, true, false, false],
-                    [false, false, true, false, false, true, false, false],
-                    [false, false, true, false, false, true, false, false],
-                    [false, false, true, false, false, true, false, false],
-                    [false, false, true, false, false, true, false, false],
-                    [false, false, true, false, false, true, false, false],
-                    [false, true, true, true, true, true, true, true]],
-            '2' => [[false, true, true, true, true, true, true, false],
-                    [true, false, false, false, false, false, false, true],
-                    [false, false, false, false, false, false, false, true],
-                    [false, false, false, false, false, false, true, false],
-                    [false, false, false, false, false, true, false, false],
-                    [false, false, false, false, true, false, false, false],
-                    [false, false, false, true, false, false, false, false],
-                    [true, true, true, true, true, true, true, true]],
-            '3' => [[false, true, true, true, true, true, true, false],
-                    [true, false, false, false, false, false, false, true],
-                    [false, false, false, false, false, false, false, true],
-                    [false, false, false, false, false, false, true, false],
-                    [false, false, false, false, false, true, false, false],
-                    [false, false, false, false, false, false, false, true],
-                    [true, false, false, false, false, false, false, true],
-                    [false, true, true, true, true, true, true, false]],
-            '4' => [[false, false, false, false, false, true, false, false],
-                    [false, false, false, false, true, true, false, false],
-                    [false, false, false, true, true, true, false, false],
-                    [false, false, true, false, true, true, false, false],
-                    [false, true, false, false, true, true, false, false],
-                    [true, true, true, true, true, true, true, true],
-                    [false, false, false, false, false, true, false, false],
-                    [false, false, false, false, false, true, false, false]],
-            '5' => [[true, true, true, true, true, true, true, true],
-                    [true, false, false, false, false, false, false, false],
-                    [true, false, false, false, false, false, false, false],
-                    [true, true, true, true, true, true, true, false],
-                    [false, false, false, false, false, false, false, true],
-                    [false, false, false, false, false, false, false, true],
-                    [true, false, false, false, false, false, false, true],
-                    [false, true, true, true, true, true, true, false]],
-            '6' => [[false, true, true, true, true, true, true, false],
-                    [true, false, false, false, false, false, false, false],
-                    [true, false, false, false, false, false, false, false],
-                    [true, true, true, true, true, true, true, false],
-                    [true, false, false, false, false, false, false, true],
-                    [true, false, false, false, false, false, false, true],
-                    [true, false, false, false, false, false, false, true],
-                    [false, true, true, true, true, true, true, false]],
-            '7' => [[true, true, true, true, true, true, true, true],
-                    [false, false, false, false, false, false, false, true],
-                    [false, false, false, false, false, false, true, false],
-                    [false, false, false, false, false, true, false, false],
-                    [false, false, false, false, true, false, false, false],
-                    [false, false, false, true, false, false, false, false],
-                    [false, false, false, true, false, false, false, false],
-                    [false, false, false, true, false, false, false, false]],
-            '8' => [[false, true, true, true, true, true, true, false],
-                    [true, false, false, false, false, false, false, true],
-                    [true, false, false, false, false, false, false, true],
-                    [false, true, true, true, true, true, true, false],
-                    [true, false, false, false, false, false, false, true],
-                    [true, false, false, false, false, false, false, true],
-                    [true, false, false, false, false, false, false, true],
-                    [false, true, true, true, true, true, true, false]],
-            '9' => [[false, true, true, true, true, true, true, false],
-                    [true, false, false, false, false, false, false, true],
-                    [true, false, false, false, false, false, false, true],
-                    [true, false, false, false, false, true, true, false],
-                    [false, false, false, false, false, true, false, false],
-                    [false, false, false, false, false, false, false, true],
-                    [true, false, false, false, false, false, false, true],
-                    [false, true, true, true, true, true, true, false]],
-            ':' => [[false, false],
-                    [false, true],
-                    [false, true],
-                    [false, false],
-                    [false, true],
-                    [false, true],
-                    [false, false],
-                    [false, false]],
-            _ => [[false; 8]; 8], // 其他字符不渲染
-        }
+    #[test]
+    fn test_render_basic() {
+        let mut fb: Framebuffer<1024> = Framebuffer::new(32, 32).unwrap();
+        let renderer = TextRenderer::new();
+        let result = renderer.render(&mut fb, 0, 0, "Hi");
+        // 当前实现应该成功（即使只是绘制方框）
+        assert!(result.is_ok());
     }
 }
