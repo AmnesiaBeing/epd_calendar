@@ -142,43 +142,43 @@ impl BLEDriver for SimulatedBLE {
         Ok(self.configured)
     }
 
-    fn start_advertising(&mut self) -> Result<(), Self::Error> {
+    async fn start_advertising(&mut self) -> Result<(), Self::Error> {
         self.advertising = true;
         log::info!("Simulated BLE start advertising");
         Ok(())
     }
 
-    fn stop(&mut self) -> Result<(), Self::Error> {
+    async fn stop(&mut self) -> Result<(), Self::Error> {
         self.advertising = false;
         self.connected = false;
         log::info!("Simulated BLE stop");
         Ok(())
     }
 
-    fn initialize(&mut self) -> Result<(), Self::Error> {
+    async fn initialize(&mut self) -> Result<(), Self::Error> {
         log::info!("Simulated BLE initialized");
         Ok(())
     }
 
-    fn set_connected_callback(&mut self, callback: Box<dyn Fn() + Send + 'static>) {
+    async fn set_connected_callback(&mut self, callback: Box<dyn Fn() + Send + 'static>) {
         if let Ok(mut guard) = self.connected_callback.lock() {
             *guard = Some(callback);
         }
     }
 
-    fn set_disconnected_callback(&mut self, callback: Box<dyn Fn() + Send + 'static>) {
+    async fn set_disconnected_callback(&mut self, callback: Box<dyn Fn() + Send + 'static>) {
         if let Ok(mut guard) = self.disconnected_callback.lock() {
             *guard = Some(callback);
         }
     }
 
-    fn set_data_callback(&mut self, callback: Box<dyn Fn(&[u8]) + Send + 'static>) {
+    async fn set_data_callback(&mut self, callback: Box<dyn Fn(&[u8]) + Send + 'static>) {
         if let Ok(mut guard) = self.data_callback.lock() {
             *guard = Some(callback);
         }
     }
 
-    fn notify(&mut self, data: &[u8]) -> Result<(), Self::Error> {
+    async fn notify(&mut self, data: &[u8]) -> Result<(), Self::Error> {
         log::info!("Simulated BLE notify: {} bytes", data.len());
         Ok(())
     }

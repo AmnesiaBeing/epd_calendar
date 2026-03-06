@@ -11,7 +11,6 @@ embedded_graphics_simulator = []
 [dependencies]
 lxx-calendar-common = { path = "../../lxx-calendar-common" }
 lxx-calendar-core = { path = "../../lxx-calendar-core" }
-simulator-hal = { path = "../../libs/simulator-hal" }
 static_cell = { workspace = true }
 simulator = { path = "../../libs/simulator", features = ["std"] }
 epd-yrd0750ryf665f60 = { version = "0.1.0", path = "../../libs/epd", features = ["simulator"] }

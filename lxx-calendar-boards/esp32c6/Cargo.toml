@@ -36,11 +36,6 @@ esp-radio = { version = "0.17.0", features = [
     "unstable",
 ] }
 
-bleps = { git = "https://github.com/bjoernQ/bleps", package = "bleps", rev = "a5148d8", features = [
-    "async",
-    "macros",
-] }
-
 esp-sync = { version = "0.1.1", features = [
     "esp32c6",
 ], default-features = false }
@@ -60,3 +55,6 @@ embassy-net = { workspace = true }
 epd-yrd0750ryf665f60 = { version = "0.1.0", path = "../../libs/epd" }
 embedded-hal.workspace = true
 embedded-hal-async.workspace = true
+heapless.workspace = true
+trouble-host = { version = "0.5.0", features = ["defmt"] }
+embassy-futures = "0.1"

@@ -36,7 +36,7 @@ impl<D: BLEDriver> BLEService<D> {
                 let event = SystemEvent::BLEEvent(ble_event);
                 let _ = sender_clone.try_send(event);
             }
-        }));
+        })).await;
 
         self.enabled = true;
         info!("BLE service initialized");
@@ -63,6 +63,7 @@ impl<D: BLEDriver> BLEService<D> {
 
         self.driver
             .start_advertising()
+            .await
             .map_err(|_| SystemError::HardwareError(HardwareError::InvalidParameter))?;
 
         info!("BLE advertising started");
@@ -89,6 +90,7 @@ impl<D: BLEDriver> BLEService<D> {
 
         self.driver
             .stop()
+            .await
             .map_err(|_| SystemError::HardwareError(HardwareError::InvalidParameter))?;
 
         self.ota_mode = false;
