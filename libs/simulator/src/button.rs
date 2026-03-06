@@ -28,7 +28,7 @@ impl SimulatorButton {
                 cb(event);
             }
         }
-        
+
         // 设置 wakeup flag，唤醒睡眠中的系统
         self.wakeup_flag.store(true, Ordering::SeqCst);
         info!("Button pressed, wakeup flag set");

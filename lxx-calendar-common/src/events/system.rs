@@ -9,6 +9,7 @@ pub enum SystemEvent {
     SystemStateEvent(crate::events::SystemStateEvent),
     PowerEvent(crate::events::PowerEvent),
     ConfigChanged(ConfigChange),
+    BLEEvent(BLEEvent),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -24,7 +25,6 @@ pub enum UserEvent {
     ButtonTripleClick,
     ButtonShortPress,
     ButtonLongPress,
-    BLEConfigReceived(heapless::Vec<u8, 64>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -56,4 +56,39 @@ pub enum SystemStateEvent {
 pub enum PowerEvent {
     ChargingStateChanged(bool),
     LowPowerModeChanged(bool),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BLEEvent {
+    WifiConfigReceived {
+        ssid: heapless::String<32>,
+        password: heapless::String<64>,
+    },
+    NetworkConfigReceived {
+        location_id: heapless::String<16>,
+        sync_interval_minutes: u16,
+        auto_sync: bool,
+    },
+    DisplayConfigReceived {
+        refresh_interval_seconds: u16,
+        low_power_refresh_enabled: bool,
+    },
+    TimeConfigReceived {
+        timezone_offset: i32,
+        hour_chime_enabled: bool,
+    },
+    PowerConfigReceived {
+        low_power_mode_enabled: bool,
+    },
+    LogConfigReceived {
+        log_level: crate::types::LogLevel,
+        log_to_flash: bool,
+    },
+    CommandNetworkSync,
+    CommandReboot,
+    CommandFactoryReset,
+    OTAStart,
+    OTAData(heapless::Vec<u8, 256>),
+    OTAComplete,
+    OTACancel,
 }

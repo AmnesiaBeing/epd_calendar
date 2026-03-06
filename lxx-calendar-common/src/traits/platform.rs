@@ -4,7 +4,7 @@ use embassy_sync::channel::{Channel, Receiver, Sender};
 use crate::{SystemEvent, SystemResult};
 
 use super::{
-    Battery, BLEDriver, ButtonDriver, BuzzerDriver, LEDDriver, NetworkStack, Rtc, Watchdog,
+    BLEDriver, Battery, ButtonDriver, BuzzerDriver, LEDDriver, NetworkStack, Rtc, Watchdog,
     WifiController,
 };
 

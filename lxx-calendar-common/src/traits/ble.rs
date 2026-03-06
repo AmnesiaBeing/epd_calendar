@@ -1,4 +1,4 @@
-use crate::types::ConfigChange;
+use alloc::boxed::Box;
 
 pub trait BLEDriver: Send {
     type Error;
@@ -7,8 +7,16 @@ pub trait BLEDriver: Send {
     fn is_advertising(&self) -> Result<bool, Self::Error>;
     fn is_configured(&self) -> Result<bool, Self::Error>;
 
-    fn start_advertising(&mut self) -> Result<(), Self::Error>;
-    fn stop(&mut self) -> Result<(), Self::Error>;
+    async fn start_advertising(&mut self) -> Result<(), Self::Error>;
+    async fn stop(&mut self) -> Result<(), Self::Error>;
+
+    async fn initialize(&mut self) -> Result<(), Self::Error>;
+
+    async fn set_connected_callback(&mut self, callback: Box<dyn Fn() + Send + 'static>);
+    async fn set_disconnected_callback(&mut self, callback: Box<dyn Fn() + Send + 'static>);
+    async fn set_data_callback(&mut self, callback: Box<dyn Fn(&[u8]) + Send + 'static>);
+
+    async fn notify(&mut self, data: &[u8]) -> Result<(), Self::Error>;
 }
 
 pub struct NoBLE;
@@ -39,6 +47,20 @@ impl BLEDriver for NoBLE {
     }
 
     fn stop(&mut self) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn initialize(&mut self) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn set_connected_callback(&mut self, _callback: Box<dyn Fn() + Send + 'static>) {}
+
+    fn set_disconnected_callback(&mut self, _callback: Box<dyn Fn() + Send + 'static>) {}
+
+    fn set_data_callback(&mut self, _callback: Box<dyn Fn(&[u8]) + Send + 'static>) {}
+
+    fn notify(&mut self, _data: &[u8]) -> Result<(), Self::Error> {
         Ok(())
     }
 }

@@ -16,7 +16,6 @@ use crate::{
 };
 
 mod managers;
-mod platform;
 mod services;
 
 static EVENT_CHANNEL: StaticCell<LxxSystemEventChannel> = StaticCell::new();
@@ -52,6 +51,7 @@ pub async fn main_task<P: PlatformTrait>(
 
     let mut state_manager: StateManager<P> = StateManager::new(
         event_receiver,
+        event_sender,
         button_service,
         time_service,
         quote_service,
@@ -59,6 +59,7 @@ pub async fn main_task<P: PlatformTrait>(
         power_manager,
         audio_service,
         network_sync_service,
+        platform_ctx.wifi,
         platform_ctx.sys_watch_dog,
     );
     state_manager.with_config(&config);

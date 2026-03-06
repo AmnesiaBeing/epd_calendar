@@ -69,7 +69,6 @@ impl ConfigManager {
                 sync_interval_minutes: 120,
             },
             display_config: lxx_common::DisplayConfig {
-                theme: lxx_common::DisplayTheme::Default,
                 low_power_refresh_enabled: true,
                 refresh_interval_seconds: 60,
             },

@@ -6,12 +6,11 @@ use lxx_calendar_core::main_task;
 use simulator::{
     HttpServer, SimulatedBLE, SimulatedRtc, SimulatedWdt, SimulatorButton, SimulatorControl,
 };
+use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
 pub mod drivers;
-
-use drivers::SimulatorBLE;
 
 struct Platform;
 
@@ -34,7 +33,7 @@ impl PlatformTrait for Platform {
 
     type ButtonDevice = SimulatorButton;
 
-    type BLEDevice = SimulatorBLE;
+    type BLEDevice = SimulatedBLE;
 
     async fn init(spawner: Spawner) -> SystemResult<PlatformContext<Self>> {
         let wdt = SimulatedWdt::new(30000);
@@ -52,7 +51,7 @@ impl PlatformTrait for Platform {
         let battery = NoBattery::new(3700, false, false);
 
         let button = SimulatorButton::new();
-        let ble = SimulatorBLE::default();
+        let ble = SimulatedBLE::new();
 
         Ok(PlatformContext {
             sys_watch_dog: wdt,
@@ -89,20 +88,29 @@ async fn main(spawner: Spawner) {
         .and_then(|p| p.parse().ok())
         .unwrap_or(8080);
 
+    // 创建共享的 BLE 实例
+    let mut ble_instance = SimulatedBLE::new();
+    
     // 创建 Rtc 并获取 wakeup flag
     let rtc_for_button = SimulatedRtc::new();
-    let rtc_wakeup_flag = rtc_for_button.get_wakeup_flag();
-
+    let rtc_wakeup = rtc_for_button.get_wakeup_flag();
+    
+    // 让 BLE 使用与 RTC 相同的 wakeup flag
+    ble_instance.set_external_wakeup_flag(rtc_wakeup.clone());
+    
+    let ble_for_http = ble_instance.clone();
+    let ble_for_app = ble_instance;
+    
     // 创建 Button 并设置 wakeup flag
     let mut button_for_http = SimulatorButton::new();
-    button_for_http.set_wakeup_flag(rtc_wakeup_flag);
+    button_for_http.set_wakeup_flag(rtc_wakeup);
 
     let control = Arc::new(Mutex::new(SimulatorControl::new(
         SimulatedRtc::new(),
         SimulatedWdt::new(30000),
     )));
 
-    let ble = Arc::new(Mutex::new(SimulatedBLE::new()));
+    let ble = Arc::new(Mutex::new(ble_for_http));
     let button = Arc::new(Mutex::new(button_for_http));
 
     let ctrl_clone = Arc::clone(&control);
@@ -113,7 +121,9 @@ async fn main(spawner: Spawner) {
     });
 
     match Platform::init(spawner).await {
-        Ok(platform_ctx) => {
+        Ok(mut platform_ctx) => {
+            // 使用共享的 BLE 实例
+            platform_ctx.ble = ble_for_app;
             if let Err(e) = main_task::<Platform>(spawner, platform_ctx).await {
                 error!("Main task error: {:?}", e);
             }

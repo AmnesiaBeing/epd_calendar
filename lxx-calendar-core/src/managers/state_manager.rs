@@ -1,5 +1,4 @@
 use embassy_time::Duration;
-use lxx_calendar_common::traits::ble::BLEDriver;
 use lxx_calendar_common::*;
 
 use crate::managers::{DisplayManager, WatchdogManager};
@@ -11,6 +10,7 @@ use crate::services::{
 
 pub struct StateManager<'a, P: PlatformTrait> {
     event_channel: LxxChannelReceiver<'a, SystemEvent>,
+    event_sender: LxxChannelSender<'static, SystemEvent>,
     current_state: SystemMode,
     time_service: TimeService<P::RtcDevice>,
     quote_service: QuoteService,
@@ -18,6 +18,7 @@ pub struct StateManager<'a, P: PlatformTrait> {
     power_manager: PowerManager<P::BatteryDevice>,
     audio_service: AudioService<P::AudioDevice>,
     network_sync_service: NetworkSyncService,
+    wifi_device: P::WifiDevice,
     button_service: ButtonService<P::ButtonDevice>,
     watchdog: WatchdogManager<P::WatchdogDevice>,
     config: Option<&'a lxx_calendar_common::SystemConfig>,
@@ -30,6 +31,7 @@ pub struct StateManager<'a, P: PlatformTrait> {
 impl<'a, P: PlatformTrait> StateManager<'a, P> {
     pub fn new(
         event_receiver: LxxChannelReceiver<'a, SystemEvent>,
+        event_sender: LxxChannelSender<'static, SystemEvent>,
         button_service: ButtonService<P::ButtonDevice>,
         time_service: TimeService<P::RtcDevice>,
         quote_service: QuoteService,
@@ -37,11 +39,13 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
         power_manager: PowerManager<P::BatteryDevice>,
         audio_service: AudioService<P::AudioDevice>,
         network_sync_service: NetworkSyncService,
+        wifi_device: P::WifiDevice,
         watchdog_device: P::WatchdogDevice,
     ) -> Self {
         Self {
             current_state: SystemMode::LightSleep,
             event_channel: event_receiver,
+            event_sender,
             button_service,
             time_service,
             quote_service,
@@ -49,6 +53,7 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
             power_manager,
             audio_service,
             network_sync_service,
+            wifi_device,
             watchdog: WatchdogManager::new(watchdog_device),
             config: None,
             last_chime_hour: None,
@@ -67,7 +72,9 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
     pub async fn initialize(&mut self) -> SystemResult<()> {
         self.time_service.initialize().await?;
         self.quote_service.initialize().await?;
-        self.ble_service.initialize().await?;
+        self.ble_service
+            .initialize(self.event_sender.clone())
+            .await?;
         self.power_manager.initialize().await?;
         self.audio_service.initialize().await?;
         self.network_sync_service.initialize().await?;
@@ -98,6 +105,7 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
             SystemEvent::SystemStateEvent(evt) => self.handle_system_event(evt).await?,
             SystemEvent::PowerEvent(evt) => self.handle_power_event(evt).await?,
             SystemEvent::ConfigChanged(change) => self.handle_config_changed(change).await?,
+            SystemEvent::BLEEvent(evt) => self.handle_ble_event(evt).await?,
         }
 
         Ok(())
@@ -325,8 +333,96 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
                 info!("This feature is not yet implemented");
                 info!("TODO: Clear configuration and reboot");
             }
-            UserEvent::BLEConfigReceived(_) => {
-                info!("BLE config received, syncing data");
+        }
+        Ok(())
+    }
+
+    async fn handle_ble_event(&mut self, event: BLEEvent) -> SystemResult<()> {
+        match event {
+            BLEEvent::WifiConfigReceived { ssid, password } => {
+                info!("WiFi config received: ssid={}", ssid);
+                self.network_sync_service.save_wifi_config(ssid, password);
+                if let Err(e) = self.network_sync_service.connect_wifi(&mut self.wifi_device).await {
+                    error!("WiFi connection failed: {:?}", e);
+                } else {
+                    info!("WiFi connected, starting network sync");
+                    let result = self.network_sync_service.sync(&mut self.time_service).await;
+                    match result {
+                        Ok(_) => info!("Network sync completed successfully"),
+                        Err(e) => error!("Network sync failed: {:?}", e),
+                    }
+                }
+            }
+            BLEEvent::NetworkConfigReceived {
+                location_id,
+                sync_interval_minutes,
+                auto_sync,
+            } => {
+                info!(
+                    "Network config received: location={}, interval={}, auto_sync={}",
+                    location_id, sync_interval_minutes, auto_sync
+                );
+            }
+            BLEEvent::DisplayConfigReceived {
+                refresh_interval_seconds,
+                low_power_refresh_enabled,
+            } => {
+                info!(
+                    "Display config received: refresh={}, low_power={}",
+                    refresh_interval_seconds, low_power_refresh_enabled
+                );
+            }
+            BLEEvent::TimeConfigReceived {
+                timezone_offset,
+                hour_chime_enabled,
+            } => {
+                info!(
+                    "Time config received: timezone_offset={}, hour_chime_enabled={}",
+                    timezone_offset, hour_chime_enabled
+                );
+            }
+            BLEEvent::PowerConfigReceived {
+                low_power_mode_enabled,
+            } => {
+                info!(
+                    "Power config received: low_power_mode_enabled={}",
+                    low_power_mode_enabled
+                );
+            }
+            BLEEvent::LogConfigReceived {
+                log_level,
+                log_to_flash,
+            } => {
+                info!(
+                    "Log config received: level={:?}, to_flash={}",
+                    log_level, log_to_flash
+                );
+            }
+            BLEEvent::CommandNetworkSync => {
+                info!("Command: network sync");
+                let result = self.network_sync_service.sync(&mut self.time_service).await;
+                match result {
+                    Ok(_) => info!("Network sync completed successfully"),
+                    Err(e) => error!("Network sync failed: {:?}", e),
+                }
+            }
+            BLEEvent::CommandReboot => {
+                info!("Command: reboot");
+            }
+            BLEEvent::CommandFactoryReset => {
+                info!("Command: factory reset");
+            }
+            BLEEvent::OTAStart => {
+                info!("OTA start");
+            }
+            BLEEvent::OTAData(data) => {
+                info!("OTA data: {} bytes", data.len());
+            }
+            BLEEvent::OTAComplete => {
+                info!("OTA complete");
+            }
+            BLEEvent::OTACancel => {
+                info!("OTA cancel");
             }
         }
         Ok(())

@@ -22,7 +22,7 @@ esp_bootloader_esp_idf::esp_app_desc!();
 use panic_rtt_target as _;
 
 use crate::drivers::{
-    Esp32Battery, Esp32BLE, Esp32Button, Esp32Buzzer, Esp32LED, Esp32NetworkStack, Esp32Rtc,
+    Esp32BLE, Esp32Battery, Esp32Button, Esp32Buzzer, Esp32LED, Esp32NetworkStack, Esp32Rtc,
     Esp32Watchdog, Esp32Wifi,
 };
 
@@ -79,7 +79,7 @@ impl PlatformTrait for Platform {
         let network = Esp32NetworkStack::new(spawner, wifi_interface);
         let epd = Self::init_epd(&peripherals).await;
         let button = Esp32Button::new(&peripherals, spawner);
-        
+
         let mut ble = Esp32BLE::new(spawner, peripherals);
 
         Ok(PlatformContext {

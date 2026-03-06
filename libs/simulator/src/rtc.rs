@@ -112,9 +112,9 @@ impl Rtc for SimulatedRtc {
     async fn sleep_light(&mut self) {
         if let Some(duration) = self.wakeup_duration.take() {
             let start = Instant::now();
-            
+
             log::info!("Simulated light sleep for {:?}", duration);
-            
+
             // 每 100ms 检查一次 wakeup flag，模拟硬件中断唤醒
             while start.elapsed() < duration {
                 if self.wakeup_flag.load(Ordering::SeqCst) {
@@ -124,7 +124,7 @@ impl Rtc for SimulatedRtc {
                 }
                 embassy_time::block_for(Duration::from_millis(100));
             }
-            
+
             if start.elapsed() >= duration {
                 log::info!("Simulated wakeup from light sleep (timeout)");
             }

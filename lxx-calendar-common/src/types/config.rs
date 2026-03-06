@@ -36,16 +36,8 @@ pub struct EncryptedString {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DisplayConfig {
-    pub theme: DisplayTheme,
     pub low_power_refresh_enabled: bool,
     pub refresh_interval_seconds: u16,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DisplayTheme {
-    Default,
-    Light,
-    Dark,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

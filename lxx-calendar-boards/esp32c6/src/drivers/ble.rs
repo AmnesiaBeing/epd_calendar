@@ -1,23 +1,29 @@
-use core::convert::Infallible;
-use esp_hal::peripherals::Peripherals;
-use esp_hal::peripherals::BT;
-use esp_radio::ble::controller::BleConnector;
-use lxx_calendar_common::traits::ble::BLEDriver;
-use lxx_calendar_common::*;
+use alloc::boxed::Box;
 use bleps::{
-    Ble,
-    HciConnector,
+    Ble, HciConnector,
     ad_structure::{
-        AdStructure,
-        BR_EDR_NOT_SUPPORTED,
-        LE_GENERAL_DISCOVERABLE,
-        create_advertising_data,
+        AdStructure, BR_EDR_NOT_SUPPORTED, LE_GENERAL_DISCOVERABLE, create_advertising_data,
     },
     att::Uuid,
 };
+use core::convert::Infallible;
+use core::sync::atomic::{AtomicBool, Ordering};
+use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
+use embassy_sync::mutex::Mutex;
+use esp_hal::peripherals::BT;
+use esp_hal::peripherals::Peripherals;
+use esp_radio::ble::controller::BleConnector;
+use lxx_calendar_common::traits::ble::BLEDriver;
+use lxx_calendar_common::*;
 
 const DEVICE_NAME: &str = "LXX-Calendar";
 const SERVICE_UUID: u16 = 0xFFF0;
+
+/// 全局静态回调函数存储
+static CONNECTED_CALLBACK: Mutex<CriticalSectionRawMutex, Option<Box<dyn Fn() + Send + 'static>>> = Mutex::new(None);
+static DISCONNECTED_CALLBACK: Mutex<CriticalSectionRawMutex, Option<Box<dyn Fn() + Send + 'static>>> = Mutex::new(None);
+static DATA_CALLBACK: Mutex<CriticalSectionRawMutex, Option<Box<dyn Fn(&[u8]) + Send + 'static>>> = Mutex::new(None);
+static CONNECTED_FLAG: AtomicBool = AtomicBool::new(false);
 
 pub struct Esp32BLE {
     advertising: bool,
@@ -29,9 +35,9 @@ pub struct Esp32BLE {
 impl Esp32BLE {
     pub fn new(spawner: embassy_executor::Spawner, peripherals: Peripherals) -> Self {
         let bt = peripherals.BT;
-        
+
         spawner.spawn(ble_task(bt)).ok();
-        
+
         Self {
             advertising: false,
             connected: false,
@@ -44,6 +50,19 @@ impl Esp32BLE {
         self.connected = connected;
         if connected {
             self.advertising = false;
+            CONNECTED_FLAG.store(true, Ordering::SeqCst);
+            if let Ok(mut guard) = CONNECTED_CALLBACK.lock() {
+                if let Some(ref cb) = *guard {
+                    cb();
+                }
+            }
+        } else {
+            CONNECTED_FLAG.store(false, Ordering::SeqCst);
+            if let Ok(mut guard) = DISCONNECTED_CALLBACK.lock() {
+                if let Some(ref cb) = *guard {
+                    cb();
+                }
+            }
         }
     }
 
@@ -53,6 +72,14 @@ impl Esp32BLE {
 
     pub fn set_advertising(&mut self, advertising: bool) {
         self.advertising = advertising;
+    }
+
+    pub fn is_connected_flag(&self) -> bool {
+        CONNECTED_FLAG.load(Ordering::SeqCst)
+    }
+
+    pub fn get_data_callback(&self) -> &'static Mutex<CriticalSectionRawMutex, Option<Box<dyn Fn(&[u8]) + Send + 'static>>> {
+        &DATA_CALLBACK
     }
 }
 
@@ -96,6 +123,40 @@ impl BLEDriver for Esp32BLE {
         self.connected = false;
         Ok(())
     }
+
+    fn initialize(&mut self) -> Result<(), Self::Error> {
+        if self.initialized {
+            return Ok(());
+        }
+        self.initialized = true;
+        Ok(())
+    }
+
+    fn set_connected_callback(&mut self, callback: Box<dyn Fn() + Send + 'static>) {
+        if let Ok(mut guard) = CONNECTED_CALLBACK.lock() {
+            *guard = Some(callback);
+        }
+    }
+
+    async fn set_disconnected_callback(&mut self, callback: Box<dyn Fn() + Send + 'static>) {
+        if let Ok(mut guard) = DISCONNECTED_CALLBACK.lock().await {
+            *guard = Some(callback);
+        }
+    }
+
+    async fn set_data_callback(&mut self, callback: Box<dyn Fn(&[u8]) + Send + 'static>) {
+        if let Ok(mut guard) = DATA_CALLBACK.lock().await {
+            *guard = Some(callback);
+        }
+    }
+
+    fn notify(&mut self, data: &[u8]) -> Result<(), Self::Error> {
+        if !self.initialized {
+            return Err(BLEError::NotInitialized);
+        }
+        info!("BLE notify: {} bytes", data.len());
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -125,7 +186,11 @@ async fn ble_task(bt: BT<'static>) {
         }
     };
 
-    let now = || esp_hal::time::Instant::now().duration_since_epoch().as_millis();
+    let now = || {
+        esp_hal::time::Instant::now()
+            .duration_since_epoch()
+            .as_millis()
+    };
     let hci = HciConnector::new(connector, now);
     let mut ble = Ble::new(&hci);
 

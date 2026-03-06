@@ -27,6 +27,7 @@ pub struct NetworkSyncService {
     api_host: heapless::String<128>,
     location: heapless::String<32>,
     jwt_signer: Option<QweatherJwtSigner>,
+    wifi_config: Option<(heapless::String<32>, heapless::String<64>)>,
 }
 
 impl NetworkSyncService {
@@ -43,6 +44,7 @@ impl NetworkSyncService {
             api_host: heapless::String::try_from(API_HOST_DEFAULT).unwrap_or_default(),
             location: heapless::String::try_from(LOCATION_DEFAULT).unwrap_or_default(),
             jwt_signer: None,
+            wifi_config: None,
         }
     }
 
@@ -61,6 +63,33 @@ impl NetworkSyncService {
 
         info!("Network sync service initialized");
         Ok(())
+    }
+
+    pub fn save_wifi_config(&mut self, ssid: heapless::String<32>, password: heapless::String<64>) {
+        info!("Saving WiFi config: ssid={}", ssid);
+        self.wifi_config = Some((ssid, password));
+    }
+
+    pub async fn connect_wifi<W: WifiController>(
+        &mut self,
+        wifi: &mut W,
+    ) -> SystemResult<()> {
+        if let Some((ref ssid, ref password)) = self.wifi_config {
+            info!("Connecting to WiFi: {}", ssid);
+            match wifi.connect_sta(ssid, password).await {
+                Ok(_) => {
+                    self.connected = true;
+                    info!("WiFi connected successfully");
+                    Ok(())
+                }
+                Err(e) => {
+                    error!("WiFi connection failed");
+                    Err(SystemError::HardwareError(HardwareError::InvalidParameter))
+                }
+            }
+        } else {
+            Err(SystemError::HardwareError(HardwareError::InvalidParameter))
+        }
     }
 
     pub async fn sync<'a, R: Rtc>(

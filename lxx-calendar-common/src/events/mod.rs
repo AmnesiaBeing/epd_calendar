@@ -12,5 +12,6 @@
 
 pub mod system;
 pub use system::{
-    NetworkEvent, PowerEvent, SystemEvent, SystemStateEvent, TimeEvent, UserEvent, WakeupEvent,
+    BLEEvent, NetworkEvent, PowerEvent, SystemEvent, SystemStateEvent, TimeEvent, UserEvent,
+    WakeupEvent,
 };
