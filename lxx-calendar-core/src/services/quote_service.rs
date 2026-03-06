@@ -69,7 +69,7 @@ impl QuoteService {
 
     fn random_index(max: usize) -> usize {
         let mut buf = [0u8; 4];
-        let _ = getrandom::fill(&mut buf);
+        let _ = getrandom::getrandom(&mut buf);
         let random_u32 = u32::from_le_bytes(buf);
         (random_u32 as usize) % max
     }

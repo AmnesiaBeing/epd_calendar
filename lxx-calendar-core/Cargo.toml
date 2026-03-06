@@ -34,11 +34,18 @@ reqwless = { workspace = true }
 embedded-io = { workspace = true }
 embedded-io-async = { workspace = true }
 
+# TLS / crypto
+embedded-tls = { workspace = true }
+rand = { version = "0.6.3", default-features = false }
+rand_core = { version = "0.6.3", default-features = false, features = [
+    "getrandom",
+] }
+
 # 序列化
 serde_json = { workspace = true }
 
 # 随机数
-getrandom = { workspace = true }
+getrandom = { workspace = true, features = ["custom"] }
 
 # SNTP时间同步
 sntpc = { workspace = true }

@@ -11,6 +11,7 @@ embedded_graphics_simulator = []
 [dependencies]
 lxx-calendar-common = { path = "../../lxx-calendar-common" }
 lxx-calendar-core = { path = "../../lxx-calendar-core" }
+simulator-hal = { path = "../../libs/simulator-hal" }
 static_cell = { workspace = true }
 simulated-wdt = { path = "../../libs/simulated-wdt" }
 simulated-rtc = { path = "../../libs/simulated-rtc" }

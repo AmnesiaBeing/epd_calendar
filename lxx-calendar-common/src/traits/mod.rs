@@ -1,4 +1,5 @@
 pub mod battery;
+pub mod ble;
 pub mod button;
 pub mod buzzer;
 pub mod led;

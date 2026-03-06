@@ -21,8 +21,9 @@ impl TunTapNetwork {
         let device = TunTapDevice::new(TUNTAP_NAME)
             .map_err(|_| lxx_calendar_common::types::error::NetworkError::NotConnected)?;
 
-        let seed = getrandom::u64()
-            .map_err(|_| lxx_calendar_common::types::error::NetworkError::Unknown)?;
+        let mut buf = [0u8; 8];
+        let _ = getrandom::getrandom(&mut buf);
+        let seed = u64::from_le_bytes(buf);
 
         let config = Config::dhcpv4(Default::default());
 

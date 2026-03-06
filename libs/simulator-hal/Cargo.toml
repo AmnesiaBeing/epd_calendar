@@ -1,0 +1,16 @@
+[package]
+name = "simulator-hal"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+lxx-calendar-common = { path = "../../lxx-calendar-common" }
+embassy-executor = { workspace = true }
+embassy-time = { workspace = true }
+embassy-sync = { workspace = true }
+log = { workspace = true }
+tokio = { version = "1.0", features = ["full", "sync", "rt-multi-thread"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0" }
+tiny_http = { version = "0.12" }
+heapless = { version = "0.8" }

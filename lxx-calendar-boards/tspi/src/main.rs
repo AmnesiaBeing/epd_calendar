@@ -4,7 +4,6 @@ use linux_embedded_hal::{SpidevDevice, SysfsPin};
 use lxx_calendar_common::platform::PlatformTrait;
 use lxx_calendar_common::*;
 use lxx_calendar_core::main_task;
-use static_cell::StaticCell;
 
 pub mod drivers;
 
