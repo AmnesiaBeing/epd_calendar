@@ -1,6 +1,7 @@
 use lxx_calendar_common::traits::button::{ButtonDriver, ButtonEvent};
 use lxx_calendar_common::*;
 
+#[derive(Clone, Default)]
 pub struct TspiButton;
 
 impl TspiButton {

@@ -31,12 +31,14 @@ impl<D: BLEDriver> BLEService<D> {
         self.event_sender = Some(sender.clone());
 
         let sender_clone = sender;
-        self.driver.set_data_callback(Box::new(move |data| {
-            if let Some(ble_event) = parse_ble_event(data) {
-                let event = SystemEvent::BLEEvent(ble_event);
-                let _ = sender_clone.try_send(event);
-            }
-        })).await;
+        self.driver
+            .set_data_callback(Box::new(move |data| {
+                if let Some(ble_event) = parse_ble_event(data) {
+                    let event = SystemEvent::BLEEvent(ble_event);
+                    let _ = sender_clone.try_send(event);
+                }
+            }))
+            .await;
 
         self.enabled = true;
         info!("BLE service initialized");

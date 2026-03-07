@@ -1,6 +1,6 @@
 use alloc::boxed::Box;
 use core::convert::Infallible;
-use core::sync::atomic::{AtomicBool, AtomicU32, AtomicU8, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicU8, AtomicU32, Ordering};
 use embassy_futures::join::join;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::Channel;
@@ -92,8 +92,12 @@ struct OTAService {
 }
 
 static DATA_CHANNEL: Channel<CriticalSectionRawMutex, heapless::Vec<u8, 256>, 4> = Channel::new();
-static CONNECTED_CALLBACK: Mutex<CriticalSectionRawMutex, Option<Box<dyn Fn() + Send + 'static>>> = Mutex::new(None);
-static DISCONNECTED_CALLBACK: Mutex<CriticalSectionRawMutex, Option<Box<dyn Fn() + Send + 'static>>> = Mutex::new(None);
+static CONNECTED_CALLBACK: Mutex<CriticalSectionRawMutex, Option<Box<dyn Fn() + Send + 'static>>> =
+    Mutex::new(None);
+static DISCONNECTED_CALLBACK: Mutex<
+    CriticalSectionRawMutex,
+    Option<Box<dyn Fn() + Send + 'static>>,
+> = Mutex::new(None);
 
 pub struct Esp32BLE {
     initialized: bool,
@@ -194,7 +198,7 @@ async fn ble_task(bt: BT<'static>) {
     let address = Address::random([0xff, 0x8f, 0x1a, 0x05, 0xe4, 0xff]);
     info!("BLE address: {:?}", address);
 
-    let mut resources: HostResources<DefaultPacketPool, CONNECTIONS_MAX, L2CAP_CHANNELS_MAX> = 
+    let mut resources: HostResources<DefaultPacketPool, CONNECTIONS_MAX, L2CAP_CHANNELS_MAX> =
         HostResources::new();
 
     let stack = trouble_host::new(controller, &mut resources).set_random_address(address);
@@ -205,12 +209,10 @@ async fn ble_task(bt: BT<'static>) {
         ..
     } = stack.build();
 
-    let server = match CalendarServer::new_with_config(GapConfig::Peripheral(
-        PeripheralConfig {
-            name: DEVICE_NAME,
-            appearance: &appearance::UNKNOWN,
-        },
-    )) {
+    let server = match CalendarServer::new_with_config(GapConfig::Peripheral(PeripheralConfig {
+        name: DEVICE_NAME,
+        appearance: &appearance::UNKNOWN,
+    })) {
         Ok(s) => s,
         Err(_) => {
             error!("Failed to create GATT server");
@@ -221,44 +223,41 @@ async fn ble_task(bt: BT<'static>) {
     BLE_STATE.store(BLEState::Initialized as u8, Ordering::SeqCst);
     info!("BLE initialized");
 
-    let _ = join(
-        ble_runner_task(runner),
-        async {
-            loop {
-                match advertise_and_connect(&mut peripheral, &server).await {
-                    Ok(conn) => {
-                        CONNECTED_FLAG.store(true, Ordering::SeqCst);
-                        BLE_STATE.store(BLEState::Connected as u8, Ordering::SeqCst);
-                        info!("BLE connected");
+    let _ = join(ble_runner_task(runner), async {
+        loop {
+            match advertise_and_connect(&mut peripheral, &server).await {
+                Ok(conn) => {
+                    CONNECTED_FLAG.store(true, Ordering::SeqCst);
+                    BLE_STATE.store(BLEState::Connected as u8, Ordering::SeqCst);
+                    info!("BLE connected");
 
-                        {
-                            let guard = CONNECTED_CALLBACK.lock().await;
-                            if let Some(ref cb) = *guard {
-                                cb();
-                            }
-                        }
-
-                        let _ = gatt_events_task(&server, &conn).await;
-
-                        CONNECTED_FLAG.store(false, Ordering::SeqCst);
-                        BLE_STATE.store(BLEState::Initialized as u8, Ordering::SeqCst);
-                        info!("BLE disconnected");
-
-                        {
-                            let guard = DISCONNECTED_CALLBACK.lock().await;
-                            if let Some(ref cb) = *guard {
-                                cb();
-                            }
+                    {
+                        let guard = CONNECTED_CALLBACK.lock().await;
+                        if let Some(ref cb) = *guard {
+                            cb();
                         }
                     }
-                    Err(e) => {
-                        error!("BLE connection error: {:?}", e);
-                        embassy_time::Timer::after_secs(1).await;
+
+                    let _ = gatt_events_task(&server, &conn).await;
+
+                    CONNECTED_FLAG.store(false, Ordering::SeqCst);
+                    BLE_STATE.store(BLEState::Initialized as u8, Ordering::SeqCst);
+                    info!("BLE disconnected");
+
+                    {
+                        let guard = DISCONNECTED_CALLBACK.lock().await;
+                        if let Some(ref cb) = *guard {
+                            cb();
+                        }
                     }
                 }
+                Err(e) => {
+                    error!("BLE connection error: {:?}", e);
+                    embassy_time::Timer::after_secs(1).await;
+                }
             }
-        },
-    )
+        }
+    })
     .await;
 }
 
@@ -275,7 +274,8 @@ async fn ble_runner_task<C: Controller, P: trouble_host::prelude::PacketPool>(
 async fn advertise_and_connect<'values, 'server, C: Controller>(
     peripheral: &mut Peripheral<'values, C, DefaultPacketPool>,
     server: &'server CalendarServer<'values>,
-) -> Result<GattConnection<'values, 'server, DefaultPacketPool>, trouble_host::BleHostError<C::Error>> {
+) -> Result<GattConnection<'values, 'server, DefaultPacketPool>, trouble_host::BleHostError<C::Error>>
+{
     let mut adv_data = [0u8; 31];
     let len = AdStructure::encode_slice(
         &[
@@ -420,7 +420,7 @@ fn handle_ota_data(data: &[u8]) {
 
     let offset = OTA_DATA_OFFSET.load(Ordering::SeqCst);
     let total = OTA_TOTAL_SIZE.load(Ordering::SeqCst);
-    
+
     if total == 0 {
         return;
     }

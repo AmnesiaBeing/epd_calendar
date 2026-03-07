@@ -342,7 +342,11 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
             BLEEvent::WifiConfigReceived { ssid, password } => {
                 info!("WiFi config received: ssid={}", ssid);
                 self.network_sync_service.save_wifi_config(ssid, password);
-                if let Err(e) = self.network_sync_service.connect_wifi(&mut self.wifi_device).await {
+                if let Err(e) = self
+                    .network_sync_service
+                    .connect_wifi(&mut self.wifi_device)
+                    .await
+                {
                     error!("WiFi connection failed: {:?}", e);
                 } else {
                     info!("WiFi connected, starting network sync");

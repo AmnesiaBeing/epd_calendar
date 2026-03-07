@@ -70,10 +70,7 @@ impl NetworkSyncService {
         self.wifi_config = Some((ssid, password));
     }
 
-    pub async fn connect_wifi<W: WifiController>(
-        &mut self,
-        wifi: &mut W,
-    ) -> SystemResult<()> {
+    pub async fn connect_wifi<W: WifiController>(&mut self, wifi: &mut W) -> SystemResult<()> {
         if let Some((ref ssid, ref password)) = self.wifi_config {
             info!("Connecting to WiFi: {}", ssid);
             match wifi.connect_sta(ssid, password).await {

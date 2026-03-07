@@ -1,23 +1,22 @@
 use embassy_executor::Spawner;
-use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
-use embassy_sync::channel::Channel;
 use epd_yrd0750ryf665f60::{prelude::WaveshareDisplay as _, yrd0750ryf665f60::Epd7in5};
 use linux_embedded_hal::{SpidevDevice, SysfsPin};
 use lxx_calendar_common::platform::PlatformTrait;
 use lxx_calendar_common::*;
 use lxx_calendar_core::main_task;
-use simulator::{HttpServer, SimulatedRtc, SimulatedWdt, SimulatorControl};
+use simulator::{
+    HttpServer, SimulatedBLE, SimulatedRtc, SimulatedWdt, SimulatorButton, SimulatorControl,
+};
 use static_cell::StaticCell;
 use std::sync::Arc;
+use std::sync::Mutex;
 use std::thread;
 
 pub mod drivers;
 
 use crate::drivers::{LinuxBuzzer, LinuxWifi, TspiButton, TspiLED, TunTapNetwork};
 
-static SIMULATOR_CONTROL: StaticCell<Option<Arc<SimulatorControl>>> = StaticCell::new();
-static EVENT_CHANNEL: StaticCell<Channel<CriticalSectionRawMutex, SystemEvent, 10>> =
-    StaticCell::new();
+static SIMULATOR_CONTROL: StaticCell<Option<Arc<Mutex<SimulatorControl>>>> = StaticCell::new();
 
 fn init_gpio(
     pin: u64,
@@ -58,6 +57,10 @@ impl PlatformTrait for Platform {
 
     type ButtonDevice = TspiButton;
 
+    type BLEDevice = NoBLE;
+
+    type OTADevice = NoOTA;
+
     async fn init(spawner: Spawner) -> SystemResult<PlatformContext<Self>> {
         let epd_busy = init_gpio(101, linux_embedded_hal::sysfs_gpio::Direction::In).unwrap();
         let epd_dc = init_gpio(102, linux_embedded_hal::sysfs_gpio::Direction::Out).unwrap();
@@ -85,6 +88,8 @@ impl PlatformTrait for Platform {
         let button = TspiButton::new();
 
         let control = SIMULATOR_CONTROL.init(None);
+        let ble = SimulatedBLE::new();
+        let http_button = SimulatorButton::new();
         if let Some(ref ctrl) = *control {
             let port = std::env::var("SIMULATOR_PORT")
                 .ok()
@@ -92,8 +97,12 @@ impl PlatformTrait for Platform {
                 .unwrap_or(8080);
 
             let ctrl_clone = Arc::clone(ctrl);
+            let ble_arc = Arc::new(Mutex::new(ble));
+            let ble_clone = Arc::clone(&ble_arc);
+            let button_arc = Arc::new(Mutex::new(http_button));
+            let button_clone = Arc::clone(&button_arc);
             thread::spawn(move || {
-                HttpServer::new(ctrl_clone, port).run();
+                HttpServer::new(ctrl_clone, ble_clone, button_clone, port).run();
             });
         }
 
@@ -107,6 +116,8 @@ impl PlatformTrait for Platform {
             led,
             battery,
             button,
+            ble: NoBLE::new(),
+            ota: NoOTA::new(),
         })
     }
 
@@ -126,13 +137,10 @@ async fn main(spawner: Spawner) {
     Platform::init_heap();
     Platform::init_logger();
 
-    let event_channel = EVENT_CHANNEL.init(Channel::new());
-    let event_sender = event_channel.sender();
-
     let rtc = SimulatedRtc::new();
     let watchdog = SimulatedWdt::new(5000);
 
-    let simulator_control = Arc::new(SimulatorControl::new(rtc, watchdog, event_sender));
+    let simulator_control = Arc::new(Mutex::new(SimulatorControl::new(rtc, watchdog)));
 
     SIMULATOR_CONTROL.init(Some(simulator_control));
 

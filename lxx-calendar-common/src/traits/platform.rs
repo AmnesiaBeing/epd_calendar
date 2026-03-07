@@ -4,8 +4,8 @@ use embassy_sync::channel::{Channel, Receiver, Sender};
 use crate::{SystemEvent, SystemResult};
 
 use super::{
-    BLEDriver, Battery, ButtonDriver, BuzzerDriver, LEDDriver, NetworkStack, OTADriver, Rtc, Watchdog,
-    WifiController,
+    BLEDriver, Battery, ButtonDriver, BuzzerDriver, LEDDriver, NetworkStack, OTADriver, Rtc,
+    Watchdog, WifiController,
 };
 
 const CAP: usize = 10;

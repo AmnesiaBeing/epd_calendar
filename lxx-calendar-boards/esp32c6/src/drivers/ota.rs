@@ -1,5 +1,5 @@
-use core::sync::atomic::{AtomicU32, AtomicU8, Ordering};
-use lxx_calendar_common::traits::ota::{OTAError, OTAProgress, OTAState, OTADriver};
+use core::sync::atomic::{AtomicU8, AtomicU32, Ordering};
+use lxx_calendar_common::traits::ota::{OTADriver, OTAError, OTAProgress, OTAState};
 
 const OTA_PARTITION_SIZE: u32 = 0x180000;
 const OTA_PARTITION0_ADDR: u32 = 0x1A0000;
@@ -76,7 +76,11 @@ impl OTADriver for Esp32OTA {
         OTA_RECEIVED.store(0, Ordering::SeqCst);
         OTA_STATE.store(OTAState::Receiving as u8, Ordering::SeqCst);
 
-        defmt::info!("OTA started: {} bytes to partition {}", total_size, self.target_partition);
+        defmt::info!(
+            "OTA started: {} bytes to partition {}",
+            total_size,
+            self.target_partition
+        );
         Ok(())
     }
 
@@ -130,7 +134,10 @@ impl OTADriver for Esp32OTA {
 
         let partition = OTA_TARGET_PARTITION.load(Ordering::SeqCst);
         OTA_STATE.store(OTAState::Idle as u8, Ordering::SeqCst);
-        defmt::info!("OTA partition {} marked as valid, will boot on next reset", partition);
+        defmt::info!(
+            "OTA partition {} marked as valid, will boot on next reset",
+            partition
+        );
         Ok(())
     }
 
