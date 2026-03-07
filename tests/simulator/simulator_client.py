@@ -98,6 +98,30 @@ class SimulatorClient:
             json={"type": "command", "data": {"action": action}},
         )
 
+    def ble_network_config(
+        self, location_id: str, sync_interval_minutes: int = 60, auto_sync: bool = True
+    ) -> Dict[str, Any]:
+        """
+        发送网络配置（包括位置信息）
+
+        Args:
+            location_id: 位置ID（和风天气城市代码）
+            sync_interval_minutes: 同步间隔（分钟）
+            auto_sync: 是否自动同步
+        """
+        return self._request(
+            "POST",
+            "/api/ble/config",
+            json={
+                "type": "network_config",
+                "data": {
+                    "location_id": location_id,
+                    "sync_interval_minutes": sync_interval_minutes,
+                    "auto_sync": auto_sync,
+                },
+            },
+        )
+
     def wait_for_status(
         self, key: str, expected_value: Any, timeout: int = 10, interval: float = 0.5
     ) -> bool:
