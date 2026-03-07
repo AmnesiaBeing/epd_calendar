@@ -20,3 +20,6 @@ Cargo.lock
 
 # 环境变量配置
 .env
+
+# 日志文件
+*.log

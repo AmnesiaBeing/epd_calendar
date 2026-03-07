@@ -6,9 +6,25 @@
 - **运行命令**: `cargo rs` 或 `cargo bsg`（带图形）
 - **HTTP 服务端口**: 8080（默认，可通过环境变量 SIMULATOR_PORT 修改）
 
-## 测试前准备
+## ⚠️ 重要：测试前准备
 
-### 1. 启动模拟器
+### 1. 创建虚拟网络设备（必须）
+
+在运行需要网络的测试之前，必须先执行 `tap.sh` 创建虚拟网络设备：
+
+```bash
+# 需要 root 权限
+sudo ./tap.sh
+
+# 验证创建成功
+ip link show tap99
+```
+
+**注意**：
+- 如果不执行此脚本，网络相关测试将失败（模拟器会优雅降级到离线模式）
+- 测试完成后可以删除虚拟设备：`sudo ip link del tap99`
+
+### 2. 启动模拟器
 
 ```bash
 # 进入项目目录
@@ -21,12 +37,18 @@ cargo rs > simulator.log 2>&1 &
 sleep 3
 ```
 
-### 2. 验证服务
+### 3. 验证服务
 
 ```bash
 # 检查服务是否启动
 curl -s http://127.0.0.1:8080/status
 ```
+
+## ⚠️ 测试执行注意事项
+
+1. **必须顺序执行测试**：每个测试之间建议等待 2-3 秒，让模拟器完成状态转换
+2. **不能并行运行**：同时运行多个测试会导致状态竞争，建议逐个运行
+3. **网络测试需要 tap 设备**：时间同步和天气同步测试需要先执行 `sudo ./tap.sh`
 
 ## HTTP API 端点
 
@@ -36,10 +58,10 @@ curl -s http://127.0.0.1:8080/status
 | `/status/rtc` | GET | 获取 RTC 状态 | - |
 | `/status/ble` | GET | 获取 BLE 状态 | - |
 | `/status/watchdog` | GET | 看门狗状态 | - |
-| `/api/button` | POST | 模拟按键事件 | `{"type": "short"}` |
+| `/api/button` | POST | 模拟按键事件 | `{"event": "short_press"}` |
 | `/api/ble/connect` | POST | 模拟 BLE 连接 | - |
 | `/api/ble/disconnect` | POST | 模拟 BLE 断开 | - |
-| `/api/ble/config` | POST | 模拟 BLE 配置下发 | `{"ssid": "TestWiFi", "password": "12345678"}` |
+| `/api/ble/config` | POST | 模拟 BLE 配置下发 | `{"data": {"ssid": "TestWiFi", "password": "12345678"}}` |
 
 ## 测试用例
 
@@ -68,28 +90,40 @@ curl -s http://127.0.0.1:8080/status
 |--------|----------|----------|
 | RTC 初始化 | 时间已设置 | `GET /status/rtc` |
 | 时间显示 | 正确显示时间戳 | 返回值验证 |
+| 网络同步 | 时间同步成功 | **需要 tap 设备**，查看日志 |
 
 ### 4. 用户交互测试
 
 | 测试项 | 请求体 | 说明 |
 |--------|--------|------|
-| 短按 | `{"type": "short"}` | 进入 BLE 配网模式 |
-| 双击 | `{"type": "double"}` | 双击事件 |
-| 三击 | `{"type": "triple"}` | 进入配对模式 |
-| 长按 | `{"type": "long"}` | 恢复出厂设置 |
+| 短按 | `{"event": "short_press"}` | 进入 BLE 配网模式 |
+| 双击 | `{"event": "double_click"}` | 双击事件 |
+| 三击 | `{"event": "triple_click"}` | 进入配对模式 |
+| 长按 | `{"event": "long_press"}` | 恢复出厂设置 |
 
 ## 运行测试
 
 ### 自动测试（推荐）
 
 ```bash
-# 运行所有测试
-python3 tests/simulator/test_all.py
+# 1. 先创建虚拟网络设备（需要 root）
+sudo ./tap.sh
 
-# 运行特定测试
+# 2. 等待几秒让网络设备就绪
+sleep 2
+
+# 3. 启动模拟器
+cargo rs > simulator.log 2>&1 &
+sleep 3
+
+# 4. 运行测试（按顺序执行，不要并行）
 python3 tests/simulator/test_basic.py
 python3 tests/simulator/test_ble.py
 python3 tests/simulator/test_button.py
+python3 tests/simulator/test_network.py   # 需要 tap 设备
+
+# 5. 停止模拟器
+pkill -f lxx-calendar-boards-simulator
 ```
 
 ### 手动测试
@@ -107,7 +141,7 @@ curl -s http://127.0.0.1:8080/status/ble | python3 -m json.tool
 # 4. 模拟按键
 curl -X POST http://127.0.0.1:8080/api/button \
   -H "Content-Type: application/json" \
-  -d '{"type": "short"}'
+  -d '{"event": "short_press"}'
 
 # 5. 模拟 BLE 连接
 curl -X POST http://127.0.0.1:8080/api/ble/connect
@@ -115,7 +149,7 @@ curl -X POST http://127.0.0.1:8080/api/ble/connect
 # 6. 模拟 BLE 配置
 curl -X POST http://127.0.0.1:8080/api/ble/config \
   -H "Content-Type: application/json" \
-  -d '{"ssid": "TestWiFi", "password": "12345678"}'
+  -d '{"data": {"ssid": "TestWiFi", "password": "12345678"}}'
 ```
 
 ## 测试结果解读
@@ -130,5 +164,27 @@ curl -X POST http://127.0.0.1:8080/api/ble/config \
 ### 常见问题
 
 1. **连接被拒绝**: 模拟器未启动或端口错误
-2. **超时**: 模拟器卡死，需要重启
-3. **JSON 解析失败**: API 返回格式异常
+2. **网络同步失败**: 
+   - 未执行 `sudo ./tap.sh`
+   - 网络权限不足
+3. **超时**: 模拟器卡死，需要重启
+4. **JSON 解析失败**: API 返回格式异常
+
+### tap.sh 说明
+
+`tap.sh` 脚本用于创建虚拟网络设备 `tap99`，使模拟器能够进行网络通信。
+
+**创建设备：**
+```bash
+sudo ./tap.sh
+```
+
+**删除设备：**
+```bash
+sudo ip link del tap99
+```
+
+**注意事项：**
+- 需要 root 权限
+- 可能需要安装 `iproute2` 和 `iptables`
+- 退出测试后建议删除设备避免资源泄漏
