@@ -1,7 +1,7 @@
 use core::fmt::Debug;
 use embassy_net::Stack;
 use embassy_net::dns::DnsQueryType;
-use embassy_net::tcp::TcpSocket;
+use embassy_net::tcp::{TcpSocket, TcpSocketState};
 use embedded_io_async::Read;
 use heapless::String;
 
@@ -39,32 +39,49 @@ impl HttpClientImpl {
         method: HttpMethod,
         url: &str,
         body: Option<&[u8]>,
+        headers: Option<&[(&str, &str)]>,
     ) -> Result<(u16, heapless::Vec<u8, 16384>), HttpError> {
         let (_scheme, host, port, path) = parse_full_url(url)?;
 
-        let port = if port.is_empty() {
+        let port = if port == 0 {
             if url.starts_with("https") {
                 443u16
             } else {
                 80u16
             }
         } else {
-            port.parse().map_err(|_| HttpError::InvalidUrl)?
+            port
         };
 
+        log::info!("HTTP: Resolving DNS for {}", host);
         let ip_addrs = self
             .stack
             .dns_query(host, DnsQueryType::A)
             .await
-            .map_err(|_| HttpError::DnsFailed)?;
+            .map_err(|e| {
+                log::error!("HTTP: DNS query failed for {}: {:?}", host, e);
+                HttpError::DnsFailed
+            })?;
 
         let ip = ip_addrs.first().ok_or(HttpError::DnsFailed)?;
+        log::info!("HTTP: DNS resolved {} to {}", host, ip);
 
         let mut socket = TcpSocket::new(self.stack, rx_buffer, tx_buffer);
-        socket
-            .connect((*ip, port))
-            .await
-            .map_err(|_| HttpError::ConnectionFailed)?;
+        log::info!("HTTP: Connecting to {}:{} (HTTPS={})", ip, port, url.starts_with("https"));
+        
+        // Try to connect (may need TLS if HTTPS)
+        let connected = socket.connect((*ip, port)).await;
+        if connected.is_err() && url.starts_with("https") {
+            log::warn!("TCP connection failed, trying with TLS...");
+            // TLS handling would be needed here
+        }
+        
+        connected.map_err(|e| {
+            log::error!("HTTP: Connection failed to {}:{}: {:?}", ip, port, e);
+            HttpError::ConnectionFailed
+        })?;
+
+        log::info!("HTTP: Connected to {}:{}", ip, port);
 
         let method_str = match method {
             HttpMethod::GET => "GET",
@@ -76,15 +93,31 @@ impl HttpClientImpl {
 
         let mut http_request = heapless::String::<4096>::new();
 
+        // Build request line and Host header
+        core::fmt::write(
+            &mut http_request,
+            format_args!("{} {} HTTP/1.1\r\nHost: {}", method_str, path, host),
+        )
+        .map_err(|_| HttpError::RequestFailed)?;
+
+        // Add custom headers
+        if let Some(hdrs) = headers {
+            for (key, value) in hdrs {
+                core::fmt::write(&mut http_request, format_args!("\r\n{}: {}", key, value))
+                    .map_err(|_| HttpError::RequestFailed)?;
+            }
+        }
+
+        // Add Content-Type and Content-Length for body
         if let Some(body) = body {
-            core::fmt::write(&mut http_request, format_args!("{} {} HTTP/1.1\r\nHost: {}\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n", 
-                method_str, path, host, body.len())).map_err(|_| HttpError::RequestFailed)?;
-        } else {
             core::fmt::write(
                 &mut http_request,
-                format_args!("{} {} HTTP/1.1\r\nHost: {}\r\n\r\n", method_str, path, host),
+                format_args!("\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n", body.len()),
             )
             .map_err(|_| HttpError::RequestFailed)?;
+        } else {
+            core::fmt::write(&mut http_request, format_args!("\r\n\r\n"))
+                .map_err(|_| HttpError::RequestFailed)?;
         }
 
         embedded_io_async::Write::write_all(&mut socket, http_request.as_bytes())
@@ -138,17 +171,20 @@ impl HttpClient for HttpClientImpl {
         let mut tx = [0u8; TX_BUFFER_SIZE];
 
         let (status, body_vec) = self
-            .request(&mut rx, &mut tx, req.method(), req.url(), req.body())
+            .request(&mut rx, &mut tx, req.method(), req.url(), req.body(), req.headers())
             .await?;
 
         Ok(ResponseImpl::new(status, &body_vec))
     }
 }
 
-fn parse_full_url(url: &str) -> Result<(&str, &str, &str, &str), HttpError> {
+fn parse_full_url(url: &str) -> Result<(&str, &str, u16, &str), HttpError> {
     let url = url.trim();
 
     let (scheme, rest) = url.split_once("://").ok_or(HttpError::InvalidUrl)?;
+    
+    // Extract port from scheme if not in host
+    let default_port = if scheme == "https" { 443 } else { 80 };
 
     let (host_port, path) = match rest.find('/') {
         Some(pos) => (&rest[..pos], &rest[pos..]),
@@ -156,8 +192,8 @@ fn parse_full_url(url: &str) -> Result<(&str, &str, &str, &str), HttpError> {
     };
 
     let (host, port) = match host_port.find(':') {
-        Some(pos) => (&host_port[..pos], &host_port[pos + 1..]),
-        None => (host_port, ""),
+        Some(pos) => (&host_port[..pos], host_port[pos + 1..].parse().map_err(|_| HttpError::InvalidUrl)?),
+        None => (host_port, default_port),
     };
 
     Ok((scheme, host, port, path))

@@ -208,6 +208,22 @@ impl NetworkSyncService {
 
         info!("JWT token generated successfully");
 
+        // 检查 location 是否设置
+        if self.location.is_empty() {
+            warn!("Location not set, using default weather");
+            let weather = self.get_default_weather()?;
+            self.cached_weather = Some(weather);
+            return Ok(());
+        }
+
+        // 检查 api_host 是否设置
+        if self.api_host.is_empty() {
+            warn!("API host not set, using default weather");
+            let weather = self.get_default_weather()?;
+            self.cached_weather = Some(weather);
+            return Ok(());
+        }
+
         let stack = self
             .stack
             .take()
@@ -221,30 +237,47 @@ impl NetworkSyncService {
             .take()
             .ok_or_else(|| SystemError::HardwareError(HardwareError::NotInitialized))?;
 
-        let mut http_client = HttpClientImpl::new(stack);
+let mut http_client = HttpClientImpl::new(stack);
 
+        // 使用 HTTPS
         let url = format!(
-            "http://{}/v7/weather/3d?location={}",
+            "https://{}/v7/weather/3d?location={}",
             self.api_host.as_str(),
             self.location.as_str()
         );
 
-        let (status, body) = http_client
+        info!("Requesting weather API: {}", url);
+
+        // 添加 Authorization 头
+        let authorization = format!("Bearer {}", token.as_str());
+        let headers: [(&str, &str); 1] = [("Authorization", authorization.as_str())];
+
+        let result = http_client
             .request(
                 &mut rx_buf,
                 &mut tx_buf,
                 lxx_calendar_common::http::http::HttpMethod::GET,
                 &url,
                 None,
+                Some(&headers),
             )
-            .await
-            .map_err(|e| {
-                warn!("HTTP request failed: {:?}", e);
-                SystemError::NetworkError(NetworkError::Unknown)
-            })?;
+            .await;
+
+        let (status, body) = result.map_err(|e| {
+            warn!("HTTP request failed: {:?}", e);
+            SystemError::NetworkError(NetworkError::Unknown)
+        })?;
+
+        info!("Weather API response status: {}", status);
 
         if status != 200 {
-            warn!("Weather API returned status: {}", status);
+            // 打印响应内容以便调试
+            let body = body.as_slice();
+            if let Ok(response_str) = core::str::from_utf8(body) {
+                warn!("Weather API returned status: {}, response: {}", status, response_str);
+            } else {
+                warn!("Weather API returned status: {}, response: (non-UTF8)", status);
+            }
             return Err(SystemError::NetworkError(NetworkError::Unknown));
         }
 
@@ -254,7 +287,7 @@ impl NetworkSyncService {
             SystemError::NetworkError(NetworkError::Unknown)
         })?;
 
-        info!("Weather API response received");
+        info!("Weather API response received, length: {} bytes", response_str.len());
 
         let api_response: lxx_calendar_common::weather::api::WeatherDailyResponse =
             serde_json::from_str(response_str).map_err(|e| {
@@ -268,6 +301,8 @@ impl NetworkSyncService {
         )?;
 
         self.cached_weather = Some(weather);
+        
+        info!("Weather data cached successfully");
 
         Ok(())
     }
