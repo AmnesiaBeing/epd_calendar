@@ -11,15 +11,20 @@ static STACK_RESOURCE: StaticCell<StackResources<3>> = StaticCell::new();
 static STACK: StaticCell<Stack<'static>> = StaticCell::new();
 
 pub struct TunTapNetwork {
-    stack: Stack<'static>,
+    stack: Option<Stack<'static>>,
 }
 
 impl TunTapNetwork {
     pub fn new(
         spawner: embassy_executor::Spawner,
     ) -> Result<Self, lxx_calendar_common::types::error::NetworkError> {
-        let device = TunTapDevice::new(TUNTAP_NAME)
-            .map_err(|_| lxx_calendar_common::types::error::NetworkError::NotConnected)?;
+        let device = match TunTapDevice::new(TUNTAP_NAME) {
+            Ok(d) => d,
+            Err(e) => {
+                log::warn!("Failed to create TunTap device: {:?}, network unavailable", e);
+                return Ok(Self { stack: None });
+            }
+        };
 
         let mut buf = [0u8; 8];
         let _ = getrandom::getrandom(&mut buf);
@@ -39,7 +44,7 @@ impl TunTapNetwork {
         debug!("Network stack created");
         spawner.spawn(net_task(runner)).ok();
 
-        Ok(Self { stack: *stack_ref })
+        Ok(Self { stack: Some(*stack_ref) })
     }
 }
 
@@ -47,17 +52,22 @@ impl NetworkStack for TunTapNetwork {
     type Error = lxx_calendar_common::types::error::NetworkError;
 
     fn is_link_up(&self) -> bool {
-        true
+        self.stack.is_some()
     }
 
     async fn wait_config_up(&self) -> Result<(), Self::Error> {
-        embassy_time::with_timeout(Duration::from_secs(10), self.stack.wait_link_up())
-            .await
-            .map_err(|_| lxx_calendar_common::types::error::NetworkError::Timeout)
+        match &self.stack {
+            Some(stack) => {
+                embassy_time::with_timeout(Duration::from_secs(10), stack.wait_link_up())
+                    .await
+                    .map_err(|_| lxx_calendar_common::types::error::NetworkError::Timeout)
+            }
+            None => Err(lxx_calendar_common::types::error::NetworkError::NotConnected),
+        }
     }
 
     fn get_stack(&self) -> Option<&embassy_net::Stack<'static>> {
-        Some(&self.stack)
+        self.stack.as_ref()
     }
 }
 

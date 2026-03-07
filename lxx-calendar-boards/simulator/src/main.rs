@@ -38,17 +38,26 @@ impl PlatformTrait for Platform {
     type OTADevice = NoOTA;
 
     async fn init(spawner: Spawner) -> SystemResult<PlatformContext<Self>> {
+        info!("Platform init starting...");
+
         let wdt = SimulatedWdt::new(30000);
         simulator::start_watchdog(&spawner, 30000);
+        info!("Watchdog started");
 
         let epd = drivers::init_epd().await;
+        info!("EPD initialized");
 
         let audio = drivers::SimulatorBuzzer;
+
         let mut rtc = SimulatedRtc::new();
         rtc.initialize().await.ok();
+        info!("RTC initialized");
 
         let wifi = NoWifi::new();
+
         let network = drivers::TunTapNetwork::new(spawner)?;
+        info!("Network created");
+
         let led = NoLED::new();
         let battery = NoBattery::new(3700, false, false);
 
@@ -75,7 +84,9 @@ impl PlatformTrait for Platform {
     }
 
     fn init_logger() {
-        env_logger::init();
+        let _ = env_logger::Builder::from_default_env()
+            .filter_level(log::LevelFilter::Info)
+            .try_init();
     }
 
     fn init_heap() {}
@@ -91,20 +102,18 @@ async fn main(spawner: Spawner) {
         .and_then(|p| p.parse().ok())
         .unwrap_or(8080);
 
-    // 创建共享的 BLE 实例
+    info!("Starting simulator on port {}", port);
+
     let mut ble_instance = SimulatedBLE::new();
 
-    // 创建 Rtc 并获取 wakeup flag
     let rtc_for_button = SimulatedRtc::new();
     let rtc_wakeup = rtc_for_button.get_wakeup_flag();
 
-    // 让 BLE 使用与 RTC 相同的 wakeup flag
     ble_instance.set_external_wakeup_flag(rtc_wakeup.clone());
 
     let ble_for_http = ble_instance.clone();
     let ble_for_app = ble_instance;
 
-    // 创建 Button 并设置 wakeup flag
     let mut button_for_http = SimulatorButton::new();
     button_for_http.set_wakeup_flag(rtc_wakeup);
 
@@ -125,7 +134,6 @@ async fn main(spawner: Spawner) {
 
     match Platform::init(spawner).await {
         Ok(mut platform_ctx) => {
-            // 使用共享的 BLE 实例
             platform_ctx.ble = ble_for_app;
             if let Err(e) = main_task::<Platform>(spawner, platform_ctx).await {
                 error!("Main task error: {:?}", e);
