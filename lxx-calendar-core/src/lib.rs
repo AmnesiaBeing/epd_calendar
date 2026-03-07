@@ -37,7 +37,12 @@ pub async fn main_task<P: PlatformTrait>(
     let mut power_manager = PowerManager::<P::BatteryDevice>::new(event_sender);
     power_manager.set_battery_device(platform_ctx.battery);
     let audio_service = AudioService::new(platform_ctx.audio);
-    let network_sync_service = NetworkSyncService::new();
+    
+    let mut network_sync_service = NetworkSyncService::new();
+    if let Some(stack) = platform_ctx.network.get_stack() {
+        network_sync_service.set_stack(*stack);
+    }
+    
     let mut button_service = ButtonService::<P::ButtonDevice>::new(event_sender);
     button_service.set_button_device(platform_ctx.button);
 

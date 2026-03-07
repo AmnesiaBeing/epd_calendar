@@ -63,6 +63,8 @@ impl<'a> EmbassySntpWithStack<'a> {
         use sntpc::{sntp_process_response, sntp_send_request};
         use sntpc_net_embassy::UdpSocketWrapper;
 
+        log::info!("SNTP: Resolving DNS for {}", server);
+        
         let mut rx_meta = [PacketMetadata::EMPTY; 1];
         let mut rx_buffer = [0u8; NTP_PACKET_SIZE];
         let mut tx_meta = [PacketMetadata::EMPTY; 1];
@@ -76,7 +78,10 @@ impl<'a> EmbassySntpWithStack<'a> {
             &mut tx_buffer,
         );
 
-        socket.bind(0).map_err(|_| SntpError::Network)?;
+        socket.bind(0).map_err(|e| {
+            log::error!("SNTP: Failed to bind socket: {:?}", e);
+            SntpError::Network
+        })?;
 
         let wrapper = UdpSocketWrapper::new(socket);
 
@@ -84,26 +89,56 @@ impl<'a> EmbassySntpWithStack<'a> {
             .stack
             .dns_query(server, embassy_net::dns::DnsQueryType::A)
             .await
-            .map_err(|_| SntpError::AddressResolve)?;
+            .map_err(|e| {
+                log::error!("SNTP: DNS query failed for {}: {:?}", server, e);
+                SntpError::AddressResolve
+            })?;
+
+        log::info!("SNTP: DNS resolved {} to {}", server, addrs[0]);
 
         let addr = core::net::SocketAddr::from((addrs[0], NTP_PORT));
 
         let context = NtpContext::new(EmbassyTimestampGen);
 
+        log::info!("SNTP: Sending request to {}", addr);
         let send_result = sntp_send_request(addr, &wrapper, context)
             .await
-            .map_err(|_| SntpError::Network)?;
+            .map_err(|e| {
+                log::error!("SNTP: Send request failed: {:?}", e);
+                SntpError::Network
+            })?;
 
+        log::info!("SNTP: Waiting for response (timeout: {:?})", timeout);
         let process_fut = sntp_process_response(addr, &wrapper, context, send_result);
 
         let result = embassy_time::with_timeout(timeout, process_fut)
             .await
-            .map_err(|_| SntpError::Network)??;
+            .map_err(|_| {
+                log::error!("SNTP: Response timeout");
+                SntpError::Network
+            })??;
 
         let ntp_timestamp = result.sec();
         const NTP_TO_UNIX_OFFSET: u32 = 2208988800;
-        let unix_timestamp = (ntp_timestamp - NTP_TO_UNIX_OFFSET) as i64;
+        
+        // 检查时间戳格式：
+        // NTP 时间戳 > 2208988800 (从 1900 年开始)
+        // Unix 时间戳 < 2208988800 (从 1970 年开始)
+        let unix_timestamp = if ntp_timestamp >= NTP_TO_UNIX_OFFSET {
+            // 标准 NTP 时间戳
+            (ntp_timestamp - NTP_TO_UNIX_OFFSET) as i64
+        } else if ntp_timestamp > 1700000000 && ntp_timestamp < 2000000000 {
+            // 看起来是 Unix 时间戳（某些 NTP 服务器返回 Unix 时间戳）
+            ntp_timestamp as i64
+        } else {
+            log::warn!("SNTP: Invalid timestamp: {}", ntp_timestamp);
+            return Err(SntpError::Network);
+        };
 
+        log::info!("SNTP: Successfully got time: {} (timestamp type: {})", 
+            unix_timestamp, 
+            if ntp_timestamp >= NTP_TO_UNIX_OFFSET { "NTP" } else { "Unix" }
+        );
         Ok(unix_timestamp)
     }
 }

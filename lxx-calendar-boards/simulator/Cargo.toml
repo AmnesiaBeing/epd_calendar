@@ -40,6 +40,9 @@ workspace = true
 [dependencies.heapless]
 workspace = true
 
+[dependencies.heapless_08]
+workspace = true
+
 [dependencies.tiny_http]
 version = "0.12"
 default-features = false

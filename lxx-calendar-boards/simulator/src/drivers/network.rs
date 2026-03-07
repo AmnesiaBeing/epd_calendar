@@ -1,6 +1,7 @@
-use embassy_net::{Config, Runner, Stack, StackResources};
+use embassy_net::{Config, Runner, Stack, StackResources, StaticConfigV4, Ipv4Cidr, Ipv4Address};
 use embassy_net_tuntap::TunTapDevice;
 use embassy_time::Duration;
+use heapless_08::Vec as Vec08;
 use lxx_calendar_common::NetworkStack;
 use lxx_calendar_common::*;
 use static_cell::StaticCell;
@@ -30,7 +31,16 @@ impl TunTapNetwork {
         let _ = getrandom::getrandom(&mut buf);
         let seed = u64::from_le_bytes(buf);
 
-        let config = Config::dhcpv4(Default::default());
+        let config = Config::ipv4_static(StaticConfigV4 {
+            address: Ipv4Cidr::new(Ipv4Address::new(192, 168, 69, 101), 24),
+            gateway: Some(Ipv4Address::new(192, 168, 69, 100)),
+            dns_servers: {
+                let mut dns = Vec08::new();
+                let _ = dns.push(Ipv4Address::new(223, 5, 5, 5));     // 阿里 DNS
+                let _ = dns.push(Ipv4Address::new(119, 29, 29, 29)); // 腾讯 DNS
+                dns
+            },
+        });
 
         let (stack, runner) = embassy_net::new(
             device,
@@ -41,7 +51,7 @@ impl TunTapNetwork {
 
         let stack_ref = STACK.init(stack);
 
-        debug!("Network stack created");
+        info!("Network stack created with static IP 192.168.69.101, gateway 192.168.69.100, DNS: 223.5.5.5, 119.29.29.29");
         spawner.spawn(net_task(runner)).ok();
 
         Ok(Self { stack: Some(*stack_ref) })
@@ -58,9 +68,12 @@ impl NetworkStack for TunTapNetwork {
     async fn wait_config_up(&self) -> Result<(), Self::Error> {
         match &self.stack {
             Some(stack) => {
+                info!("Waiting for network link up...");
                 embassy_time::with_timeout(Duration::from_secs(10), stack.wait_link_up())
                     .await
-                    .map_err(|_| lxx_calendar_common::types::error::NetworkError::Timeout)
+                    .map_err(|_| lxx_calendar_common::types::error::NetworkError::Timeout)?;
+                info!("Network link is up");
+                Ok(())
             }
             None => Err(lxx_calendar_common::types::error::NetworkError::NotConnected),
         }

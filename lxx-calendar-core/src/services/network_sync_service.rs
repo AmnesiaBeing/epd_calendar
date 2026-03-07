@@ -55,6 +55,13 @@ impl NetworkSyncService {
         self
     }
 
+    pub fn set_stack(&mut self, stack: Stack<'static>) {
+        info!("Setting network stack for sync service");
+        self.stack = Some(stack);
+        self.http_rx_buffer = Some([0u8; HTTP_RX_SIZE]);
+        self.http_tx_buffer = Some([0u8; HTTP_TX_SIZE]);
+    }
+
     pub async fn initialize(&mut self) -> SystemResult<()> {
         info!("Initializing network sync service");
 
