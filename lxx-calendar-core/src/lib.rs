@@ -4,6 +4,7 @@ extern crate alloc;
 
 use embassy_executor::Spawner;
 use lxx_calendar_common::*;
+use lxx_calendar_common::compiled_config;
 use static_cell::StaticCell;
 
 use crate::{
@@ -42,6 +43,12 @@ pub async fn main_task<P: PlatformTrait>(
     if let Some(stack) = platform_ctx.network.get_stack() {
         network_sync_service.set_stack(*stack);
     }
+    
+    // 设置编译期配置的和风天气凭据
+    let signer = compiled_config::create_qweather_jwt_signer();
+    network_sync_service.set_jwt_signer(signer);
+    network_sync_service.set_api_host(compiled_config::QWEATHER_API_HOST);
+    network_sync_service.set_location(compiled_config::QWEATHER_LOCATION_DEFAULT);
     
     let mut button_service = ButtonService::<P::ButtonDevice>::new(event_sender);
     button_service.set_button_device(platform_ctx.button);

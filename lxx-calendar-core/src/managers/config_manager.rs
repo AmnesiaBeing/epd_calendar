@@ -61,10 +61,6 @@ impl ConfigManager {
                     data: heapless::Vec::new(),
                     iv: heapless::Vec::new(),
                 },
-                weather_api_key: lxx_common::EncryptedString {
-                    data: heapless::Vec::new(),
-                    iv: heapless::Vec::new(),
-                },
                 location_id: heapless::String::new(),
                 sync_interval_minutes: 120,
             },

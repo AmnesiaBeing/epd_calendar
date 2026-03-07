@@ -3,6 +3,7 @@
 
 extern crate alloc;
 
+pub mod compiled_config;
 pub mod events;
 pub mod http;
 pub mod sntp;

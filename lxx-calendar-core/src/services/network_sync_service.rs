@@ -3,7 +3,7 @@ use heapless::String;
 use lxx_calendar_common::http::http::{HttpClient, HttpResponse};
 use lxx_calendar_common::http::jwt::JwtSigner;
 use lxx_calendar_common::sntp::{EmbassySntpWithStack, SntpClient};
-use lxx_calendar_common::weather::{API_HOST_DEFAULT, LOCATION_DEFAULT, QweatherJwtSigner};
+use lxx_calendar_common::weather::QweatherJwtSigner;
 use lxx_calendar_common::*;
 
 use crate::services::http_client::{HttpClientImpl, RequestImpl};
@@ -41,8 +41,8 @@ impl NetworkSyncService {
             stack: None,
             http_rx_buffer: None,
             http_tx_buffer: None,
-            api_host: heapless::String::try_from(API_HOST_DEFAULT).unwrap_or_default(),
-            location: heapless::String::try_from(LOCATION_DEFAULT).unwrap_or_default(),
+            api_host: heapless::String::new(),
+            location: heapless::String::new(),
             jwt_signer: None,
             wifi_config: None,
         }
@@ -376,11 +376,20 @@ impl NetworkSyncService {
     }
 
     pub fn set_location(&mut self, location: &str) {
-        self.location = String::try_from(location)
-            .unwrap_or_else(|_| String::try_from(LOCATION_DEFAULT).unwrap());
+        if let Ok(s) = String::try_from(location) {
+            self.location = s;
+        }
+    }
+
+    pub fn set_api_host(&mut self, api_host: &str) {
+        if let Ok(s) = String::try_from(api_host) {
+            self.api_host = s;
+            info!("API host set to: {}", self.api_host);
+        }
     }
 
     pub fn set_jwt_signer(&mut self, signer: QweatherJwtSigner) {
         self.jwt_signer = Some(signer);
+        info!("JWT signer configured");
     }
 }

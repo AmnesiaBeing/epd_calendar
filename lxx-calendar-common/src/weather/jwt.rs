@@ -29,7 +29,9 @@ impl QweatherJwtSigner {
         let project_id: HeaplessString<64> =
             String::try_from(project_id).map_err(|_| JwtSignerError::InvalidConfig)?;
 
+        // 移除可能存在的引号和 PEM 头部
         let private_key_pem = private_key_pem
+            .trim_matches('"')
             .replace("-----BEGIN PRIVATE KEY-----", "")
             .replace("-----END PRIVATE KEY-----", "")
             .replace('\n', "")
@@ -38,8 +40,33 @@ impl QweatherJwtSigner {
         let private_key_bytes =
             base64_decode(&private_key_pem).map_err(|_| JwtSignerError::InvalidConfig)?;
 
-        let key_pair =
-            KeyPair::from_slice(&private_key_bytes).map_err(|_| JwtSignerError::InvalidConfig)?;
+        // 处理不同的私钥格式
+        // ed25519-compact 的 KeyPair::from_slice 需要 64 字节密钥对
+        // 或者使用 Seed::from_slice + KeyPair::from_seed
+        let key_pair = if private_key_bytes.len() == 32 {
+            // 32 字节种子
+            let seed = ed25519_compact::Seed::from_slice(&private_key_bytes)
+                .map_err(|_| JwtSignerError::InvalidConfig)?;
+            KeyPair::from_seed(seed)
+        } else if private_key_bytes.len() == 64 {
+            // 64 字节密钥对 (seed || public_key)
+            KeyPair::from_slice(&private_key_bytes).map_err(|_| JwtSignerError::InvalidConfig)?
+        } else if private_key_bytes.len() == 48 {
+            // PKCS#8 格式 (48 字节)
+            // 结构: SEQUENCE(2) + version(3) + oid(7) + octet_wrapper(4) + seed(32)
+            // 种子从第 16 字节开始 (索引 16-47)
+            let seed = ed25519_compact::Seed::from_slice(&private_key_bytes[16..48])
+                .map_err(|_| JwtSignerError::InvalidConfig)?;
+            KeyPair::from_seed(seed)
+        } else if private_key_bytes.len() >= 32 {
+            // 其他长度，尝试提取最后 32 字节
+            let len = private_key_bytes.len();
+            let seed = ed25519_compact::Seed::from_slice(&private_key_bytes[len - 32..])
+                .map_err(|_| JwtSignerError::InvalidConfig)?;
+            KeyPair::from_seed(seed)
+        } else {
+            return Err(JwtSignerError::InvalidConfig);
+        };
 
         Ok(Self {
             key_id,
@@ -180,7 +207,3 @@ fn base64_decode(input: &str) -> Result<Vec<u8>, ()> {
 
     Ok(output)
 }
-
-pub const API_HOST_DEFAULT: &str = "api.qweatherapi.com";
-pub const LOCATION_DEFAULT: &str = "101010100";
-pub const WEATHER_DAYS: &str = "3d";

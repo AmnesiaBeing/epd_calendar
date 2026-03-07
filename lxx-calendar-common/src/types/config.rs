@@ -23,7 +23,6 @@ pub struct TimeConfig {
 pub struct NetworkConfig {
     pub wifi_ssid: heapless::String<32>,
     pub wifi_password: EncryptedString,
-    pub weather_api_key: EncryptedString,
     pub location_id: heapless::String<16>,
     pub sync_interval_minutes: u16,
 }

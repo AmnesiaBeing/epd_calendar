@@ -58,3 +58,6 @@ ed25519-compact = { workspace = true }
 
 # GZip解压
 miniz_oxide = { workspace = true }
+
+[build-dependencies]
+dotenvy = "0.15"
