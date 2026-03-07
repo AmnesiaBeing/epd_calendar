@@ -70,7 +70,7 @@ class SimulatorClient:
 
     def ble_config(self, ssid: str, password: str) -> Dict[str, Any]:
         """
-        模拟 BLE 配置下发
+        模拟 BLE WiFi 配置下发
 
         Args:
             ssid: WiFi 名称
@@ -79,7 +79,23 @@ class SimulatorClient:
         return self._request(
             "POST",
             "/api/ble/config",
-            json={"data": {"ssid": ssid, "password": password}},
+            json={
+                "type": "wifi_config",
+                "data": {"wifi_ssid": ssid, "wifi_password": password},
+            },
+        )
+
+    def ble_command(self, action: str) -> Dict[str, Any]:
+        """
+        发送 BLE 命令
+
+        Args:
+            action: 命令类型 (network_sync, reboot, factory_reset)
+        """
+        return self._request(
+            "POST",
+            "/api/ble/config",
+            json={"type": "command", "data": {"action": action}},
         )
 
     def wait_for_status(

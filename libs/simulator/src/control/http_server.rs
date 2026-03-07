@@ -3,10 +3,10 @@ use std::sync::{Arc, Mutex};
 
 use tiny_http::{Response, Server};
 
-use crate::SimulatorControl;
 use crate::ble::SimulatedBLE;
 use crate::button::SimulatorButton;
 use crate::control::types::*;
+use crate::SimulatorControl;
 use lxx_calendar_common::traits::button::ButtonEvent;
 
 pub struct HttpServer {
@@ -209,10 +209,11 @@ fn handle_ble_config(
 ) -> Response<std::io::Cursor<Vec<u8>>> {
     match serde_json::from_str::<BleConfigRequest>(body) {
         Ok(req) => {
-            let data = serde_json::to_vec(&req.data).unwrap_or_default();
+            // 将整个请求体作为数据传递，让 BLEService 解析
+            let data = body.as_bytes();
             let result = {
                 let mut b = ble.lock().unwrap();
-                b.simulate_config(&data)
+                b.simulate_config(data)
             };
             let resp = BleConfigResponse {
                 success: true,

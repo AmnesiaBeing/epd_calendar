@@ -22,8 +22,6 @@ def test_network_available(client: SimulatorClient) -> bool:
     status = client.get_status()
     print_response(status, "系统状态")
 
-    # 检查是否有网络相关信息
-    # 由于模拟器降级模式，network 可能显示不可用
     print("\n⚠️  注意: 如果未执行 sudo ./tap.sh，网络将处于离线模式")
     print("   这是预期行为，不影响其他功能测试")
 
@@ -31,21 +29,21 @@ def test_network_available(client: SimulatorClient) -> bool:
 
 
 def test_wifi_config_via_ble(client: SimulatorClient) -> bool:
-    """测试 2: 通过 BLE 配置 WiFi"""
+    """测试 2: 通过 BLE 配置 WiFi 并触发网络同步"""
     print("\n" + "=" * 60)
-    print("  测试 2: WiFi 配置（通过 BLE）")
+    print("  测试 2: WiFi 配置（通过 BLE）并触发网络同步")
     print("=" * 60)
+
+    import time
 
     # 先连接 BLE
     print("步骤 1: 连接 BLE...")
     result = client.ble_connect()
     print_response(result, "BLE 连接")
 
-    import time
-
     time.sleep(0.5)
 
-    # 发送 WiFi 配置
+    # 发送 WiFi 配置（正确格式）
     test_ssid = "TestWiFi_Network"
     test_password = "test_password_123"
 
@@ -56,15 +54,22 @@ def test_wifi_config_via_ble(client: SimulatorClient) -> bool:
     result = client.ble_config(test_ssid, test_password)
     print_response(result, "配置响应")
 
-    # 断开 BLE
-    time.sleep(0.5)
-    client.ble_disconnect()
-
     if result.get("success"):
-        print("\n✅ WiFi 配置测试通过")
+        print("\n✅ WiFi 配置已发送")
+        print("   请查看日志确认 WiFi 连接和网络同步结果")
+        time.sleep(2)
+
+        # 发送网络同步命令
+        print("\n步骤 3: 发送网络同步命令...")
+        sync_result = client.ble_command("network_sync")
+        print_response(sync_result, "同步命令响应")
+
+        time.sleep(0.5)
+        client.ble_disconnect()
         return True
     else:
         print("\n❌ WiFi 配置测试失败")
+        client.ble_disconnect()
         return False
 
 
@@ -101,7 +106,7 @@ def test_network_sync_manual() -> bool:
     else:
         print("⚠️  tap99 设备不存在，网络同步测试跳过")
         print("   如需测试网络同步，请执行: sudo ./tap.sh")
-        return True  # 不失败，只是跳过
+        return True
 
 
 def test_rtc_time_display(client: SimulatorClient) -> bool:
@@ -115,7 +120,6 @@ def test_rtc_time_display(client: SimulatorClient) -> bool:
 
     timestamp = rtc_status.get("timestamp", 0)
     if timestamp > 0:
-        # 尝试转换时间戳
         import datetime
 
         try:
@@ -145,7 +149,6 @@ def run_network_tests(port: int = 8080) -> bool:
 
     client = SimulatorClient(f"http://127.0.0.1:{port}")
 
-    # 检查服务
     try:
         status = client.get_status()
         if "error" in status:
@@ -155,15 +158,13 @@ def run_network_tests(port: int = 8080) -> bool:
         print(f"❌ 连接失败: {e}")
         return False
 
-    # 运行测试
     results = []
 
     results.append(("网络可用性", test_network_available(client)))
-    results.append(("WiFi 配置", test_wifi_config_via_ble(client)))
+    results.append(("WiFi 配置与同步", test_wifi_config_via_ble(client)))
     results.append(("RTC 时间显示", test_rtc_time_display(client)))
     results.append(("手动网络同步", test_network_sync_manual()))
 
-    # 汇总结果
     print("\n" + "=" * 60)
     print("  测试结果汇总")
     print("=" * 60)
@@ -183,15 +184,16 @@ def run_network_tests(port: int = 8080) -> bool:
     print("""
 📝 网络同步测试说明：
 
-1. 基础网络功能（WiFi 配置）已测试通过
-2. 完整的时间同步和天气同步需要：
-   - 创建虚拟网络设备: sudo ./tap.sh
-   - 配置 WiFi: 通过 BLE 发送 SSID/password
-   - 等待自动同步或查看日志确认
+1. WiFi 配置已通过 BLE 发送到模拟器
+2. 请查看模拟器日志确认：
+   - WiFi 连接状态
+   - 时间同步结果
+   - 天气同步结果
 
-3. 手动触发同步的方法：
-   - 重启模拟器让它自动同步
-   - 通过 BLE 发送同步命令（如果实现）
+3. 完整的网络同步需要：
+   - tap 设备: sudo ./tap.sh
+   - 正确的 WiFi 凭据
+   - 网络连通性
 """)
 
     return failed == 0
