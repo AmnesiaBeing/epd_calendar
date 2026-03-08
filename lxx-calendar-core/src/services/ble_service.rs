@@ -231,6 +231,9 @@ fn parse_ble_event(data: &[u8]) -> Option<BLEEvent> {
         }
         "network_config" => {
             let location_id = data_obj.get("location_id")?.as_str()?;
+            let latitude = data_obj.get("latitude")?.as_f64().unwrap_or(0.0);
+            let longitude = data_obj.get("longitude")?.as_f64().unwrap_or(0.0);
+            let location_name = data_obj.get("location_name")?.as_str().unwrap_or("未知");
             let sync_interval_minutes = data_obj.get("sync_interval_minutes")?.as_u64()? as u16;
             let auto_sync = data_obj
                 .get("auto_sync")
@@ -238,6 +241,9 @@ fn parse_ble_event(data: &[u8]) -> Option<BLEEvent> {
                 .unwrap_or(true);
             Some(BLEEvent::NetworkConfigReceived {
                 location_id: heapless::String::try_from(location_id).unwrap_or_default(),
+                latitude,
+                longitude,
+                location_name: heapless::String::try_from(location_name).unwrap_or_default(),
                 sync_interval_minutes,
                 auto_sync,
             })

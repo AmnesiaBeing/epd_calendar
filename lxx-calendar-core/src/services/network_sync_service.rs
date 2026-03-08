@@ -1,12 +1,12 @@
 use embassy_net::Stack;
 use heapless::String;
-use lxx_calendar_common::http::http::{HttpClient, HttpResponse};
-use lxx_calendar_common::http::jwt::JwtSigner;
+use lxx_calendar_common::http::http::HttpClient;
+use lxx_calendar_common::weather::OpenMeteoResponse;
+use lxx_calendar_common::weather::openmeteo_converter::convert_openmeteo_response;
 use lxx_calendar_common::sntp::{EmbassySntpWithStack, SntpClient};
-use lxx_calendar_common::weather::QweatherJwtSigner;
 use lxx_calendar_common::*;
 
-use crate::services::http_client::{HttpClientImpl, RequestImpl};
+use crate::services::http_client::HttpClientImpl;
 use crate::services::time_service::TimeService;
 
 extern crate alloc;
@@ -24,10 +24,11 @@ pub struct NetworkSyncService {
     stack: Option<Stack<'static>>,
     http_rx_buffer: Option<[u8; HTTP_RX_SIZE]>,
     http_tx_buffer: Option<[u8; HTTP_TX_SIZE]>,
-    api_host: heapless::String<128>,
-    location: heapless::String<32>,
-    jwt_signer: Option<QweatherJwtSigner>,
+    latitude: f64,
+    longitude: f64,
+    location_name: heapless::String<32>,
     wifi_config: Option<(heapless::String<32>, heapless::String<64>)>,
+    sync_in_progress: bool,
 }
 
 impl NetworkSyncService {
@@ -41,10 +42,11 @@ impl NetworkSyncService {
             stack: None,
             http_rx_buffer: None,
             http_tx_buffer: None,
-            api_host: heapless::String::new(),
-            location: heapless::String::new(),
-            jwt_signer: None,
+            latitude: 0.0,
+            longitude: 0.0,
+            location_name: heapless::String::new(),
             wifi_config: None,
+            sync_in_progress: false,
         }
     }
 
@@ -160,11 +162,13 @@ impl NetworkSyncService {
             self.connect().await?;
         }
 
+        // Get stack for SNTP
         let stack = self
             .stack
+            .as_ref()
             .ok_or_else(|| SystemError::HardwareError(HardwareError::NotInitialized))?;
 
-        let mut sntp = EmbassySntpWithStack::new(stack);
+        let mut sntp = EmbassySntpWithStack::new(*stack);
 
         match sntp.get_time().await {
             Ok(unix_timestamp) => {
@@ -189,73 +193,46 @@ impl NetworkSyncService {
             self.connect().await?;
         }
 
-        let stack = self
-            .stack
-            .ok_or_else(|| SystemError::HardwareError(HardwareError::NotInitialized))?;
-
-        let Some(signer) = &self.jwt_signer else {
-            warn!("JWT signer not configured, using default weather");
-            let weather = self.get_default_weather()?;
-            self.cached_weather = Some(weather);
-            return Ok(());
-        };
-
-        let timestamp = embassy_time::Instant::now().as_micros() as i64;
-        let token = signer.sign_with_time("", timestamp).map_err(|e| {
-            warn!("Failed to generate JWT token: {:?}", e);
-            SystemError::NetworkError(NetworkError::Unknown)
-        })?;
-
-        info!("JWT token generated successfully");
-
-        // 检查 location 是否设置
-        if self.location.is_empty() {
-            warn!("Location not set, using default weather");
+        // Check if coordinates are configured
+        if self.latitude == 0.0 || self.longitude == 0.0 {
+            warn!("Latitude/longitude not set, using default weather");
             let weather = self.get_default_weather()?;
             self.cached_weather = Some(weather);
             return Ok(());
         }
 
-        // 检查 api_host 是否设置
-        if self.api_host.is_empty() {
-            warn!("API host not set, using default weather");
-            let weather = self.get_default_weather()?;
-            self.cached_weather = Some(weather);
-            return Ok(());
-        }
-
+        // Get stack for HTTP
         let stack = self
             .stack
-            .take()
+            .as_ref()
             .ok_or_else(|| SystemError::HardwareError(HardwareError::NotInitialized))?;
         let mut rx_buf = self
             .http_rx_buffer
-            .take()
+            .as_mut()
             .ok_or_else(|| SystemError::HardwareError(HardwareError::NotInitialized))?;
         let mut tx_buf = self
             .http_tx_buffer
-            .take()
+            .as_mut()
             .ok_or_else(|| SystemError::HardwareError(HardwareError::NotInitialized))?;
 
-let mut http_client = HttpClientImpl::new(stack);
+        let mut http_client = HttpClientImpl::new(*stack);
 
-        // 使用 HTTPS
+        // 使用 Open-Meteo API（不需要认证，使用 HTTP）
+        // 简化请求以避免chunked encoding问题
         let url = format!(
-            "https://{}/v7/weather/3d?location={}",
-            self.api_host.as_str(),
-            self.location.as_str()
+            "http://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=3",
+            self.latitude,
+            self.longitude
         );
 
-        info!("Requesting weather API: {}", url);
+        info!("Requesting Open-Meteo API: {}", url);
 
-        // 添加 Authorization 头
-        let authorization = format!("Bearer {}", token.as_str());
-        let headers: [(&str, &str); 1] = [("Authorization", authorization.as_str())];
+        let headers: [(&str, &str); 1] = [("Connection", "close")];
 
         let result = http_client
             .request(
-                &mut rx_buf,
-                &mut tx_buf,
+                rx_buf,
+                tx_buf,
                 lxx_calendar_common::http::http::HttpMethod::GET,
                 &url,
                 None,
@@ -268,15 +245,14 @@ let mut http_client = HttpClientImpl::new(stack);
             SystemError::NetworkError(NetworkError::Unknown)
         })?;
 
-        info!("Weather API response status: {}", status);
+        info!("Open-Meteo API response status: {}", status);
 
         if status != 200 {
-            // 打印响应内容以便调试
             let body = body.as_slice();
             if let Ok(response_str) = core::str::from_utf8(body) {
-                warn!("Weather API returned status: {}, response: {}", status, response_str);
+                warn!("Open-Meteo API returned status: {}, response: {}", status, response_str);
             } else {
-                warn!("Weather API returned status: {}, response: (non-UTF8)", status);
+                warn!("Open-Meteo API returned status: {}, response: (non-UTF8)", status);
             }
             return Err(SystemError::NetworkError(NetworkError::Unknown));
         }
@@ -287,18 +263,20 @@ let mut http_client = HttpClientImpl::new(stack);
             SystemError::NetworkError(NetworkError::Unknown)
         })?;
 
-        info!("Weather API response received, length: {} bytes", response_str.len());
+        info!("Open-Meteo API response received, length: {} bytes", response_str.len());
 
-        let api_response: lxx_calendar_common::weather::api::WeatherDailyResponse =
-            serde_json::from_str(response_str).map_err(|e| {
-                warn!("Failed to parse weather JSON: {:?}", e);
-                SystemError::NetworkError(NetworkError::Unknown)
-            })?;
+        let api_response: OpenMeteoResponse = serde_json::from_str(response_str).map_err(|e| {
+            warn!("Failed to parse Open-Meteo JSON: {:?}", e);
+            SystemError::NetworkError(NetworkError::Unknown)
+        })?;
 
-        let weather = lxx_calendar_common::weather::converter::convert_daily_response(
-            &api_response,
-            self.location.as_str(),
-        )?;
+        let location_name = if self.location_name.is_empty() {
+            "未知"
+        } else {
+            self.location_name.as_str()
+        };
+
+        let weather = convert_openmeteo_response(&api_response, location_name);
 
         self.cached_weather = Some(weather);
         
@@ -410,21 +388,12 @@ let mut http_client = HttpClientImpl::new(stack);
         Ok(())
     }
 
-    pub fn set_location(&mut self, location: &str) {
-        if let Ok(s) = String::try_from(location) {
-            self.location = s;
+    pub fn set_location(&mut self, latitude: f64, longitude: f64, name: &str) {
+        self.latitude = latitude;
+        self.longitude = longitude;
+        if let Ok(s) = String::try_from(name) {
+            self.location_name = s;
         }
-    }
-
-    pub fn set_api_host(&mut self, api_host: &str) {
-        if let Ok(s) = String::try_from(api_host) {
-            self.api_host = s;
-            info!("API host set to: {}", self.api_host);
-        }
-    }
-
-    pub fn set_jwt_signer(&mut self, signer: QweatherJwtSigner) {
-        self.jwt_signer = Some(signer);
-        info!("JWT signer configured");
+        info!("Location set: {}, {} ({})", latitude, longitude, name);
     }
 }

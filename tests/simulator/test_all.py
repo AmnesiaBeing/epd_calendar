@@ -118,8 +118,8 @@ def main():
     parser.add_argument(
         "tests",
         nargs="*",
-        default=["basic", "ble", "button"],
-        help="要运行的测试 (basic, ble, button, all)",
+        default=["basic", "ble", "button", "config_persistence"],
+        help="要运行的测试 (basic, ble, button, config_persistence, config_update, config_integrity, all)",
     )
 
     args = parser.parse_args()
@@ -131,6 +131,9 @@ def main():
         "basic": "test_basic.py",
         "ble": "test_ble.py",
         "button": "test_button.py",
+        "config_persistence": "test_config_persistence.py",
+        "config_update": "test_config_update.py",
+        "config_integrity": "test_config_integrity.py",
     }
 
     try:

@@ -7,6 +7,7 @@ pub mod compiled_config;
 pub mod events;
 pub mod http;
 pub mod sntp;
+pub mod storage;
 pub mod traits;
 pub mod types;
 pub mod weather;

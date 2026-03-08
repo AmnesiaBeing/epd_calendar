@@ -10,11 +10,11 @@
 
 ### 1. 创建虚拟网络设备（必须）
 
-在运行需要网络的测试之前，必须先执行 `tap.sh` 创建虚拟网络设备：
+在运行需要网络的测试之前，必须先告知用户执行 `tap.sh` 创建虚拟网络设备：
 
 ```bash
 # 需要 root 权限
-sudo ./tap.sh
+sudo bash ./tap.sh
 
 # 验证创建成功
 ip link show tap99
@@ -22,7 +22,6 @@ ip link show tap99
 
 **注意**：
 - 如果不执行此脚本，网络相关测试将失败（模拟器会优雅降级到离线模式）
-- 测试完成后可以删除虚拟设备：`sudo ip link del tap99`
 
 ### 2. 启动模拟器
 
@@ -30,8 +29,8 @@ ip link show tap99
 # 进入项目目录
 cd /home/zzh/.zeroclaw/workspace/epd_calendar
 
-# 编译并运行模拟器（后台运行）
-cargo rs > simulator.log 2>&1 &
+# 编译并运行模拟器（后台运行，详细日志）
+RUST_LOG=debug cargo rs > simulator.log 2>&1 &
 
 # 等待服务启动
 sleep 3
@@ -61,7 +60,42 @@ curl -s http://127.0.0.1:8080/status
 | `/api/button` | POST | 模拟按键事件 | `{"event": "short_press"}` |
 | `/api/ble/connect` | POST | 模拟 BLE 连接 | - |
 | `/api/ble/disconnect` | POST | 模拟 BLE 断开 | - |
-| `/api/ble/config` | POST | 模拟 BLE 配置下发 | `{"data": {"ssid": "TestWiFi", "password": "12345678"}}` |
+| `/api/ble/config` | POST | 模拟 BLE 配置下发 | 见下方示例 |
+
+## BLE 配置 API 示例
+
+### WiFi 配置
+```json
+{
+  "type": "wifi_config",
+  "data": {
+    "wifi_ssid": "TestWiFi",
+    "wifi_password": "12345678"
+  }
+}
+```
+
+### 网络配置
+```json
+{
+  "type": "network_config",
+  "data": {
+    "location_id": "101010101",
+    "sync_interval_minutes": 60,
+    "auto_sync": true
+  }
+}
+```
+
+### 系统命令
+```json
+{
+  "type": "command",
+  "data": {
+    "action": "network_sync"
+  }
+}
+```
 
 ## 测试用例
 
@@ -92,6 +126,35 @@ curl -s http://127.0.0.1:8080/status
 | 时间显示 | 正确显示时间戳 | 返回值验证 |
 | 网络同步 | 时间同步成功 | **需要 tap 设备**，查看日志 |
 
+### 4. 配置持久化测试
+
+| 测试项 | 预期结果 | 验证方法 |
+|--------|----------|----------|
+| 首次启动 | 加载默认配置 | 删除 Flash 文件后重启 |
+| BLE 配置保存 | 配置写入 Flash | `POST /api/ble/config` |
+| 重启后恢复 | 配置保留 | 重启模拟器验证 |
+| CRC32 校验 | 校验和验证通过 | 检查 Flash 文件 |
+| 恢复出厂设置 | 配置被擦除 | 删除 Flash 文件模拟 |
+
+### 5. 配置更新测试
+
+| 测试项 | 预期结果 | 验证方法 |
+|--------|----------|----------|
+| WiFi 配置更新 | SSID/密码保存 | BLE 发送配置 |
+| 网络配置更新 | 位置/同步间隔保存 | BLE 发送配置 |
+| 配置字段边界 | 边界值验证 | 超长 SSID 测试 |
+| 快速连续更新 | 无数据丢失 | 连续发送 5 次配置 |
+
+### 6. 配置完整性测试
+
+| 测试项 | 预期结果 | 验证方法 |
+|--------|----------|----------|
+| Flash 文件结构 | Magic/版本/校验和正确 | 解析二进制文件 |
+| 配置大小限制 | 不超过 1024 字节 | 检查文件大小 |
+| 损坏配置检测 | 降级到默认配置 | 修改 CRC 后重启 |
+| 版本不匹配 | 使用默认配置 | 修改版本号后重启 |
+| Magic 错误 | 使用默认配置 | 修改 Magic 后重启 |
+
 ### 4. 用户交互测试
 
 | 测试项 | 请求体 | 说明 |
@@ -120,6 +183,9 @@ sleep 3
 python3 tests/simulator/test_basic.py
 python3 tests/simulator/test_ble.py
 python3 tests/simulator/test_button.py
+python3 tests/simulator/test_config_persistence.py
+python3 tests/simulator/test_config_update.py
+python3 tests/simulator/test_config_integrity.py
 python3 tests/simulator/test_network.py   # 需要 tap 设备
 
 # 5. 停止模拟器
@@ -160,6 +226,16 @@ curl -X POST http://127.0.0.1:8080/api/ble/config \
 - JSON 响应格式正确
 - 终端日志无 ERROR 级别错误
 - 模拟器进程稳定运行
+- Flash 文件正确创建和更新
+- 配置在重启后保留
+
+### 配置测试特定标志
+
+- **Magic Number**: 0x4C585843 ('LXXC')
+- **版本号**: 1
+- **CRC32**: 与配置数据匹配
+- **配置大小**: ≤ 1024 字节
+- **重启后**: 日志显示 "Config loaded from storage, version: 1"
 
 ### 常见问题
 
@@ -169,22 +245,95 @@ curl -X POST http://127.0.0.1:8080/api/ble/config \
    - 网络权限不足
 3. **超时**: 模拟器卡死，需要重启
 4. **JSON 解析失败**: API 返回格式异常
+5. **配置未保存**: 
+   - Flash 文件权限问题
+   - 磁盘空间不足
+   - BLE 配置未正确接收
+6. **配置重启后丢失**: 
+   - CRC 校验失败
+   - 版本不匹配
+   - Magic Number 错误
+   - Flash 损坏
 
 ### tap.sh 说明
 
 `tap.sh` 脚本用于创建虚拟网络设备 `tap99`，使模拟器能够进行网络通信。
 
-**创建设备：**
+**用户创建设备：**
 ```bash
-sudo ./tap.sh
-```
-
-**删除设备：**
-```bash
-sudo ip link del tap99
+sudo bash ./tap.sh
 ```
 
 **注意事项：**
-- 需要 root 权限
-- 可能需要安装 `iproute2` 和 `iptables`
-- 退出测试后建议删除设备避免资源泄漏
+- 需要告知用户需要 root 权限，让用户手动执行
+
+## 运行所有配置测试
+
+```bash
+# 快速运行所有配置测试
+python3 tests/simulator/test_config_persistence.py && \
+python3 tests/simulator/test_config_update.py && \
+python3 tests/simulator/test_config_integrity.py
+```
+
+## 查看配置测试日志
+
+```bash
+# 实时查看模拟器日志（包含配置操作）
+tail -f simulator.log | grep -E "(Config|Flash|BLE)"
+
+# 查看配置加载日志
+grep "Config" simulator.log
+
+# 查看 Flash 操作日志
+grep "Flash" simulator.log
+```
+
+## 配置持久化验证
+
+### Flash 文件位置
+```
+/tmp/simulator_flash.bin
+```
+
+### 配置文件结构
+```
+偏移 0-3:   Magic Number (0x4C585843 'LXXC')
+偏移 4-7:   版本号 (当前为 1)
+偏移 8-11:  CRC32 校验和
+偏移 12-31: 保留字段
+偏移 32+:   Postcard 序列化的配置数据
+```
+
+### 完整测试流程
+
+```bash
+# 1. 清理旧配置
+rm -f /tmp/simulator_flash.bin
+
+# 2. 启动模拟器（首次启动，应加载默认配置）
+cargo rs > simulator.log 2>&1 &
+sleep 3
+
+# 3. 通过 BLE 设置配置
+curl -X POST http://127.0.0.1:8080/api/ble/connect
+curl -X POST http://127.0.0.1:8080/api/ble/config \
+  -H "Content-Type: application/json" \
+  -d '{"type":"wifi_config","data":{"wifi_ssid":"MyWiFi","wifi_password":"password123"}}'
+
+# 4. 验证配置已保存
+ls -lh /tmp/simulator_flash.bin
+hexdump -C /tmp/simulator_flash.bin | head -5
+
+# 5. 重启模拟器
+pkill -f lxx-calendar-boards-simulator
+sleep 2
+cargo rs > simulator2.log 2>&1 &
+sleep 3
+
+# 7. 验证配置完整性
+python3 tests/simulator/test_config_integrity.py
+
+# 8. 清理
+pkill -f lxx-calendar-boards-simulator
+```

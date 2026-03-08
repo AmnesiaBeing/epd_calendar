@@ -2,7 +2,6 @@
 
 use crate::{HardwareError, SystemError, SystemResult};
 use alloc::string::String;
-use alloc::string::ToString;
 use serde::{Deserialize, Serialize};
 
 pub trait WifiController: Send + Sync {

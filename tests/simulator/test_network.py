@@ -121,10 +121,10 @@ def test_weather_sync(log_file: str) -> bool:
         if "Weather synchronized successfully" in logs:
             print("✅ 天气同步成功")
 
-            if "JWT signer not configured" in logs:
-                print("   ℹ️  使用默认天气数据（未配置和风天气 API 凭据）")
-            elif "Weather API response received" in logs:
-                print("   ✅ 成功从和风天气 API 获取数据")
+            if "Latitude/longitude not set" in logs:
+                print("   ℹ️  使用默认天气数据（未配置位置坐标）")
+            elif "Open-Meteo API response received" in logs:
+                print("   ✅ 成功从 Open-Meteo API 获取数据")
             return True
         elif "Weather sync failed" in logs:
             print("⚠️  天气同步失败")
@@ -150,10 +150,11 @@ def run_network_tests(port: int = 8080) -> bool:
 1. 已执行 sudo ./tap.sh 创建虚拟网络设备
 2. 系统已启用 IP 转发和 NAT
 
-和风天气 API 配置说明：
+Open-Meteo API 配置说明：
 - 时间同步：自动使用公共 NTP 服务器
-- 天气同步：需要配置和风天气 JWT 凭据
-  - 如未配置，将使用默认天气数据
+- 天气同步：使用 Open-Meteo 免费天气 API（无需认证）
+  - 使用纬度/经度坐标而不是 location ID
+  - 如未配置坐标，将使用默认天气数据
 """)
 
     client = SimulatorClient(f"http://127.0.0.1:{port}")
@@ -195,13 +196,13 @@ def run_network_tests(port: int = 8080) -> bool:
 
 1. 时间同步：使用公共 NTP 服务器自动同步
 2. 天气同步：
-   - 配置和风天气凭据：通过代码设置 JWT signer
-   - 未配置时：使用默认天气数据（上海，晴天）
-   - 位置配置：通过 BLE 发送 network_config
+    - 使用 Open-Meteo 免费 API（无需认证）
+    - 需要通过 BLE 发送坐标信息：latitude, longitude, location_name
+    - 未配置坐标时：使用默认天气数据
 
 3. 完整测试需要：
-   - tap 设备: sudo ./tap.sh
-   - 网络连通性: 确保可以访问外网
+    - tap 设备: sudo ./tap.sh
+    - 网络连通性: 确保可以访问 api.open-meteo.com
 """)
 
     return failed == 0

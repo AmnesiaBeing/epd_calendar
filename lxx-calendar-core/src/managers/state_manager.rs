@@ -1,14 +1,14 @@
 use embassy_time::Duration;
 use lxx_calendar_common::*;
 
-use crate::managers::{DisplayManager, WatchdogManager};
+use crate::managers::{ConfigManager, DisplayManager, WatchdogManager};
 use crate::services::{
     audio_service::AudioService, ble_service::BLEService, button_service::ButtonService,
     network_sync_service::NetworkSyncService, power_service::PowerManager,
     quote_service::QuoteService, time_service::TimeService,
 };
 
-pub struct StateManager<'a, P: PlatformTrait> {
+pub struct StateManager<'a, P: PlatformTrait, F: lxx_calendar_common::storage::FlashDevice> {
     event_channel: LxxChannelReceiver<'a, SystemEvent>,
     event_sender: LxxChannelSender<'static, SystemEvent>,
     current_state: SystemMode,
@@ -21,14 +21,14 @@ pub struct StateManager<'a, P: PlatformTrait> {
     wifi_device: P::WifiDevice,
     button_service: ButtonService<P::ButtonDevice>,
     watchdog: WatchdogManager<P::WatchdogDevice>,
-    config: Option<&'a lxx_calendar_common::SystemConfig>,
+    config_manager: ConfigManager<F>,
     last_chime_hour: Option<u8>,
     last_sync_time: Option<u64>,
     is_charging: bool,
     low_battery_blocked: bool,
 }
 
-impl<'a, P: PlatformTrait> StateManager<'a, P> {
+impl<'a, P: PlatformTrait, F: lxx_calendar_common::storage::FlashDevice> StateManager<'a, P, F> {
     pub fn new(
         event_receiver: LxxChannelReceiver<'a, SystemEvent>,
         event_sender: LxxChannelSender<'static, SystemEvent>,
@@ -41,6 +41,7 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
         network_sync_service: NetworkSyncService,
         wifi_device: P::WifiDevice,
         watchdog_device: P::WatchdogDevice,
+        config_manager: ConfigManager<F>,
     ) -> Self {
         Self {
             current_state: SystemMode::LightSleep,
@@ -55,7 +56,7 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
             network_sync_service,
             wifi_device,
             watchdog: WatchdogManager::new(watchdog_device),
-            config: None,
+            config_manager,
             last_chime_hour: None,
             last_sync_time: None,
             is_charging: false,
@@ -63,13 +64,15 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
         }
     }
 
-    pub fn with_config(&mut self, config: &'a lxx_calendar_common::SystemConfig) {
-        self.config = Some(config);
-        self.last_chime_hour = None;
-        self.last_sync_time = None;
-    }
-
     pub async fn initialize(&mut self) -> SystemResult<()> {
+        self.config_manager.initialize().await?;
+        
+        let config = self.config_manager.load_config().await?;
+        info!(
+            "Configuration loaded, hour_chime_enabled: {}",
+            config.time_config.hour_chime_enabled
+        );
+        
         self.time_service.initialize().await?;
         self.quote_service.initialize().await?;
         self.ble_service
@@ -171,9 +174,8 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
         let charging = self.power_manager.is_charging().await?;
         let voltage = self.power_manager.get_voltage().await.ok();
 
-        let config = self
-            .config
-            .ok_or_else(|| SystemError::HardwareError(HardwareError::NotInitialized))?;
+        let config = self.config_manager.get_config()
+            .map_err(|_| SystemError::HardwareError(HardwareError::NotInitialized))?;
 
         let current_time = self.time_service.get_solar_time().await?;
         let current_hour = current_time.get_hour() as u8;
@@ -235,7 +237,7 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
 
         self.watchdog.feed();
 
-        let next_wakeup = self.time_service.calculate_next_wakeup_time(config).await?;
+        let next_wakeup = self.time_service.calculate_next_wakeup_time(&config).await?;
         if let Some((timestamp, source)) = &next_wakeup {
             info!(
                 "Next wakeup scheduled at: {:?}, source: {:?}",
@@ -265,13 +267,14 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
     }
 
     pub async fn schedule_next_wakeup(&mut self) -> SystemResult<()> {
-        if let Some(ref config) = self.config {
-            if let Some((timestamp, _source)) =
-                self.time_service.calculate_next_wakeup_time(config).await?
-            {
-                info!("Setting RTC alarm for timestamp: {:?}", timestamp);
-                self.time_service.set_rtc_alarm(timestamp).await?;
-            }
+        let config = self.config_manager.get_config()
+            .map_err(|_| SystemError::HardwareError(HardwareError::NotInitialized))?;
+        
+        if let Some((timestamp, _source)) =
+            self.time_service.calculate_next_wakeup_time(&config).await?
+        {
+            info!("Setting RTC alarm for timestamp: {:?}", timestamp);
+            self.time_service.set_rtc_alarm(timestamp).await?;
         }
         Ok(())
     }
@@ -341,6 +344,19 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
         match event {
             BLEEvent::WifiConfigReceived { ssid, password } => {
                 info!("WiFi config received: ssid={}", ssid);
+                
+                // 保存配置到 Flash
+                let ssid_clone = ssid.clone();
+                let password_clone = password.clone();
+                self.config_manager.update_config(|config| {
+                    config.network_config.wifi_ssid = ssid_clone.clone();
+                    let mut pwd_bytes = heapless::Vec::new();
+                    let _ = pwd_bytes.extend_from_slice(password_clone.as_bytes());
+                    config.network_config.wifi_password.data = pwd_bytes;
+                }).await?;
+                info!("WiFi config saved to flash");
+                
+                // 连接 WiFi
                 self.network_sync_service.save_wifi_config(ssid, password);
                 if let Err(e) = self
                     .network_sync_service
@@ -359,13 +375,23 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
             }
             BLEEvent::NetworkConfigReceived {
                 location_id,
+                latitude: _,
+                longitude: _,
+                location_name: _,
                 sync_interval_minutes,
-                auto_sync,
+                auto_sync: _,
             } => {
                 info!(
-                    "Network config received: location={}, interval={}, auto_sync={}",
-                    location_id, sync_interval_minutes, auto_sync
+                    "Network config received: location_id={:?}, sync_interval={}",
+                    location_id, sync_interval_minutes
                 );
+                
+                self.config_manager.update_config(|config| {
+                    config.network_config.location_id = location_id.clone();
+                    config.network_config.sync_interval_minutes = sync_interval_minutes;
+                }).await?;
+                
+                info!("Network config saved to flash");
             }
             BLEEvent::DisplayConfigReceived {
                 refresh_interval_seconds,
@@ -375,6 +401,13 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
                     "Display config received: refresh={}, low_power={}",
                     refresh_interval_seconds, low_power_refresh_enabled
                 );
+                
+                self.config_manager.update_config(|config| {
+                    config.display_config.refresh_interval_seconds = refresh_interval_seconds;
+                    config.display_config.low_power_refresh_enabled = low_power_refresh_enabled;
+                }).await?;
+                
+                info!("Display config saved to flash");
             }
             BLEEvent::TimeConfigReceived {
                 timezone_offset,
@@ -384,6 +417,13 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
                     "Time config received: timezone_offset={}, hour_chime_enabled={}",
                     timezone_offset, hour_chime_enabled
                 );
+                
+                self.config_manager.update_config(|config| {
+                    config.time_config.timezone_offset = timezone_offset;
+                    config.time_config.hour_chime_enabled = hour_chime_enabled;
+                }).await?;
+                
+                info!("Time config saved to flash");
             }
             BLEEvent::PowerConfigReceived {
                 low_power_mode_enabled,
@@ -392,6 +432,12 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
                     "Power config received: low_power_mode_enabled={}",
                     low_power_mode_enabled
                 );
+                
+                self.config_manager.update_config(|config| {
+                    config.power_config.low_power_mode_enabled = low_power_mode_enabled;
+                }).await?;
+                
+                info!("Power config saved to flash");
             }
             BLEEvent::LogConfigReceived {
                 log_level,
@@ -401,6 +447,13 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
                     "Log config received: level={:?}, to_flash={}",
                     log_level, log_to_flash
                 );
+                
+                self.config_manager.update_config(|config| {
+                    config.log_config.log_level = log_level;
+                    config.log_config.log_to_flash = log_to_flash;
+                }).await?;
+                
+                info!("Log config saved to flash");
             }
             BLEEvent::CommandNetworkSync => {
                 info!("Command: network sync");
@@ -415,6 +468,15 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
             }
             BLEEvent::CommandFactoryReset => {
                 info!("Command: factory reset");
+                
+                match self.config_manager.factory_reset().await {
+                    Ok(_) => {
+                        info!("Factory reset completed successfully");
+                    }
+                    Err(e) => {
+                        error!("Factory reset failed: {:?}", e);
+                    }
+                }
             }
             BLEEvent::OTAStart => {
                 info!("OTA start");
@@ -464,17 +526,19 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
 
     async fn handle_config_changed(&mut self, change: ConfigChange) -> SystemResult<()> {
         info!("Config changed: {:?}", change);
+        
+        let config = self.config_manager.get_config()
+            .map_err(|_| SystemError::HardwareError(HardwareError::NotInitialized))?;
+        
         match change {
             ConfigChange::TimeConfig => {
-                if let Some(ref _config) = self.config {
-                    let current_time = self.time_service.get_solar_time().await?;
-                    info!(
-                        "Checking hour chime after config change, current time: {:02}:{:02}:{:02}",
-                        current_time.get_hour(),
-                        current_time.get_minute(),
-                        current_time.get_second()
-                    );
-                }
+                let current_time = self.time_service.get_solar_time().await?;
+                info!(
+                    "Time config changed, current time: {:02}:{:02}:{:02}",
+                    current_time.get_hour(),
+                    current_time.get_minute(),
+                    current_time.get_second()
+                );
             }
             ConfigChange::NetworkConfig => {
                 info!("Network config changed");
@@ -489,6 +553,11 @@ impl<'a, P: PlatformTrait> StateManager<'a, P> {
                 info!("Log config changed");
             }
         }
+        
+        info!("Saving config to flash");
+        self.config_manager.save_config(config).await?;
+        info!("Config saved successfully");
+        
         Ok(())
     }
 

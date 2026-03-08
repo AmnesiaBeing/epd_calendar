@@ -1,12 +1,10 @@
 use core::fmt::Debug;
 use embassy_net::Stack;
 use embassy_net::dns::DnsQueryType;
-use embassy_net::tcp::{TcpSocket, TcpSocketState};
+use embassy_net::tcp::TcpSocket;
 use embedded_io_async::Read;
 use heapless::String;
 
-// TLS support
-use embedded_tls::{Aes128GcmSha256, TlsConfig, TlsConnection, TlsContext, UnsecureProvider};
 use lxx_calendar_common::http::http::{HttpClient, HttpMethod, HttpRequest, HttpResponse};
 
 const RX_BUFFER_SIZE: usize = 4096;
@@ -134,26 +132,137 @@ impl HttpClientImpl {
             .await
             .map_err(|_| HttpError::RequestFailed)?;
 
-        let mut response_buf = [0u8; 4096];
-        let n = Read::read(&mut socket, &mut response_buf)
-            .await
+        // Read the HTTP response headers first
+        let mut header_buf = [0u8; 2048];
+        let mut header_bytes_read = 0;
+        
+        // Read until we find \r\n\r\n (end of headers)
+        loop {
+            if header_bytes_read >= header_buf.len() {
+                return Err(HttpError::RequestFailed);
+            }
+            
+            let n = Read::read(&mut socket, &mut header_buf[header_bytes_read..header_bytes_read + 1])
+                .await
+                .map_err(|_| HttpError::RequestFailed)?;
+            
+            if n == 0 {
+                break;
+            }
+            
+            header_bytes_read += n;
+            
+            // Check for \r\n\r\n
+            if header_bytes_read >= 4 && &header_buf[header_bytes_read - 4..] == b"\r\n\r\n" {
+                break;
+            }
+        }
+        
+        let header_str = core::str::from_utf8(&header_buf[..header_bytes_read])
             .map_err(|_| HttpError::RequestFailed)?;
-
-        let response_str =
-            core::str::from_utf8(&response_buf[..n]).map_err(|_| HttpError::RequestFailed)?;
-
-        let (status_line, body_start) = response_str
-            .split_once("\r\n\r\n")
+        
+        let (status_line, headers_part) = header_str
+            .split_once("\r\n")
             .ok_or(HttpError::RequestFailed)?;
-
+            
         let status = status_line
             .split_whitespace()
             .nth(1)
             .and_then(|s| s.parse().ok())
             .ok_or(HttpError::RequestFailed)?;
-
+            
+        // Check for Transfer-Encoding: chunked
+        let is_chunked = headers_part.contains("Transfer-Encoding: chunked");
+        
         let mut body_vec = heapless::Vec::<u8, 16384>::new();
-        body_vec.extend_from_slice(body_start.as_bytes()).ok();
+        
+        if is_chunked {
+            // Handle chunked encoding
+            loop {
+                // Read chunk size line
+                let mut size_line_buf = [0u8; 32];
+                let mut size_line_bytes = 0;
+                
+                loop {
+                    if size_line_bytes >= size_line_buf.len() {
+                        return Err(HttpError::RequestFailed);
+                    }
+                    
+                    let n = Read::read(&mut socket, &mut size_line_buf[size_line_bytes..size_line_bytes + 1])
+                        .await
+                        .map_err(|_| HttpError::RequestFailed)?;
+                    
+                    if n == 0 {
+                        return Err(HttpError::RequestFailed);
+                    }
+                    
+                    size_line_bytes += n;
+                    
+                    if &size_line_buf[size_line_bytes - 2..size_line_bytes] == b"\r\n" {
+                        break;
+                    }
+                }
+                
+                // Parse chunk size
+                let size_line = core::str::from_utf8(&size_line_buf[..size_line_bytes - 2])
+                    .map_err(|_| HttpError::RequestFailed)?;
+                
+                let chunk_size = usize::from_str_radix(size_line.trim(), 16)
+                    .map_err(|_| HttpError::RequestFailed)?;
+                
+                // Chunk size 0 means end of response
+                if chunk_size == 0 {
+                    // Read trailing \r\n
+                    let mut trailer = [0u8; 2];
+                    Read::read(&mut socket, &mut trailer)
+                        .await
+                        .map_err(|_| HttpError::RequestFailed)?;
+                    break;
+                }
+                
+                // Read chunk data
+                let mut chunk_buf = [0u8; 4096];
+                let mut bytes_to_read = chunk_size;
+                
+                while bytes_to_read > 0 {
+                    let read_size = bytes_to_read.min(chunk_buf.len());
+                    let n = Read::read(&mut socket, &mut chunk_buf[..read_size])
+                        .await
+                        .map_err(|_| HttpError::RequestFailed)?;
+                    
+                    if n == 0 {
+                        return Err(HttpError::RequestFailed);
+                    }
+                    
+                    body_vec.extend_from_slice(&chunk_buf[..n]).ok();
+                    bytes_to_read -= n;
+                }
+                
+                // Read trailing \r\n after chunk
+                let mut trailer = [0u8; 2];
+                Read::read(&mut socket, &mut trailer)
+                    .await
+                    .map_err(|_| HttpError::RequestFailed)?;
+            }
+        } else {
+            // Read all remaining data
+            let mut read_buf = [0u8; 4096];
+            loop {
+                let n = Read::read(&mut socket, &mut read_buf)
+                    .await
+                    .map_err(|_| HttpError::RequestFailed)?;
+                
+                if n == 0 {
+                    break;
+                }
+                
+                body_vec.extend_from_slice(&read_buf[..n]).ok();
+                
+                if body_vec.is_full() {
+                    break;
+                }
+            }
+        }
 
         socket.close();
 

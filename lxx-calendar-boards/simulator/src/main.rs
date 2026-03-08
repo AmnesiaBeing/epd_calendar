@@ -4,8 +4,9 @@ use epd_yrd0750ryf665f60::yrd0750ryf665f60::Epd7in5;
 use lxx_calendar_common::*;
 use lxx_calendar_core::main_task;
 use simulator::{
-    HttpServer, SimulatedBLE, SimulatedRtc, SimulatedWdt, SimulatorButton, SimulatorControl,
+    HttpServer, SimulatedBLE, SimulatedFlash, SimulatedRtc, SimulatedWdt, SimulatorButton, SimulatorControl,
 };
+use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -37,6 +38,8 @@ impl PlatformTrait for Platform {
 
     type OTADevice = NoOTA;
 
+    type FlashDevice = SimulatedFlash;
+
     async fn init(spawner: Spawner) -> SystemResult<PlatformContext<Self>> {
         info!("Platform init starting...");
 
@@ -64,6 +67,14 @@ impl PlatformTrait for Platform {
         let button = SimulatorButton::new();
         let ble = SimulatedBLE::new();
 
+        let flash = SimulatedFlash::new(
+            PathBuf::from("/tmp/simulator_flash.bin"),
+            65536, // 64KB
+            4096,
+            4096,
+        );
+        info!("Flash initialized");
+
         Ok(PlatformContext {
             sys_watch_dog: wdt,
             epd,
@@ -76,6 +87,7 @@ impl PlatformTrait for Platform {
             button,
             ble,
             ota: NoOTA::new(),
+            flash,
         })
     }
 

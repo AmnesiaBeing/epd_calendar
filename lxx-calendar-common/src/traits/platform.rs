@@ -1,5 +1,6 @@
 use embassy_executor::Spawner;
 use embassy_sync::channel::{Channel, Receiver, Sender};
+use embedded_storage_async::nor_flash::NorFlash;
 
 use crate::{SystemEvent, SystemResult};
 
@@ -49,6 +50,8 @@ pub trait PlatformTrait: Sized {
     type BLEDevice: BLEDriver;
 
     type OTADevice: OTADriver;
+
+    type FlashDevice: NorFlash;
 }
 
 pub struct PlatformContext<C: PlatformTrait + Sized> {
@@ -63,4 +66,5 @@ pub struct PlatformContext<C: PlatformTrait + Sized> {
     pub button: C::ButtonDevice,
     pub ble: C::BLEDevice,
     pub ota: C::OTADevice,
+    pub flash: C::FlashDevice,
 }

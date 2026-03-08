@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 pub use sxtwl_rs::culture::Week;
 pub use sxtwl_rs::festival::LunarFestival;
 pub use sxtwl_rs::festival::SolarFestival;
@@ -5,7 +6,7 @@ pub use sxtwl_rs::lunar::LunarDay;
 pub use sxtwl_rs::solar::SolarTerm;
 pub use sxtwl_rs::solar::SolarTime;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AlarmInfo {
     pub hour: u8,
     pub minute: u8,

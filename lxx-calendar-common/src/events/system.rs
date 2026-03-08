@@ -1,6 +1,6 @@
 use crate::types::{AlarmInfo, ConfigChange, NetworkError, SyncResult};
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq)]
 pub enum SystemEvent {
     WakeupEvent(crate::events::WakeupEvent),
     UserEvent(crate::events::UserEvent),
@@ -58,7 +58,7 @@ pub enum PowerEvent {
     LowPowerModeChanged(bool),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum BLEEvent {
     WifiConfigReceived {
         ssid: heapless::String<32>,
@@ -66,6 +66,9 @@ pub enum BLEEvent {
     },
     NetworkConfigReceived {
         location_id: heapless::String<16>,
+        latitude: f64,
+        longitude: f64,
+        location_name: heapless::String<32>,
         sync_interval_minutes: u16,
         auto_sync: bool,
     },

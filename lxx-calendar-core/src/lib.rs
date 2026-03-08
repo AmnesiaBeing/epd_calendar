@@ -2,9 +2,9 @@
 
 extern crate alloc;
 
-use embassy_executor::Spawner;
 use lxx_calendar_common::*;
 use lxx_calendar_common::compiled_config;
+use lxx_calendar_common::storage::ConfigPersistence;
 use static_cell::StaticCell;
 
 use crate::{
@@ -22,7 +22,7 @@ mod services;
 static EVENT_CHANNEL: StaticCell<LxxSystemEventChannel> = StaticCell::new();
 
 pub async fn main_task<P: PlatformTrait>(
-    _spawner: Spawner,
+    _spawner: embassy_executor::Spawner,
     platform_ctx: PlatformContext<P>,
 ) -> SystemResult<()> {
     info!("lxx-calendar starting...");
@@ -34,7 +34,7 @@ pub async fn main_task<P: PlatformTrait>(
 
     let time_service = TimeService::new().with_rtc(platform_ctx.rtc);
     let quote_service = QuoteService::new();
-    let mut ble_service = BLEService::new(platform_ctx.ble);
+    let ble_service = BLEService::new(platform_ctx.ble);
     let mut power_manager = PowerManager::<P::BatteryDevice>::new(event_sender);
     power_manager.set_battery_device(platform_ctx.battery);
     let audio_service = AudioService::new(platform_ctx.audio);
@@ -44,24 +44,20 @@ pub async fn main_task<P: PlatformTrait>(
         network_sync_service.set_stack(*stack);
     }
     
-    // 设置编译期配置的和风天气凭据
-    let signer = compiled_config::create_qweather_jwt_signer();
-    network_sync_service.set_jwt_signer(signer);
-    network_sync_service.set_api_host(compiled_config::QWEATHER_API_HOST);
-    network_sync_service.set_location(compiled_config::QWEATHER_LOCATION_DEFAULT);
+    // 设置编译期配置的 Open-Meteo 位置
+    network_sync_service.set_location(
+        compiled_config::openmeteo_latitude(),
+        compiled_config::openmeteo_longitude(),
+        compiled_config::openmeteo_location_name(),
+    );
     
     let mut button_service = ButtonService::<P::ButtonDevice>::new(event_sender);
     button_service.set_button_device(platform_ctx.button);
 
-    let mut config_manager = managers::ConfigManager::with_event_sender(event_sender);
-    config_manager.initialize().await?;
-    let config = config_manager.load_config().await?;
-    info!(
-        "Configuration loaded, hour_chime_enabled: {}",
-        config.time_config.hour_chime_enabled
-    );
+    let config_persistence = ConfigPersistence::new(platform_ctx.flash, 0x3000);
+    let config_manager = managers::ConfigManager::with_event_sender(config_persistence, event_sender.clone());
 
-    let mut state_manager: StateManager<P> = StateManager::new(
+    let mut state_manager: StateManager<P, P::FlashDevice> = StateManager::new(
         event_receiver,
         event_sender,
         button_service,
@@ -73,8 +69,8 @@ pub async fn main_task<P: PlatformTrait>(
         network_sync_service,
         platform_ctx.wifi,
         platform_ctx.sys_watch_dog,
+        config_manager,
     );
-    state_manager.with_config(&config);
 
     state_manager.initialize().await?;
 
