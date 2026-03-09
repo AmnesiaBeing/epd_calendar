@@ -22,8 +22,8 @@ esp_bootloader_esp_idf::esp_app_desc!();
 use panic_rtt_target as _;
 
 use crate::drivers::{
-    Esp32BLE, Esp32Battery, Esp32Button, Esp32Buzzer, Esp32LED, Esp32NetworkStack, Esp32OTA,
-    Esp32Rtc, Esp32Watchdog, Esp32Wifi,
+    Esp32BLE, Esp32Battery, Esp32Button, Esp32Buzzer, Esp32Flash, Esp32LED, Esp32NetworkStack,
+    Esp32OTA, Esp32Rtc, Esp32Watchdog, Esp32Wifi,
 };
 
 pub struct Platform;
@@ -62,6 +62,8 @@ impl PlatformTrait for Platform {
 
     type OTADevice = Esp32OTA;
 
+    type FlashDevice = Esp32Flash;
+
     async fn init(spawner: embassy_executor::Spawner) -> SystemResult<PlatformContext<Self>> {
         let peripherals = esp_hal::init(
             esp_hal::Config::default().with_cpu_clock(esp_hal::clock::CpuClock::max()),
@@ -82,6 +84,7 @@ impl PlatformTrait for Platform {
         let epd = Self::init_epd(&peripherals).await;
         let button = Esp32Button::new(&peripherals, spawner);
         let ota = Esp32OTA::new();
+        let flash = Esp32Flash::new(unsafe { peripherals.FLASH.clone_unchecked() });
 
         let ble = Esp32BLE::new(spawner, peripherals);
 
@@ -97,6 +100,7 @@ impl PlatformTrait for Platform {
             battery,
             ble,
             ota,
+            flash,
         })
     }
 

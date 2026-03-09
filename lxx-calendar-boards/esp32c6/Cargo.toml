@@ -40,6 +40,8 @@ esp-sync = { version = "0.1.1", features = [
     "esp32c6",
 ], default-features = false }
 esp-storage = { version = "0.8.1", features = ["esp32c6"] }
+embedded-storage = { workspace = true }
+embedded-storage-async = { workspace = true }
 async-trait = { workspace = true }
 panic-rtt-target = { version = "0.2.0" }
 rtt-target = { version = "0.6.2", features = ["defmt"] }

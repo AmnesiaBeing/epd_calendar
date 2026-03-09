@@ -5,9 +5,11 @@ use lxx_calendar_common::platform::PlatformTrait;
 use lxx_calendar_common::*;
 use lxx_calendar_core::main_task;
 use simulator::{
-    HttpServer, SimulatedBLE, SimulatedRtc, SimulatedWdt, SimulatorButton, SimulatorControl,
+    HttpServer, SimulatedBLE, SimulatedFlash, SimulatedRtc, SimulatedWdt, SimulatorButton,
+    SimulatorControl,
 };
 use static_cell::StaticCell;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::thread;
@@ -61,6 +63,8 @@ impl PlatformTrait for Platform {
 
     type OTADevice = NoOTA;
 
+    type FlashDevice = SimulatedFlash;
+
     async fn init(spawner: Spawner) -> SystemResult<PlatformContext<Self>> {
         let epd_busy = init_gpio(101, linux_embedded_hal::sysfs_gpio::Direction::In).unwrap();
         let epd_dc = init_gpio(102, linux_embedded_hal::sysfs_gpio::Direction::Out).unwrap();
@@ -90,6 +94,15 @@ impl PlatformTrait for Platform {
         let control = SIMULATOR_CONTROL.init(None);
         let ble = SimulatedBLE::new();
         let http_button = SimulatorButton::new();
+
+        let flash = SimulatedFlash::new(
+            PathBuf::from("/tmp/tspi_flash.bin"),
+            65536,
+            4096,
+            4096,
+        );
+        info!("Flash initialized");
+
         if let Some(ref ctrl) = *control {
             let port = std::env::var("SIMULATOR_PORT")
                 .ok()
@@ -118,6 +131,7 @@ impl PlatformTrait for Platform {
             button,
             ble: NoBLE::new(),
             ota: NoOTA::new(),
+            flash,
         })
     }
 
