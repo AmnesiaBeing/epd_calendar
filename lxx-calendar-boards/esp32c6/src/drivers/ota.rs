@@ -1,10 +1,15 @@
 use core::sync::atomic::{AtomicU8, AtomicU32, Ordering};
 use lxx_calendar_common::traits::ota::{OTADriver, OTAError, OTAProgress, OTAState};
 
+#[allow(dead_code)]
 const OTA_PARTITION_SIZE: u32 = 0x180000;
+#[allow(dead_code)]
 const OTA_PARTITION0_ADDR: u32 = 0x1A0000;
+#[allow(dead_code)]
 const OTA_PARTITION1_ADDR: u32 = 0x320000;
+#[allow(dead_code)]
 const OTA_DATA_ADDR: u32 = 0x4A0000;
+#[allow(dead_code)]
 const SECTOR_SIZE: u32 = 4096;
 
 static OTA_STATE: AtomicU8 = AtomicU8::new(OTAState::Idle as u8);
@@ -23,6 +28,7 @@ impl Esp32OTA {
         }
     }
 
+    #[allow(dead_code)]
     fn get_target_address(&self) -> u32 {
         if self.target_partition == 0 {
             OTA_PARTITION0_ADDR

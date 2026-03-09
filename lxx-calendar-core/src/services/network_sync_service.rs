@@ -1,6 +1,5 @@
 use embassy_net::Stack;
 use heapless::String;
-use lxx_calendar_common::http::http::HttpClient;
 use lxx_calendar_common::weather::OpenMeteoResponse;
 use lxx_calendar_common::weather::openmeteo_converter::convert_openmeteo_response;
 use lxx_calendar_common::sntp::{EmbassySntpWithStack, SntpClient};
@@ -88,9 +87,9 @@ impl NetworkSyncService {
                     info!("WiFi connected successfully");
                     Ok(())
                 }
-                Err(e) => {
-                    error!("WiFi connection failed");
-                    Err(SystemError::HardwareError(HardwareError::InvalidParameter))
+                Err(_e) => {
+                    error!("HTTP request failed");
+                    return Err(SystemError::NetworkError(NetworkError::Unknown));
                 }
             }
         } else {
@@ -115,10 +114,10 @@ impl NetworkSyncService {
                 info!("Time synchronized successfully");
                 true
             }
-            Err(e) => {
-                warn!("Time sync failed: {:?}", e);
-                false
-            }
+Err(_e) => {
+                    error!("HTTP request failed");
+                    return Err(SystemError::NetworkError(NetworkError::Unknown));
+                }
         };
 
         let weather_synced = match self.sync_weather().await {
@@ -126,10 +125,10 @@ impl NetworkSyncService {
                 info!("Weather synchronized successfully");
                 true
             }
-            Err(e) => {
-                warn!("Weather sync failed: {:?}", e);
-                false
-            }
+Err(_e) => {
+                    error!("HTTP request failed");
+                    return Err(SystemError::NetworkError(NetworkError::Unknown));
+                }
         };
 
         let sync_duration = start_time.elapsed();
@@ -206,11 +205,11 @@ impl NetworkSyncService {
             .stack
             .as_ref()
             .ok_or_else(|| SystemError::HardwareError(HardwareError::NotInitialized))?;
-        let mut rx_buf = self
+        let rx_buf = self
             .http_rx_buffer
             .as_mut()
             .ok_or_else(|| SystemError::HardwareError(HardwareError::NotInitialized))?;
-        let mut tx_buf = self
+        let tx_buf = self
             .http_tx_buffer
             .as_mut()
             .ok_or_else(|| SystemError::HardwareError(HardwareError::NotInitialized))?;

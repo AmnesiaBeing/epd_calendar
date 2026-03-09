@@ -1,6 +1,5 @@
 use esp_hal::analog::adc::AdcPin;
 use esp_hal::analog::adc::{Adc, AdcConfig, Attenuation};
-use esp_hal::gpio::AnyPin;
 use esp_hal::peripherals::GPIO2;
 use esp_hal::peripherals::Peripherals;
 use lxx_calendar_common::Battery;
