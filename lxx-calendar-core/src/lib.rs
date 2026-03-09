@@ -54,7 +54,7 @@ pub async fn main_task<P: PlatformTrait>(
     let mut button_service = ButtonService::<P::ButtonDevice>::new(event_sender);
     button_service.set_button_device(platform_ctx.button);
 
-    let config_persistence = ConfigPersistence::new(platform_ctx.flash, 0x3000);
+    let config_persistence = ConfigPersistence::new(platform_ctx.flash);
     let config_manager = managers::ConfigManager::with_event_sender(config_persistence, event_sender.clone());
 
     let mut state_manager: StateManager<P, P::FlashDevice> = StateManager::new(

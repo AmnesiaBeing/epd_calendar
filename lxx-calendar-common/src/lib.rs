@@ -5,6 +5,7 @@ extern crate alloc;
 
 pub mod compiled_config;
 pub mod events;
+pub mod flash_layout;
 pub mod http;
 pub mod sntp;
 pub mod storage;

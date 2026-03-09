@@ -16,14 +16,16 @@
 | BLEService | ✅ | 配网/OTA框架，BLE驱动预留 |
 | AudioService | ✅ | 音频框架，PWM驱动预留 |
 | PowerManager | ✅ | 电量管理框架，ADC预留 |
-| ConfigManager | ✅ | 配置管理框架，FLASH预留 |
+| ConfigManager | ✅ | 配置管理框架，双区磨损均衡 |
+| LogStorage | ✅ | 循环日志存储，48KB |
 | WatchdogManager | ✅ | 看门狗管理 |
 | Quotes | ✅ | 格言服务 |
 
 ### 待实现
 
 - 各服务的硬件驱动（ESP32-C6平台）
-- 日志管理器
+- WiFi密码加密存储
+- 系统日志输出到Flash（集成LogStorage）
 
 ---
 
@@ -40,6 +42,7 @@
 9. **[09-硬件接口.md](./09-硬件接口.md)** - GPIO引脚分配
 10. **[10-错误处理.md](./10-错误处理.md)** - 错误处理策略
 11. **[11-Cargo构建系统.md](./11-Cargo构建系统.md)** - 构建配置和多平台支持
+12. **[12-Flash分区布局.md](./12-Flash分区布局.md)** - Flash分区布局和存储设计
 
 ---
 

@@ -1,0 +1,57 @@
+# Name,   Type, SubType, Offset,   Size,    Flags
+# Note: if you have increased the bootloader size, make sure to update the offsets to avoid overlap
+#
+# 4MB Flash Partition Table for ESP32-C6
+# Total: 4,194,304 bytes (0x400000)
+#
+# Partition Layout:
+# ┌─────────────────┬───────────┬─────────────┐
+# │ Partition       │ Offset    │ Size        │
+# ├─────────────────┼───────────┼─────────────┤
+# │ Bootloader      │ 0x00000   │ 28KB        │
+# │ Partition Table │ 0x08000   │ 4KB         │
+# │ NVS             │ 0x09000   │ 24KB        │
+# │ PHY Init        │ 0x0F000   │ 4KB         │
+# │ App Config A    │ 0x10000   │ 8KB         │
+# │ App Config B    │ 0x12000   │ 8KB         │
+# │ Log Storage     │ 0x14000   │ 48KB        │
+# │ Factory App     │ 0x20000   │ 1MB         │
+# │ OTA_0           │ 0x120000  │ 1MB         │
+# │ OTA_1           │ 0x220000  │ 1MB         │
+# │ OTA State       │ 0x320000  │ 8KB         │
+# │ Reserved        │ 0x322000  │ ~888KB      │
+# └─────────────────┴───────────┴─────────────┘
+
+# Bootloader (managed by ESP-IDF)
+# 0x0000 - 0x6FFF: Bootloader (28KB)
+# 0x7000 - 0x7FFF: Reserved for bootloader use
+
+# Partition Table at 0x8000 (4KB)
+# This file itself defines the partition table
+
+# NVS: WiFi and system configuration
+nvs,      data, nvs,     0x09000, 0x6000
+
+# PHY initialization data
+phy_init, data, phy,     0x0F000, 0x1000
+
+# Application Configuration (dual-bank for wear leveling)
+# Config A: Primary configuration storage
+config_a, data, nvs,     0x10000, 0x2000
+# Config B: Backup configuration storage
+config_b, data, nvs,     0x12000, 0x2000
+
+# Log Storage: Circular buffer for logs
+log,      data, spiffs,  0x14000, 0xC000
+
+# Factory App: Initial firmware (read-only, fallback)
+factory,  app,  factory, 0x20000, 0x100000
+
+# OTA Partition 0: First OTA slot
+ota_0,    app,  ota_0,   0x120000, 0x100000
+
+# OTA Partition 1: Second OTA slot
+ota_1,    app,  ota_1,   0x220000, 0x100000
+
+# OTA State: Boot state for A/B updates
+otadata,  data, ota,     0x320000, 0x2000

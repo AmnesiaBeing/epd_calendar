@@ -1,28 +1,74 @@
-//! 配置持久化工具
+//! Configuration Persistence with Wear Leveling
 //!
-//! 使用 postcard 序列化和 CRC32 校验和
-//! 版本检查机制：版本不匹配时返回错误，使用默认配置
+//! Uses dual-bank configuration storage for wear leveling.
+//! Each bank stores configuration with:
+//! - Magic number for identification
+//! - Version for compatibility check
+//! - CRC32 checksum for data integrity
+//! - Active flag to determine which bank is current
+//!
+//! On each save, the inactive bank is written first,
+//! then the active flag is switched.
 
+use crate::flash_layout::{
+    CONFIG_A_OFFSET, CONFIG_A_SIZE, CONFIG_B_OFFSET, CONFIG_B_SIZE,
+    CONFIG_HEADER_SIZE, CONFIG_MAX_DATA_SIZE, SECTOR_SIZE,
+};
 use crate::types::error::{StorageError, SystemError};
 use crate::SystemResult;
-use core::marker::PhantomData;
 use embedded_storage_async::nor_flash::{NorFlash, ReadNorFlash};
 use postcard;
 use serde::{Deserialize, Serialize};
 
 const CONFIG_VERSION: u32 = 1;
 const CONFIG_MAGIC: u32 = 0x4C585843; // "LXXC" in little endian
-const MAX_CONFIG_SIZE: usize = 1024;
-const HEADER_SIZE: usize = 32; // postcard序列化ConfigHeader的大小
+const ACTIVE_FLAG: u32 = 0x41435456; // "ACTV" - active bank marker
+const INACTIVE_FLAG: u32 = 0xFFFFFFFF; // inactive bank marker
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 pub struct ConfigHeader {
     magic: u32,
     version: u32,
     checksum: u32,
+    active: u32,
+    reserved: [u8; 16],
 }
 
-/// Flash设备trait (异步版本)
+impl ConfigHeader {
+    pub const SIZE: usize = CONFIG_HEADER_SIZE;
+
+    pub fn new(checksum: u32, active: bool) -> Self {
+        Self {
+            magic: CONFIG_MAGIC,
+            version: CONFIG_VERSION,
+            checksum,
+            active: if active { ACTIVE_FLAG } else { INACTIVE_FLAG },
+            reserved: [0; 16],
+        }
+    }
+
+    pub fn is_active(&self) -> bool {
+        self.active == ACTIVE_FLAG
+    }
+
+pub fn is_valid(&self) -> bool {
+        self.magic == CONFIG_MAGIC && self.version == CONFIG_VERSION
+    }
+
+    pub fn to_bytes(&self) -> [u8; Self::SIZE] {
+        let mut buf = [0u8; Self::SIZE];
+        let mut temp_buf = [0u8; Self::SIZE];
+        if let Ok(serialized) = postcard::to_slice(self, &mut temp_buf[..Self::SIZE - 4]) {
+            buf[..serialized.len()].copy_from_slice(serialized);
+        }
+        buf
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
+        postcard::from_bytes(bytes).ok()
+    }
+}
+
 pub trait FlashDevice {
     async fn read(&mut self, offset: u32, buf: &mut [u8]) -> SystemResult<()>;
     async fn write(&mut self, offset: u32, buf: &[u8]) -> SystemResult<()>;
@@ -30,7 +76,6 @@ pub trait FlashDevice {
     fn sector_size(&self) -> u32;
 }
 
-/// 为所有实现了 NorFlash 的类型提供 FlashDevice 的 blanket implementation
 impl<F> FlashDevice for F
 where
     F: NorFlash,
@@ -54,30 +99,34 @@ where
     }
 
     fn sector_size(&self) -> u32 {
-        4096
+        SECTOR_SIZE
     }
 }
 
-/// 配置持久化工具
-///
-/// 泛型参数 F: 实现 FlashDevice trait 的类型
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConfigBank {
+    A,
+    B,
+}
+
 pub struct ConfigPersistence<F: FlashDevice> {
     flash: F,
-    offset: u32,
-    _marker: PhantomData<F>,
+    active_bank: Option<ConfigBank>,
 }
 
 impl<F: FlashDevice> ConfigPersistence<F> {
-    /// 创建新的配置持久化实例
-    pub fn new(flash: F, offset: u32) -> Self {
+    pub fn new(flash: F) -> Self {
         Self {
             flash,
-            offset,
-            _marker: PhantomData,
+            active_bank: None,
         }
     }
 
-    /// 计算配置的 CRC32 校验和
+    #[deprecated(note = "Use new() without offset parameter, layout is fixed")]
+    pub fn with_offset(flash: F, _offset: u32) -> Self {
+        Self::new(flash)
+    }
+
     fn calculate_checksum(data: &[u8]) -> u32 {
         let mut crc: u32 = 0xFFFFFFFF;
         for &byte in data {
@@ -93,106 +142,185 @@ impl<F: FlashDevice> ConfigPersistence<F> {
         !crc
     }
 
-    /// 从存储中加载配置
+    fn bank_offset(bank: ConfigBank) -> u32 {
+        match bank {
+            ConfigBank::A => CONFIG_A_OFFSET,
+            ConfigBank::B => CONFIG_B_OFFSET,
+        }
+    }
+
+    fn bank_size(bank: ConfigBank) -> u32 {
+        match bank {
+            ConfigBank::A => CONFIG_A_SIZE,
+            ConfigBank::B => CONFIG_B_SIZE,
+        }
+    }
+
+    async fn read_bank_header(&mut self, bank: ConfigBank) -> SystemResult<ConfigHeader> {
+        let offset = Self::bank_offset(bank);
+        let mut header_buf = [0u8; CONFIG_HEADER_SIZE];
+        self.flash.read(offset, &mut header_buf).await?;
+
+        ConfigHeader::from_bytes(&header_buf)
+            .ok_or(SystemError::StorageError(StorageError::Corrupted))
+    }
+
+    async fn determine_active_bank(&mut self) -> SystemResult<ConfigBank> {
+        if let Some(bank) = self.active_bank {
+            return Ok(bank);
+        }
+
+        let header_a = self.read_bank_header(ConfigBank::A).await;
+        let header_b = self.read_bank_header(ConfigBank::B).await;
+
+        let bank = match (header_a, header_b) {
+            (Ok(ha), Ok(hb)) => {
+                if ha.is_active() && ha.is_valid() {
+                    ConfigBank::A
+                } else if hb.is_active() && hb.is_valid() {
+                    ConfigBank::B
+                } else if ha.is_valid() {
+                    ConfigBank::A
+                } else if hb.is_valid() {
+                    ConfigBank::B
+                } else {
+                    ConfigBank::A
+                }
+            }
+            (Ok(ha), Err(_)) => {
+                if ha.is_valid() {
+                    ConfigBank::A
+                } else {
+                    ConfigBank::A
+                }
+            }
+            (Err(_), Ok(hb)) => {
+                if hb.is_valid() {
+                    ConfigBank::B
+                } else {
+                    ConfigBank::A
+                }
+            }
+            (Err(_), Err(_)) => ConfigBank::A,
+        };
+
+        self.active_bank = Some(bank);
+        Ok(bank)
+    }
+
     pub async fn load_config<T>(&mut self) -> SystemResult<T>
     where
         T: for<'de> Deserialize<'de>,
     {
-        // 读取配置头
-        let mut header_buf = [0u8; HEADER_SIZE];
-        self.flash.read(self.offset, &mut header_buf).await?;
+        let bank = self.determine_active_bank().await?;
+        let offset = Self::bank_offset(bank);
 
-        // 反序列化配置头
-        let header: ConfigHeader = postcard::from_bytes(&header_buf)
-            .map_err(|_| SystemError::StorageError(StorageError::Corrupted))?;
+        let mut header_buf = [0u8; CONFIG_HEADER_SIZE];
+        self.flash.read(offset, &mut header_buf).await?;
 
-        // 检查 magic number
-        if header.magic != CONFIG_MAGIC {
-            log::info!("Config magic invalid, using default config");
+        let header = ConfigHeader::from_bytes(&header_buf)
+            .ok_or(SystemError::StorageError(StorageError::Corrupted))?;
+
+        if !header.is_valid() {
+            log::info!("Config header invalid, using default");
             return Err(SystemError::StorageError(StorageError::Corrupted));
         }
 
-        // 检查版本
         if header.version != CONFIG_VERSION {
             log::info!(
-                "Config version mismatch (stored={}, expected={}), using default config",
+                "Config version mismatch (stored={}, expected={})",
                 header.version,
                 CONFIG_VERSION
             );
             return Err(SystemError::StorageError(StorageError::Corrupted));
         }
 
-        // 读取配置数据
-        let mut data_buf = [0u8; MAX_CONFIG_SIZE];
-        self.flash.read(self.offset + HEADER_SIZE as u32, &mut data_buf).await?;
+        let mut data_buf = [0u8; CONFIG_MAX_DATA_SIZE];
+        self.flash.read(offset + CONFIG_HEADER_SIZE as u32, &mut data_buf).await?;
 
-        // 验证校验和
         if header.checksum != Self::calculate_checksum(&data_buf) {
-            log::warn!("Config checksum mismatch, using default config");
+            log::warn!("Config checksum mismatch");
             return Err(SystemError::StorageError(StorageError::Corrupted));
         }
 
-        // 反序列化配置
         postcard::from_bytes(&data_buf)
             .map_err(|_| SystemError::StorageError(StorageError::Corrupted))
     }
 
-    /// 保存配置到存储
     pub async fn save_config<T>(&mut self, config: &T) -> SystemResult<()>
     where
         T: Serialize,
     {
-        // 使用固定大小的buffer序列化配置
-        let mut buf = [0u8; MAX_CONFIG_SIZE];
-        postcard::to_slice(config, &mut buf)
+        let mut buf = [0u8; CONFIG_MAX_DATA_SIZE];
+        let serialized = postcard::to_slice(config, &mut buf)
             .map_err(|_| SystemError::StorageError(StorageError::WriteFailed))?;
+        let serialized_len = serialized.len();
 
-        // 计算校验和
-        let checksum = Self::calculate_checksum(&buf);
+        let checksum = Self::calculate_checksum(&buf[..serialized_len]);
 
-        // 构建配置头
-        let header = ConfigHeader {
-            magic: CONFIG_MAGIC,
-            version: CONFIG_VERSION,
-            checksum,
+        let target_bank = match self.active_bank {
+            Some(ConfigBank::A) => ConfigBank::B,
+            Some(ConfigBank::B) => ConfigBank::A,
+            None => ConfigBank::A,
         };
 
-        // 序列化配置头
-        let mut header_buf = [0u8; HEADER_SIZE];
-        postcard::to_slice(&header, &mut header_buf)
-            .map_err(|_| SystemError::StorageError(StorageError::WriteFailed))?;
+        let offset = Self::bank_offset(target_bank);
+        let size = Self::bank_size(target_bank);
 
-        // 擦除配置区域
-        let sector_size = self.flash.sector_size();
-        let aligned_offset = (self.offset / sector_size) * sector_size;
-        self.flash.erase(aligned_offset, aligned_offset + sector_size).await?;
+        self.flash.erase(offset, offset + size).await?;
 
-        // 写入配置头和数据
-        self.flash.write(self.offset, &header_buf).await?;
-        self.flash.write(self.offset + HEADER_SIZE as u32, &buf).await?;
+        let header = ConfigHeader::new(checksum, true);
+        let header_buf = header.to_bytes();
+        self.flash.write(offset, &header_buf).await?;
 
-        log::info!("Config saved successfully");
+        self.flash.write(offset + CONFIG_HEADER_SIZE as u32, &buf).await?;
+
+        if let Some(old_bank) = self.active_bank {
+            let old_offset = Self::bank_offset(old_bank);
+            let mut old_header_buf = [0u8; CONFIG_HEADER_SIZE];
+            self.flash.read(old_offset, &mut old_header_buf).await?;
+            
+            if let Some(mut old_header) = ConfigHeader::from_bytes(&old_header_buf) {
+                old_header.active = INACTIVE_FLAG;
+                let updated_header_buf = old_header.to_bytes();
+                self.flash.write(old_offset, &updated_header_buf).await?;
+            }
+        }
+
+        self.active_bank = Some(target_bank);
+        log::info!("Config saved to bank {:?}", target_bank);
+
         Ok(())
     }
 
-    /// 恢复出厂设置（擦除配置）
     pub async fn factory_reset(&mut self) -> SystemResult<()> {
-        let sector_size = self.flash.sector_size();
-        let aligned_offset = (self.offset / sector_size) * sector_size;
-        self.flash.erase(aligned_offset, aligned_offset + sector_size).await?;
-
+        self.flash.erase(CONFIG_A_OFFSET, CONFIG_A_OFFSET + CONFIG_A_SIZE).await?;
+        self.flash.erase(CONFIG_B_OFFSET, CONFIG_B_OFFSET + CONFIG_B_SIZE).await?;
+        
+        self.active_bank = None;
         log::info!("Factory reset completed");
         Ok(())
     }
 
-    /// 检查配置是否存在
     pub async fn config_exists(&mut self) -> bool {
-        let mut magic_buf = [0u8; 4];
-        if self.flash.read(self.offset, &mut magic_buf).await.is_err() {
-            return false;
+        let bank = self.determine_active_bank().await.ok();
+        if let Some(bank) = bank {
+            let offset = Self::bank_offset(bank);
+            let mut magic_buf = [0u8; 4];
+            if self.flash.read(offset, &mut magic_buf).await.is_ok() {
+                let magic = u32::from_le_bytes(magic_buf);
+                return magic == CONFIG_MAGIC;
+            }
         }
+        false
+    }
 
-        let magic = u32::from_le_bytes(magic_buf);
-        magic == CONFIG_MAGIC
+    pub fn get_active_bank(&self) -> Option<ConfigBank> {
+        self.active_bank
+    }
+
+    pub async fn validate_bank(&mut self, bank: ConfigBank) -> SystemResult<bool> {
+        let header = self.read_bank_header(bank).await?;
+        Ok(header.is_valid() && header.is_active())
     }
 }

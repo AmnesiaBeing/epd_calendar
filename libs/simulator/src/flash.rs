@@ -2,7 +2,9 @@ use embedded_storage_async::nor_flash::{ErrorType, NorFlashErrorKind, NorFlash, 
 use std::path::PathBuf;
 use std::sync::Mutex;
 
-/// Flash 错误类型
+const FLASH_SIZE: usize = 4 * 1024 * 1024;
+const SECTOR_SIZE: usize = 4096;
+
 #[derive(Debug)]
 pub enum FlashError {
     IoError(std::io::Error),
@@ -24,24 +26,17 @@ impl NorFlashError for FlashError {
     }
 }
 
-/// 模拟器用的文件模拟Flash存储
 pub struct SimulatedFlash {
     data: Mutex<Vec<u8>>,
     path: PathBuf,
-    write_size: usize,
-    erase_size: usize,
-    size: usize,
 }
 
 impl SimulatedFlash {
-    pub fn new(path: PathBuf, size: usize, erase_size: usize, write_size: usize) -> Self {
-        // 尝试从文件加载数据，如果文件不存在则创建新的
+    pub fn new(path: PathBuf) -> Self {
         let data = if path.exists() {
-            std::fs::read(&path).unwrap_or_else(|_| vec![0xFFu8; size])
+            std::fs::read(&path).unwrap_or_else(|_| vec![0xFFu8; FLASH_SIZE])
         } else {
-            // 创建初始数据（全0xFF，表示未写入的Flash）
-            let initial_data = vec![0xFFu8; size];
-            // 立即写入文件以确保文件被创建
+            let initial_data = vec![0xFFu8; FLASH_SIZE];
             std::fs::write(&path, &initial_data).ok();
             initial_data
         };
@@ -49,9 +44,21 @@ impl SimulatedFlash {
         Self {
             data: Mutex::new(data),
             path,
-            write_size,
-            erase_size,
-            size,
+        }
+    }
+
+    pub fn new_with_config(path: PathBuf, size: usize, _erase_size: usize, _write_size: usize) -> Self {
+        let data = if path.exists() {
+            std::fs::read(&path).unwrap_or_else(|_| vec![0xFFu8; size])
+        } else {
+            let initial_data = vec![0xFFu8; size];
+            std::fs::write(&path, &initial_data).ok();
+            initial_data
+        };
+
+        Self {
+            data: Mutex::new(data),
+            path,
         }
     }
 
@@ -60,6 +67,18 @@ impl SimulatedFlash {
         std::fs::write(&self.path, data.as_slice())?;
         Ok(())
     }
+
+    pub fn get_config_a_offset(&self) -> u32 {
+        lxx_calendar_common::flash_layout::CONFIG_A_OFFSET
+    }
+
+    pub fn get_config_b_offset(&self) -> u32 {
+        lxx_calendar_common::flash_layout::CONFIG_B_OFFSET
+    }
+
+    pub fn get_log_offset(&self) -> u32 {
+        lxx_calendar_common::flash_layout::LOG_OFFSET
+    }
 }
 
 impl ErrorType for SimulatedFlash {
@@ -67,15 +86,15 @@ impl ErrorType for SimulatedFlash {
 }
 
 impl NorFlash for SimulatedFlash {
-    const WRITE_SIZE: usize = 4096;
-    const ERASE_SIZE: usize = 4096;
+    const WRITE_SIZE: usize = 4;
+    const ERASE_SIZE: usize = SECTOR_SIZE;
 
     async fn erase(&mut self, from: u32, to: u32) -> Result<(), Self::Error> {
         let mut data = self.data.lock().unwrap();
         for addr in from..to.min(data.len() as u32) {
             data[addr as usize] = 0xFF;
         }
-        drop(data); // 释放锁
+        drop(data);
         self.save_to_disk()?;
         Ok(())
     }
@@ -83,8 +102,12 @@ impl NorFlash for SimulatedFlash {
     async fn write(&mut self, offset: u32, bytes: &[u8]) -> Result<(), Self::Error> {
         let mut data = self.data.lock().unwrap();
         let offset = offset as usize;
-        data[offset..offset + bytes.len()].copy_from_slice(bytes);
-        drop(data); // 释放锁
+        let end = offset + bytes.len();
+        if end > data.len() {
+            return Err(FlashError::OutOfBounds);
+        }
+        data[offset..end].copy_from_slice(bytes);
+        drop(data);
         self.save_to_disk()?;
         Ok(())
     }
@@ -96,11 +119,15 @@ impl ReadNorFlash for SimulatedFlash {
     async fn read(&mut self, offset: u32, bytes: &mut [u8]) -> Result<(), Self::Error> {
         let data = self.data.lock().unwrap();
         let offset = offset as usize;
-        bytes.copy_from_slice(&data[offset..offset + bytes.len()]);
+        let end = offset + bytes.len();
+        if end > data.len() {
+            return Err(FlashError::OutOfBounds);
+        }
+        bytes.copy_from_slice(&data[offset..end]);
         Ok(())
     }
 
     fn capacity(&self) -> usize {
-        self.size
+        FLASH_SIZE
     }
 }

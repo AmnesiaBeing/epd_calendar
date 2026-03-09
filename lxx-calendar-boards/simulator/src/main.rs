@@ -7,7 +7,6 @@ use simulator::{
     HttpServer, SimulatedBLE, SimulatedFlash, SimulatedRtc, SimulatedWdt, SimulatorButton, SimulatorControl,
 };
 use std::path::PathBuf;
-use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
@@ -67,12 +66,7 @@ impl PlatformTrait for Platform {
         let button = SimulatorButton::new();
         let ble = SimulatedBLE::new();
 
-        let flash = SimulatedFlash::new(
-            PathBuf::from("/tmp/simulator_flash.bin"),
-            65536, // 64KB
-            4096,
-            4096,
-        );
+        let flash = SimulatedFlash::new(PathBuf::from("/tmp/simulator_flash.bin"));
         info!("Flash initialized");
 
         Ok(PlatformContext {
