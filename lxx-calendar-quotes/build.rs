@@ -39,11 +39,33 @@ pub fn parse_categories() -> Result<Vec<HitokotoCategory>> {
 }
 
 pub fn escape_string(s: &str) -> String {
+    // 先移除不可见字符
+    let s = remove_invisible_chars(s);
+
     s.replace('\\', "\\\\")
         .replace('\"', "\\\"")
         .replace('\n', "\\n")
         .replace('\r', "\\r")
         .replace('\t', "\\t")
+}
+
+fn remove_invisible_chars(s: &str) -> String {
+    // 移除常见的不可见Unicode字符
+    s.chars()
+        .filter(|c| {
+            // 移除零宽空格、零宽非连接符、零宽连接符等
+            !matches!(
+                c,
+                '\u{200B}' | // 零宽空格
+                '\u{200C}' | // 零宽非连接符
+                '\u{200D}' | // 零宽连接符
+                '\u{200E}' | // 左至右标记
+                '\u{200F}' | // 右至左标记
+                '\u{FEFF}' | // 字节顺序标记
+                '\u{00AD}' // 软连字符
+            )
+        })
+        .collect()
 }
 
 pub fn parse_all_json_files(categories: &[HitokotoCategory]) -> Result<Vec<(u32, Vec<Hitokoto>)>> {

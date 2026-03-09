@@ -3,6 +3,7 @@
 extern crate alloc;
 
 use alloc::string::String;
+use core::fmt;
 use core::sync::atomic::{AtomicU32, Ordering};
 
 mod generated {
@@ -80,18 +81,21 @@ pub struct Quote<'a> {
     pub from_who: &'a str,
 }
 
-impl Quote<'_> {
-    pub fn to_string(&self) -> String {
-        let mut result = String::new();
-        result.push_str(self.text);
+impl fmt::Display for Quote<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.text)?;
         if !self.from.is_empty() {
-            result.push_str(" —— ");
-            result.push_str(self.from);
+            write!(f, " —— {}", self.from)?;
             if !self.from_who.is_empty() {
-                result.push_str(" ");
-                result.push_str(self.from_who);
+                write!(f, " {}", self.from_who)?;
             }
         }
-        result
+        Ok(())
+    }
+}
+
+impl Quote<'_> {
+    pub fn to_string(&self) -> String {
+        alloc::format!("{}", self)
     }
 }
