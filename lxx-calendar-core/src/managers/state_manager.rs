@@ -26,6 +26,8 @@ pub struct StateManager<'a, P: PlatformTrait, F: lxx_calendar_common::storage::F
     last_sync_time: Option<u64>,
     is_charging: bool,
     low_battery_blocked: bool,
+    alarm_active: bool,
+    last_alarm_check: Option<(u8, u8)>,
 }
 
 impl<'a, P: PlatformTrait, F: lxx_calendar_common::storage::FlashDevice> StateManager<'a, P, F> {
@@ -48,6 +50,8 @@ impl<'a, P: PlatformTrait, F: lxx_calendar_common::storage::FlashDevice> StateMa
             event_channel: event_receiver,
             event_sender,
             button_service,
+            alarm_active: false,
+            last_alarm_check: None,
             time_service,
             quote_service,
             ble_service,
@@ -127,6 +131,14 @@ impl<'a, P: PlatformTrait, F: lxx_calendar_common::storage::FlashDevice> StateMa
         Ok(())
     }
 
+    fn matches_repeat_day(repeat_days: u8, weekday: u8) -> bool {
+        if repeat_days == 0 {
+            return true; // 未设置重复，默认触发
+        }
+        // repeat_days 是位掩码，bit 0 = 周日, bit 1 = 周一, ..., bit 6 = 周六
+        (repeat_days & (1 << weekday)) != 0
+    }
+    
     async fn on_state_enter(&mut self, mode: SystemMode) -> SystemResult<()> {
         match mode {
             SystemMode::LightSleep => {
@@ -180,6 +192,36 @@ impl<'a, P: PlatformTrait, F: lxx_calendar_common::storage::FlashDevice> StateMa
         let current_time = self.time_service.get_solar_time().await?;
         let current_hour = current_time.get_hour() as u8;
         let current_minute = current_time.get_minute() as u8;
+
+        // 检查闹钟
+        if !self.low_battery_blocked {
+            // 获取星期几 (0=周日, 1=周一, ..., 6=周六)
+            let solar_day = sxtwl_rs::solar::SolarDay::from_ymd(
+                current_time.get_year() as isize,
+                current_time.get_month() as usize,
+                current_time.get_day() as usize,
+            );
+            let week = solar_day.get_week();
+            let current_weekday = week.get_index() as u8;
+            
+            for alarm in &config.time_config.alarms {
+                if alarm.enabled 
+                    && alarm.hour == current_hour 
+                    && alarm.minute == current_minute
+                    && Self::matches_repeat_day(alarm.repeat_days, current_weekday)
+                {
+                    if self.last_alarm_check != Some((current_hour, current_minute)) {
+                        info!("Alarm triggered at {:02}:{:02}", alarm.hour, alarm.minute);
+                        self.last_alarm_check = Some((current_hour, current_minute));
+                        
+                        // 发送闹钟事件
+                        let _ = self.event_sender.try_send(SystemEvent::TimeEvent(
+                            TimeEvent::AlarmTrigger(*alarm)
+                        ));
+                    }
+                }
+            }
+        }
 
         if config.time_config.hour_chime_enabled && !self.low_battery_blocked {
             let last_chime_hour = self.last_chime_hour.unwrap_or(255);
@@ -302,6 +344,13 @@ impl<'a, P: PlatformTrait, F: lxx_calendar_common::storage::FlashDevice> StateMa
     }
 
     async fn handle_user_event(&mut self, event: UserEvent) -> SystemResult<()> {
+        // 如果闹钟正在响，任何按键都停止闹钟
+        if self.alarm_active {
+            info!("Stopping alarm due to user interaction");
+            self.alarm_active = false;
+            return Ok(());
+        }
+        
         match event {
             UserEvent::ButtonDoubleClick => {
                 info!("Button double click - No function yet");
@@ -502,8 +551,25 @@ impl<'a, P: PlatformTrait, F: lxx_calendar_common::storage::FlashDevice> StateMa
             TimeEvent::HourChimeTrigger => {
                 debug!("HourChimeTrigger - handled in execute_scheduled_tasks");
             }
-            TimeEvent::AlarmTrigger(_) => {
-                debug!("AlarmTrigger - handled in execute_scheduled_tasks");
+            TimeEvent::AlarmTrigger(alarm_info) => {
+                info!("Alarm triggered: {:02}:{:02}", alarm_info.hour, alarm_info.minute);
+                
+                self.alarm_active = true;
+                
+                // 播放闹钟声音 (5秒)
+                for i in 0..10 {
+                    if !self.alarm_active {
+                        info!("Alarm stopped by user");
+                        break;
+                    }
+                    
+                    info!("Alarm beep {} / 10", i + 1);
+                    self.audio_service.play_tone(800, 400).await?;
+                    embassy_time::Timer::after(embassy_time::Duration::from_millis(100)).await;
+                }
+                
+                self.alarm_active = false;
+                info!("Alarm finished");
             }
         }
         Ok(())

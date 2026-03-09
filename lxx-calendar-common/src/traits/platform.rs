@@ -68,3 +68,13 @@ pub struct PlatformContext<C: PlatformTrait + Sized> {
     pub ota: C::OTADevice,
     pub flash: C::FlashDevice,
 }
+
+impl<C: PlatformTrait> PlatformContext<C> {
+    pub fn led(&self) -> &C::LEDDevice {
+        &self.led
+    }
+    
+    pub fn led_mut(&mut self) -> &mut C::LEDDevice {
+        &mut self.led
+    }
+}
