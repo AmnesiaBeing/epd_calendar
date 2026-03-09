@@ -48,7 +48,7 @@ impl PlatformTrait for Platform {
 
     type ButtonDevice = Esp32Button;
 
-    type LEDDevice = Esp32LED;
+    type LEDDevice = Esp32LED<'static>;
 
     type RtcDevice = Esp32Rtc;
 
@@ -76,7 +76,6 @@ impl PlatformTrait for Platform {
 
         let sys_watch_dog = Esp32Watchdog::new(&peripherals);
         let audio = Esp32Buzzer::new(&peripherals);
-        let led = Esp32LED::new(&peripherals, spawner);
         let battery = Esp32Battery::new(&peripherals);
         let rtc = Esp32Rtc::new(&peripherals);
         let (wifi, wifi_interface) = Esp32Wifi::new(&peripherals);
@@ -85,8 +84,15 @@ impl PlatformTrait for Platform {
         let button = Esp32Button::new(&peripherals, spawner);
         let ota = Esp32OTA::new();
         let flash = Esp32Flash::new(unsafe { peripherals.FLASH.clone_unchecked() });
-
+        
         let ble = Esp32BLE::new(spawner, peripherals);
+        
+        let mut led = Esp32LED::new(
+            unsafe { esp_hal::peripherals::GPIO9::steal() },
+            &spawner,
+        );
+        
+        led.store_pin().await;
 
         Ok(PlatformContext {
             sys_watch_dog,
