@@ -95,12 +95,7 @@ impl PlatformTrait for Platform {
         let ble = SimulatedBLE::new();
         let http_button = SimulatorButton::new();
 
-        let flash = SimulatedFlash::new(
-            PathBuf::from("/tmp/tspi_flash.bin"),
-            65536,
-            4096,
-            4096,
-        );
+        let flash = SimulatedFlash::new(PathBuf::from("/tmp/tspi_flash.bin"));
         info!("Flash initialized");
 
         if let Some(ref ctrl) = *control {
