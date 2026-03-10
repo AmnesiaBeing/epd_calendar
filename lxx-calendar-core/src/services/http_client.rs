@@ -65,15 +65,20 @@ impl HttpClientImpl {
         log::info!("HTTP: DNS resolved {} to {}", host, ip);
 
         let mut socket = TcpSocket::new(self.stack, rx_buffer, tx_buffer);
-        log::info!("HTTP: Connecting to {}:{} (HTTPS={})", ip, port, url.starts_with("https"));
-        
+        log::info!(
+            "HTTP: Connecting to {}:{} (HTTPS={})",
+            ip,
+            port,
+            url.starts_with("https")
+        );
+
         // Try to connect (may need TLS if HTTPS)
         let connected = socket.connect((*ip, port)).await;
         if connected.is_err() && url.starts_with("https") {
             log::warn!("TCP connection failed, trying with TLS...");
             // TLS handling would be needed here
         }
-        
+
         connected.map_err(|e| {
             log::error!("HTTP: Connection failed to {}:{}: {:?}", ip, port, e);
             HttpError::ConnectionFailed
@@ -110,7 +115,10 @@ impl HttpClientImpl {
         if let Some(body) = body {
             core::fmt::write(
                 &mut http_request,
-                format_args!("\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n", body.len()),
+                format_args!(
+                    "\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n",
+                    body.len()
+                ),
             )
             .map_err(|_| HttpError::RequestFailed)?;
         } else {
@@ -135,81 +143,87 @@ impl HttpClientImpl {
         // Read the HTTP response headers first
         let mut header_buf = [0u8; 2048];
         let mut header_bytes_read = 0;
-        
+
         // Read until we find \r\n\r\n (end of headers)
         loop {
             if header_bytes_read >= header_buf.len() {
                 return Err(HttpError::RequestFailed);
             }
-            
-            let n = Read::read(&mut socket, &mut header_buf[header_bytes_read..header_bytes_read + 1])
-                .await
-                .map_err(|_| HttpError::RequestFailed)?;
-            
+
+            let n = Read::read(
+                &mut socket,
+                &mut header_buf[header_bytes_read..header_bytes_read + 1],
+            )
+            .await
+            .map_err(|_| HttpError::RequestFailed)?;
+
             if n == 0 {
                 break;
             }
-            
+
             header_bytes_read += n;
-            
+
             // Check for \r\n\r\n
             if header_bytes_read >= 4 && &header_buf[header_bytes_read - 4..] == b"\r\n\r\n" {
                 break;
             }
         }
-        
+
         let header_str = core::str::from_utf8(&header_buf[..header_bytes_read])
             .map_err(|_| HttpError::RequestFailed)?;
-        
+
         let (status_line, headers_part) = header_str
             .split_once("\r\n")
             .ok_or(HttpError::RequestFailed)?;
-            
+
         let status = status_line
             .split_whitespace()
             .nth(1)
             .and_then(|s| s.parse().ok())
             .ok_or(HttpError::RequestFailed)?;
-            
+
         // Check for Transfer-Encoding: chunked
         let is_chunked = headers_part.contains("Transfer-Encoding: chunked");
-        
+
         let mut body_vec = heapless::Vec::<u8, 16384>::new();
-        
+
         if is_chunked {
             // Handle chunked encoding
             loop {
                 // Read chunk size line
                 let mut size_line_buf = [0u8; 32];
                 let mut size_line_bytes = 0;
-                
+
                 loop {
                     if size_line_bytes >= size_line_buf.len() {
                         return Err(HttpError::RequestFailed);
                     }
-                    
-                    let n = Read::read(&mut socket, &mut size_line_buf[size_line_bytes..size_line_bytes + 1])
-                        .await
-                        .map_err(|_| HttpError::RequestFailed)?;
-                    
+
+                    let n = Read::read(
+                        &mut socket,
+                        &mut size_line_buf[size_line_bytes..size_line_bytes + 1],
+                    )
+                    .await
+                    .map_err(|_| HttpError::RequestFailed)?;
+
                     if n == 0 {
                         return Err(HttpError::RequestFailed);
                     }
-                    
+
                     size_line_bytes += n;
-                    
+
                     if &size_line_buf[size_line_bytes - 2..size_line_bytes] == b"\r\n" {
                         break;
                     }
                 }
-                
+
                 // Parse chunk size
                 let size_line = core::str::from_utf8(&size_line_buf[..size_line_bytes - 2])
                     .map_err(|_| HttpError::RequestFailed)?;
-                
+
                 let chunk_size = usize::from_str_radix(size_line.trim(), 16)
                     .map_err(|_| HttpError::RequestFailed)?;
-                
+
                 // Chunk size 0 means end of response
                 if chunk_size == 0 {
                     // Read trailing \r\n
@@ -219,25 +233,25 @@ impl HttpClientImpl {
                         .map_err(|_| HttpError::RequestFailed)?;
                     break;
                 }
-                
+
                 // Read chunk data
                 let mut chunk_buf = [0u8; 4096];
                 let mut bytes_to_read = chunk_size;
-                
+
                 while bytes_to_read > 0 {
                     let read_size = bytes_to_read.min(chunk_buf.len());
                     let n = Read::read(&mut socket, &mut chunk_buf[..read_size])
                         .await
                         .map_err(|_| HttpError::RequestFailed)?;
-                    
+
                     if n == 0 {
                         return Err(HttpError::RequestFailed);
                     }
-                    
+
                     body_vec.extend_from_slice(&chunk_buf[..n]).ok();
                     bytes_to_read -= n;
                 }
-                
+
                 // Read trailing \r\n after chunk
                 let mut trailer = [0u8; 2];
                 Read::read(&mut socket, &mut trailer)
@@ -251,13 +265,13 @@ impl HttpClientImpl {
                 let n = Read::read(&mut socket, &mut read_buf)
                     .await
                     .map_err(|_| HttpError::RequestFailed)?;
-                
+
                 if n == 0 {
                     break;
                 }
-                
+
                 body_vec.extend_from_slice(&read_buf[..n]).ok();
-                
+
                 if body_vec.is_full() {
                     break;
                 }
@@ -280,7 +294,14 @@ impl HttpClient for HttpClientImpl {
         let mut tx = [0u8; TX_BUFFER_SIZE];
 
         let (status, body_vec) = self
-            .request(&mut rx, &mut tx, req.method(), req.url(), req.body(), req.headers())
+            .request(
+                &mut rx,
+                &mut tx,
+                req.method(),
+                req.url(),
+                req.body(),
+                req.headers(),
+            )
             .await?;
 
         Ok(ResponseImpl::new(status, &body_vec))
@@ -291,7 +312,7 @@ fn parse_full_url(url: &str) -> Result<(&str, &str, u16, &str), HttpError> {
     let url = url.trim();
 
     let (scheme, rest) = url.split_once("://").ok_or(HttpError::InvalidUrl)?;
-    
+
     // Extract port from scheme if not in host
     let default_port = if scheme == "https" { 443 } else { 80 };
 
@@ -301,7 +322,12 @@ fn parse_full_url(url: &str) -> Result<(&str, &str, u16, &str), HttpError> {
     };
 
     let (host, port) = match host_port.find(':') {
-        Some(pos) => (&host_port[..pos], host_port[pos + 1..].parse().map_err(|_| HttpError::InvalidUrl)?),
+        Some(pos) => (
+            &host_port[..pos],
+            host_port[pos + 1..]
+                .parse()
+                .map_err(|_| HttpError::InvalidUrl)?,
+        ),
         None => (host_port, default_port),
     };
 

@@ -1,4 +1,8 @@
-use lxx_calendar_common::*;
+use lxx_calendar_common::{
+    debug, info,
+    traits::Watchdog,
+    types::error::{HardwareError, SystemError, SystemResult},
+};
 
 pub struct WatchdogManager<W: Watchdog> {
     wdt: Option<W>,

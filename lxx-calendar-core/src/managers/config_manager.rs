@@ -38,7 +38,10 @@ impl<F: FlashDevice> ConfigManager<F> {
     }
 
     /// 设置事件发送器
-    pub async fn set_event_sender(&mut self, sender: lxx_common::LxxChannelSender<'static, SystemEvent>) {
+    pub async fn set_event_sender(
+        &mut self,
+        sender: lxx_common::LxxChannelSender<'static, SystemEvent>,
+    ) {
         self.event_sender = Some(sender);
     }
 
@@ -52,7 +55,9 @@ impl<F: FlashDevice> ConfigManager<F> {
     /// 从存储加载配置
     ///
     /// 如果配置不存在、损坏或版本不匹配，返回默认配置
-    pub async fn load_config(&mut self) -> Result<lxx_common::SystemConfig, lxx_common::SystemError> {
+    pub async fn load_config(
+        &mut self,
+    ) -> Result<lxx_common::SystemConfig, lxx_common::SystemError> {
         if !self.initialized {
             return Err(lxx_common::SystemError::HardwareError(
                 lxx_common::HardwareError::NotInitialized,
@@ -61,14 +66,21 @@ impl<F: FlashDevice> ConfigManager<F> {
 
         lxx_common::info!("Loading config");
 
-        match self.persistence.load_config::<lxx_common::SystemConfig>().await {
+        match self
+            .persistence
+            .load_config::<lxx_common::SystemConfig>()
+            .await
+        {
             Ok(config) => {
                 lxx_common::info!("Config loaded from storage, version: {}", config.version);
                 self.config = Some(config.clone());
                 Ok(config)
             }
             Err(e) => {
-                lxx_common::warn!("Failed to load config from storage: {:?}, using default config", e);
+                lxx_common::warn!(
+                    "Failed to load config from storage: {:?}, using default config",
+                    e
+                );
                 let default_config = self.get_default_config();
                 self.config = Some(default_config.clone());
                 Ok(default_config)
@@ -77,7 +89,10 @@ impl<F: FlashDevice> ConfigManager<F> {
     }
 
     /// 保存配置到存储
-    pub async fn save_config(&mut self, config: lxx_common::SystemConfig) -> Result<(), lxx_common::SystemError> {
+    pub async fn save_config(
+        &mut self,
+        config: lxx_common::SystemConfig,
+    ) -> Result<(), lxx_common::SystemError> {
         if !self.initialized {
             return Err(lxx_common::SystemError::HardwareError(
                 lxx_common::HardwareError::NotInitialized,

@@ -1,0 +1,13 @@
+# Rust 格式化配置
+
+# 最大行宽度
+max_width = 100
+
+# 硬标签宽度
+tab_spaces = 4
+
+# 使用空格缩进
+hard_tabs = false
+
+# 使用 `use` 语句格式化
+reorder_imports = true

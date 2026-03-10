@@ -1,4 +1,9 @@
-use lxx_calendar_common::*;
+use lxx_calendar_common::{
+    events::{PowerEvent, SystemEvent},
+    info,
+    traits::{Battery, LxxChannelSender},
+    types::error::{HardwareError, SystemError, SystemResult},
+};
 
 pub struct PowerManager<B: Battery> {
     initialized: bool,

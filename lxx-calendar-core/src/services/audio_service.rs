@@ -1,5 +1,10 @@
 use embassy_time::Duration;
-use lxx_calendar_common::*;
+
+use lxx_calendar_common::{
+    info,
+    traits::BuzzerDriver,
+    types::error::{HardwareError, SystemError, SystemResult},
+};
 
 pub struct AudioService<A: BuzzerDriver> {
     audio_device: Option<A>,

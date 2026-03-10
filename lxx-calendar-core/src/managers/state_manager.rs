@@ -1,5 +1,22 @@
 use embassy_time::Duration;
-use lxx_calendar_common::*;
+
+use lxx_calendar_common::{
+    debug, error,
+    events::{
+        BLEEvent, NetworkEvent, PowerEvent, SystemEvent, SystemStateEvent, TimeEvent, UserEvent,
+        WakeupEvent,
+    },
+    info,
+    storage::FlashDevice,
+    traits::{LxxChannelReceiver, LxxChannelSender, PlatformTrait},
+    types::{
+        ConfigChange,
+        config::SystemConfig,
+        error::{HardwareError, SystemError, SystemResult},
+        time::{AlarmInfo, SystemMode},
+    },
+    warn,
+};
 
 use crate::managers::{ConfigManager, DisplayManager, WatchdogManager};
 use crate::services::{
@@ -8,7 +25,7 @@ use crate::services::{
     quote_service::QuoteService, time_service::TimeService,
 };
 
-pub struct StateManager<'a, P: PlatformTrait, F: lxx_calendar_common::storage::FlashDevice> {
+pub struct StateManager<'a, P: PlatformTrait, F: FlashDevice> {
     event_channel: LxxChannelReceiver<'a, SystemEvent>,
     event_sender: LxxChannelSender<'static, SystemEvent>,
     current_state: SystemMode,
@@ -30,7 +47,7 @@ pub struct StateManager<'a, P: PlatformTrait, F: lxx_calendar_common::storage::F
     last_alarm_check: Option<(u8, u8)>,
 }
 
-impl<'a, P: PlatformTrait, F: lxx_calendar_common::storage::FlashDevice> StateManager<'a, P, F> {
+impl<'a, P: PlatformTrait, F: FlashDevice> StateManager<'a, P, F> {
     pub fn new(
         event_receiver: LxxChannelReceiver<'a, SystemEvent>,
         event_sender: LxxChannelSender<'static, SystemEvent>,
@@ -70,13 +87,13 @@ impl<'a, P: PlatformTrait, F: lxx_calendar_common::storage::FlashDevice> StateMa
 
     pub async fn initialize(&mut self) -> SystemResult<()> {
         self.config_manager.initialize().await?;
-        
+
         let config = self.config_manager.load_config().await?;
         info!(
             "Configuration loaded, hour_chime_enabled: {}",
             config.time_config.hour_chime_enabled
         );
-        
+
         self.time_service.initialize().await?;
         self.quote_service.initialize().await?;
         self.ble_service
@@ -138,7 +155,7 @@ impl<'a, P: PlatformTrait, F: lxx_calendar_common::storage::FlashDevice> StateMa
         // repeat_days 是位掩码，bit 0 = 周日, bit 1 = 周一, ..., bit 6 = 周六
         (repeat_days & (1 << weekday)) != 0
     }
-    
+
     async fn on_state_enter(&mut self, mode: SystemMode) -> SystemResult<()> {
         match mode {
             SystemMode::LightSleep => {
@@ -186,7 +203,9 @@ impl<'a, P: PlatformTrait, F: lxx_calendar_common::storage::FlashDevice> StateMa
         let charging = self.power_manager.is_charging().await?;
         let voltage = self.power_manager.get_voltage().await.ok();
 
-        let config = self.config_manager.get_config()
+        let config = self
+            .config_manager
+            .get_config()
             .map_err(|_| SystemError::HardwareError(HardwareError::NotInitialized))?;
 
         let current_time = self.time_service.get_solar_time().await?;
@@ -203,21 +222,21 @@ impl<'a, P: PlatformTrait, F: lxx_calendar_common::storage::FlashDevice> StateMa
             );
             let week = solar_day.get_week();
             let current_weekday = week.get_index() as u8;
-            
+
             for alarm in &config.time_config.alarms {
-                if alarm.enabled 
-                    && alarm.hour == current_hour 
+                if alarm.enabled
+                    && alarm.hour == current_hour
                     && alarm.minute == current_minute
                     && Self::matches_repeat_day(alarm.repeat_days, current_weekday)
                 {
                     if self.last_alarm_check != Some((current_hour, current_minute)) {
                         info!("Alarm triggered at {:02}:{:02}", alarm.hour, alarm.minute);
                         self.last_alarm_check = Some((current_hour, current_minute));
-                        
+
                         // 发送闹钟事件
-                        let _ = self.event_sender.try_send(SystemEvent::TimeEvent(
-                            TimeEvent::AlarmTrigger(*alarm)
-                        ));
+                        let _ = self
+                            .event_sender
+                            .try_send(SystemEvent::TimeEvent(TimeEvent::AlarmTrigger(*alarm)));
                     }
                 }
             }
@@ -279,7 +298,10 @@ impl<'a, P: PlatformTrait, F: lxx_calendar_common::storage::FlashDevice> StateMa
 
         self.watchdog.feed();
 
-        let next_wakeup = self.time_service.calculate_next_wakeup_time(&config).await?;
+        let next_wakeup = self
+            .time_service
+            .calculate_next_wakeup_time(&config)
+            .await?;
         if let Some((timestamp, source)) = &next_wakeup {
             info!(
                 "Next wakeup scheduled at: {:?}, source: {:?}",
@@ -309,11 +331,15 @@ impl<'a, P: PlatformTrait, F: lxx_calendar_common::storage::FlashDevice> StateMa
     }
 
     pub async fn schedule_next_wakeup(&mut self) -> SystemResult<()> {
-        let config = self.config_manager.get_config()
+        let config = self
+            .config_manager
+            .get_config()
             .map_err(|_| SystemError::HardwareError(HardwareError::NotInitialized))?;
-        
-        if let Some((timestamp, _source)) =
-            self.time_service.calculate_next_wakeup_time(&config).await?
+
+        if let Some((timestamp, _source)) = self
+            .time_service
+            .calculate_next_wakeup_time(&config)
+            .await?
         {
             info!("Setting RTC alarm for timestamp: {:?}", timestamp);
             self.time_service.set_rtc_alarm(timestamp).await?;
@@ -350,7 +376,7 @@ impl<'a, P: PlatformTrait, F: lxx_calendar_common::storage::FlashDevice> StateMa
             self.alarm_active = false;
             return Ok(());
         }
-        
+
         match event {
             UserEvent::ButtonDoubleClick => {
                 info!("Button double click - No function yet");
@@ -393,18 +419,20 @@ impl<'a, P: PlatformTrait, F: lxx_calendar_common::storage::FlashDevice> StateMa
         match event {
             BLEEvent::WifiConfigReceived { ssid, password } => {
                 info!("WiFi config received: ssid={}", ssid);
-                
+
                 // 保存配置到 Flash
                 let ssid_clone = ssid.clone();
                 let password_clone = password.clone();
-                self.config_manager.update_config(|config| {
-                    config.network_config.wifi_ssid = ssid_clone.clone();
-                    let mut pwd_bytes = heapless::Vec::new();
-                    let _ = pwd_bytes.extend_from_slice(password_clone.as_bytes());
-                    config.network_config.wifi_password.data = pwd_bytes;
-                }).await?;
+                self.config_manager
+                    .update_config(|config| {
+                        config.network_config.wifi_ssid = ssid_clone.clone();
+                        let mut pwd_bytes = heapless::Vec::new();
+                        let _ = pwd_bytes.extend_from_slice(password_clone.as_bytes());
+                        config.network_config.wifi_password.data = pwd_bytes;
+                    })
+                    .await?;
                 info!("WiFi config saved to flash");
-                
+
                 // 连接 WiFi
                 self.network_sync_service.save_wifi_config(ssid, password);
                 if let Err(e) = self
@@ -434,12 +462,14 @@ impl<'a, P: PlatformTrait, F: lxx_calendar_common::storage::FlashDevice> StateMa
                     "Network config received: location_id={:?}, sync_interval={}",
                     location_id, sync_interval_minutes
                 );
-                
-                self.config_manager.update_config(|config| {
-                    config.network_config.location_id = location_id.clone();
-                    config.network_config.sync_interval_minutes = sync_interval_minutes;
-                }).await?;
-                
+
+                self.config_manager
+                    .update_config(|config| {
+                        config.network_config.location_id = location_id.clone();
+                        config.network_config.sync_interval_minutes = sync_interval_minutes;
+                    })
+                    .await?;
+
                 info!("Network config saved to flash");
             }
             BLEEvent::DisplayConfigReceived {
@@ -450,12 +480,14 @@ impl<'a, P: PlatformTrait, F: lxx_calendar_common::storage::FlashDevice> StateMa
                     "Display config received: refresh={}, low_power={}",
                     refresh_interval_seconds, low_power_refresh_enabled
                 );
-                
-                self.config_manager.update_config(|config| {
-                    config.display_config.refresh_interval_seconds = refresh_interval_seconds;
-                    config.display_config.low_power_refresh_enabled = low_power_refresh_enabled;
-                }).await?;
-                
+
+                self.config_manager
+                    .update_config(|config| {
+                        config.display_config.refresh_interval_seconds = refresh_interval_seconds;
+                        config.display_config.low_power_refresh_enabled = low_power_refresh_enabled;
+                    })
+                    .await?;
+
                 info!("Display config saved to flash");
             }
             BLEEvent::TimeConfigReceived {
@@ -466,12 +498,14 @@ impl<'a, P: PlatformTrait, F: lxx_calendar_common::storage::FlashDevice> StateMa
                     "Time config received: timezone_offset={}, hour_chime_enabled={}",
                     timezone_offset, hour_chime_enabled
                 );
-                
-                self.config_manager.update_config(|config| {
-                    config.time_config.timezone_offset = timezone_offset;
-                    config.time_config.hour_chime_enabled = hour_chime_enabled;
-                }).await?;
-                
+
+                self.config_manager
+                    .update_config(|config| {
+                        config.time_config.timezone_offset = timezone_offset;
+                        config.time_config.hour_chime_enabled = hour_chime_enabled;
+                    })
+                    .await?;
+
                 info!("Time config saved to flash");
             }
             BLEEvent::PowerConfigReceived {
@@ -481,11 +515,13 @@ impl<'a, P: PlatformTrait, F: lxx_calendar_common::storage::FlashDevice> StateMa
                     "Power config received: low_power_mode_enabled={}",
                     low_power_mode_enabled
                 );
-                
-                self.config_manager.update_config(|config| {
-                    config.power_config.low_power_mode_enabled = low_power_mode_enabled;
-                }).await?;
-                
+
+                self.config_manager
+                    .update_config(|config| {
+                        config.power_config.low_power_mode_enabled = low_power_mode_enabled;
+                    })
+                    .await?;
+
                 info!("Power config saved to flash");
             }
             BLEEvent::LogConfigReceived {
@@ -496,12 +532,14 @@ impl<'a, P: PlatformTrait, F: lxx_calendar_common::storage::FlashDevice> StateMa
                     "Log config received: level={:?}, to_flash={}",
                     log_level, log_to_flash
                 );
-                
-                self.config_manager.update_config(|config| {
-                    config.log_config.log_level = log_level;
-                    config.log_config.log_to_flash = log_to_flash;
-                }).await?;
-                
+
+                self.config_manager
+                    .update_config(|config| {
+                        config.log_config.log_level = log_level;
+                        config.log_config.log_to_flash = log_to_flash;
+                    })
+                    .await?;
+
                 info!("Log config saved to flash");
             }
             BLEEvent::CommandNetworkSync => {
@@ -517,7 +555,7 @@ impl<'a, P: PlatformTrait, F: lxx_calendar_common::storage::FlashDevice> StateMa
             }
             BLEEvent::CommandFactoryReset => {
                 info!("Command: factory reset");
-                
+
                 match self.config_manager.factory_reset().await {
                     Ok(_) => {
                         info!("Factory reset completed successfully");
@@ -552,22 +590,25 @@ impl<'a, P: PlatformTrait, F: lxx_calendar_common::storage::FlashDevice> StateMa
                 debug!("HourChimeTrigger - handled in execute_scheduled_tasks");
             }
             TimeEvent::AlarmTrigger(alarm_info) => {
-                info!("Alarm triggered: {:02}:{:02}", alarm_info.hour, alarm_info.minute);
-                
+                info!(
+                    "Alarm triggered: {:02}:{:02}",
+                    alarm_info.hour, alarm_info.minute
+                );
+
                 self.alarm_active = true;
-                
+
                 // 播放闹钟声音 (5秒)
                 for i in 0..10 {
                     if !self.alarm_active {
                         info!("Alarm stopped by user");
                         break;
                     }
-                    
+
                     info!("Alarm beep {} / 10", i + 1);
                     self.audio_service.play_tone(800, 400).await?;
                     embassy_time::Timer::after(embassy_time::Duration::from_millis(100)).await;
                 }
-                
+
                 self.alarm_active = false;
                 info!("Alarm finished");
             }
@@ -592,10 +633,12 @@ impl<'a, P: PlatformTrait, F: lxx_calendar_common::storage::FlashDevice> StateMa
 
     async fn handle_config_changed(&mut self, change: ConfigChange) -> SystemResult<()> {
         info!("Config changed: {:?}", change);
-        
-        let config = self.config_manager.get_config()
+
+        let config = self
+            .config_manager
+            .get_config()
             .map_err(|_| SystemError::HardwareError(HardwareError::NotInitialized))?;
-        
+
         match change {
             ConfigChange::TimeConfig => {
                 let current_time = self.time_service.get_solar_time().await?;
@@ -619,11 +662,11 @@ impl<'a, P: PlatformTrait, F: lxx_calendar_common::storage::FlashDevice> StateMa
                 info!("Log config changed");
             }
         }
-        
+
         info!("Saving config to flash");
         self.config_manager.save_config(config).await?;
         info!("Config saved successfully");
-        
+
         Ok(())
     }
 

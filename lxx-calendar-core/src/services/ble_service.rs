@@ -1,7 +1,13 @@
 use alloc::boxed::Box;
 use lxx_calendar_common::events::BLEEvent;
 use lxx_calendar_common::traits::ble::BLEDriver;
-use lxx_calendar_common::*;
+use lxx_calendar_common::{
+    events::SystemEvent,
+    info,
+    traits::LxxChannelSender,
+    types::config::{ConfigChange, LogLevel},
+    types::error::{HardwareError, ServiceError, SystemError, SystemResult},
+};
 
 pub struct BLEService<D: BLEDriver> {
     driver: D,

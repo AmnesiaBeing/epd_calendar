@@ -2,10 +2,17 @@
 
 extern crate alloc;
 
-use lxx_calendar_common::*;
-use lxx_calendar_common::compiled_config;
-use lxx_calendar_common::storage::ConfigPersistence;
 use static_cell::StaticCell;
+
+use lxx_calendar_common::{
+    compiled_config, debug, error,
+    events::SystemEvent,
+    info,
+    storage::{ConfigPersistence, FlashDevice},
+    traits::{LxxSystemEventChannel, NetworkStack, PlatformContext, PlatformTrait},
+    types::{SystemConfig, SystemMode, SystemResult},
+    warn,
+};
 
 use crate::{
     managers::StateManager,
@@ -38,24 +45,25 @@ pub async fn main_task<P: PlatformTrait>(
     let mut power_manager = PowerManager::<P::BatteryDevice>::new(event_sender);
     power_manager.set_battery_device(platform_ctx.battery);
     let audio_service = AudioService::new(platform_ctx.audio);
-    
+
     let mut network_sync_service = NetworkSyncService::new();
     if let Some(stack) = platform_ctx.network.get_stack() {
         network_sync_service.set_stack(*stack);
     }
-    
+
     // 设置编译期配置的 Open-Meteo 位置
     network_sync_service.set_location(
         compiled_config::openmeteo_latitude(),
         compiled_config::openmeteo_longitude(),
         compiled_config::openmeteo_location_name(),
     );
-    
+
     let mut button_service = ButtonService::<P::ButtonDevice>::new(event_sender);
     button_service.set_button_device(platform_ctx.button);
 
     let config_persistence = ConfigPersistence::new(platform_ctx.flash);
-    let config_manager = managers::ConfigManager::with_event_sender(config_persistence, event_sender.clone());
+    let config_manager =
+        managers::ConfigManager::with_event_sender(config_persistence, event_sender.clone());
 
     let mut state_manager: StateManager<P, P::FlashDevice> = StateManager::new(
         event_receiver,

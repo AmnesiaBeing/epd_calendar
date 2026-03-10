@@ -1,15 +1,28 @@
 use embassy_net::Stack;
 use heapless::String;
+use lxx_calendar_common::sntp::{EmbassySntpWithStack, SntpClient};
 use lxx_calendar_common::weather::OpenMeteoResponse;
 use lxx_calendar_common::weather::openmeteo_converter::convert_openmeteo_response;
-use lxx_calendar_common::sntp::{EmbassySntpWithStack, SntpClient};
-use lxx_calendar_common::*;
+use lxx_calendar_common::{
+    error, info,
+    traits::{Rtc, WifiController},
+    types::error::{HardwareError, NetworkError, SystemError, SystemResult},
+    types::weather::{CurrentWeather, ForecastDay, WeatherCondition, WeatherInfo},
+    warn,
+};
 
 use crate::services::http_client::HttpClientImpl;
 use crate::services::time_service::TimeService;
 
 extern crate alloc;
 use alloc::format;
+
+pub struct SyncResult {
+    pub time_synced: bool,
+    pub weather_synced: bool,
+    pub quote_updated: bool,
+    pub sync_duration: u64,
+}
 
 const HTTP_RX_SIZE: usize = 4096;
 const HTTP_TX_SIZE: usize = 4096;
@@ -114,10 +127,10 @@ impl NetworkSyncService {
                 info!("Time synchronized successfully");
                 true
             }
-Err(_e) => {
-                    error!("HTTP request failed");
-                    return Err(SystemError::NetworkError(NetworkError::Unknown));
-                }
+            Err(_e) => {
+                error!("HTTP request failed");
+                return Err(SystemError::NetworkError(NetworkError::Unknown));
+            }
         };
 
         let weather_synced = match self.sync_weather().await {
@@ -125,13 +138,13 @@ Err(_e) => {
                 info!("Weather synchronized successfully");
                 true
             }
-Err(_e) => {
-                    error!("HTTP request failed");
-                    return Err(SystemError::NetworkError(NetworkError::Unknown));
-                }
+            Err(_e) => {
+                error!("HTTP request failed");
+                return Err(SystemError::NetworkError(NetworkError::Unknown));
+            }
         };
 
-        let sync_duration = start_time.elapsed();
+        let sync_duration = start_time.elapsed().as_secs();
 
         if !time_synced || !weather_synced {
             self.retry_count += 1;
@@ -220,8 +233,7 @@ Err(_e) => {
         // 简化请求以避免chunked encoding问题
         let url = format!(
             "http://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=3",
-            self.latitude,
-            self.longitude
+            self.latitude, self.longitude
         );
 
         info!("Requesting Open-Meteo API: {}", url);
@@ -249,9 +261,15 @@ Err(_e) => {
         if status != 200 {
             let body = body.as_slice();
             if let Ok(response_str) = core::str::from_utf8(body) {
-                warn!("Open-Meteo API returned status: {}, response: {}", status, response_str);
+                warn!(
+                    "Open-Meteo API returned status: {}, response: {}",
+                    status, response_str
+                );
             } else {
-                warn!("Open-Meteo API returned status: {}, response: (non-UTF8)", status);
+                warn!(
+                    "Open-Meteo API returned status: {}, response: (non-UTF8)",
+                    status
+                );
             }
             return Err(SystemError::NetworkError(NetworkError::Unknown));
         }
@@ -262,7 +280,10 @@ Err(_e) => {
             SystemError::NetworkError(NetworkError::Unknown)
         })?;
 
-        info!("Open-Meteo API response received, length: {} bytes", response_str.len());
+        info!(
+            "Open-Meteo API response received, length: {} bytes",
+            response_str.len()
+        );
 
         let api_response: OpenMeteoResponse = serde_json::from_str(response_str).map_err(|e| {
             warn!("Failed to parse Open-Meteo JSON: {:?}", e);
@@ -278,7 +299,7 @@ Err(_e) => {
         let weather = convert_openmeteo_response(&api_response, location_name);
 
         self.cached_weather = Some(weather);
-        
+
         info!("Weather data cached successfully");
 
         Ok(())
