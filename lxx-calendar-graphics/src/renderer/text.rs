@@ -1,17 +1,15 @@
 //! 文本渲染模块
-//! 
+//!
 //! 目前使用简单的位图字体渲染
 //! TODO: 集成 build 时生成的字体数据
 
-#![cfg_attr(not(feature = "std"), no_std)]
-
 extern crate alloc;
 
-use crate::framebuffer::{Color, Framebuffer};
-use lxx_calendar_common::{SystemError, SystemResult};
+use super::framebuffer::{Color, Framebuffer};
+use lxx_calendar_common::SystemResult;
 
 /// 简单字体渲染器
-/// 
+///
 /// 当前使用内置的点阵字体
 /// TODO: 支持 TrueType 字体渲染（通过 build.rs 预生成）
 pub struct TextRenderer {
@@ -24,7 +22,7 @@ impl TextRenderer {
     }
 
     /// 渲染文本到指定位置
-    /// 
+    ///
     /// 使用默认字体大小 (约 16x16 像素)
     pub fn render<const SIZE: usize>(
         &self,
@@ -33,10 +31,21 @@ impl TextRenderer {
         y: u16,
         text: &str,
     ) -> SystemResult<()> {
-        // 简化的字符渲染 - 每个字符约 8x16 像素
+        self.render_with_size(framebuffer, x, y, text, 16)
+    }
+
+    /// 渲染文本到指定位置（自定义字体大小）
+    pub fn render_with_size<const SIZE: usize>(
+        &self,
+        framebuffer: &mut Framebuffer<SIZE>,
+        x: u16,
+        y: u16,
+        text: &str,
+        font_size: u16,
+    ) -> SystemResult<()> {
         let mut cursor_x = x;
-        let char_height = 16u16;
-        let char_width = 8u16;
+        let char_width = font_size / 2 + 2;
+        let char_height = font_size;
 
         for ch in text.chars() {
             if ch == ' ' {
@@ -44,11 +53,9 @@ impl TextRenderer {
                 continue;
             }
 
-            // 简单的字符渲染占位符
-            // TODO: 使用实际的字体位图数据
-            self.render_char_basic(framebuffer, cursor_x, y, ch)?;
-            
-            cursor_x += char_width + 1; // 1 像素间距
+            self.render_char_with_size(framebuffer, cursor_x, y, ch, font_size)?;
+
+            cursor_x += char_width + 1;
         }
 
         Ok(())
@@ -62,11 +69,21 @@ impl TextRenderer {
         y: u16,
         text: &str,
     ) -> SystemResult<()> {
-        // 大号字体渲染 (约 48x64 像素)
-        // TODO: 使用大号字体位图
+        self.render_large_with_size(framebuffer, x, y, text, 48)
+    }
+
+    /// 渲染大号文本（自定义字体大小）
+    pub fn render_large_with_size<const SIZE: usize>(
+        &self,
+        framebuffer: &mut Framebuffer<SIZE>,
+        x: u16,
+        y: u16,
+        text: &str,
+        font_size: u16,
+    ) -> SystemResult<()> {
         let mut cursor_x = x;
-        let char_height = 48u16;
-        let char_width = 32u16;
+        let char_width = font_size / 2 + 2;
+        let char_height = font_size;
 
         for ch in text.chars() {
             if ch == ' ' {
@@ -74,11 +91,30 @@ impl TextRenderer {
                 continue;
             }
 
-            // 简化：绘制字符边框作为占位符
-            self.render_char_large(framebuffer, cursor_x, y, ch)?;
-            
+            self.render_char_with_size(framebuffer, cursor_x, y, ch, font_size)?;
+
             cursor_x += char_width + 4;
         }
+
+        Ok(())
+    }
+
+    /// 渲染单个字符（自定义大小）
+    fn render_char_with_size<const SIZE: usize>(
+        &self,
+        framebuffer: &mut Framebuffer<SIZE>,
+        x: u16,
+        y: u16,
+        ch: char,
+        font_size: u16,
+    ) -> SystemResult<()> {
+        // 简化的字符渲染 - 绘制字符轮廓
+        // TODO: 使用实际的字体位图数据
+
+        // 临时实现：绘制一个小矩形表示字符位置
+        let width = font_size / 2;
+        let height = font_size;
+        framebuffer.draw_rectangle(x, y, width, height, Color::Black)?;
 
         Ok(())
     }
@@ -91,13 +127,7 @@ impl TextRenderer {
         y: u16,
         ch: char,
     ) -> SystemResult<()> {
-        // 简化的字符渲染 - 绘制字符轮廓
-        // TODO: 使用实际的 8x16 字体位图
-        
-        // 临时实现：绘制一个小矩形表示字符位置
-        framebuffer.draw_rectangle(x, y, 7, 15, Color::Black)?;
-        
-        Ok(())
+        self.render_char_with_size(framebuffer, x, y, ch, 16)
     }
 
     /// 渲染单个字符 (大号)
@@ -108,13 +138,7 @@ impl TextRenderer {
         y: u16,
         ch: char,
     ) -> SystemResult<()> {
-        // 简化的大号字符渲染
-        // TODO: 使用实际的 32x48 字体位图
-        
-        // 临时实现：绘制一个矩形框表示字符位置
-        framebuffer.draw_rectangle(x, y, 30, 46, Color::Black)?;
-        
-        Ok(())
+        self.render_char_with_size(framebuffer, x, y, ch, 48)
     }
 
     /// 渲染文本居中
@@ -132,7 +156,7 @@ impl TextRenderer {
         } else {
             0
         };
-        
+
         self.render(framebuffer, start_x, y, text)
     }
 }

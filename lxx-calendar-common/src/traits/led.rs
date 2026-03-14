@@ -1,4 +1,4 @@
-use crate::*;
+use crate::info;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LEDIndicatorState {

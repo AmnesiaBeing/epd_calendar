@@ -73,7 +73,7 @@ impl<C: PlatformTrait> PlatformContext<C> {
     pub fn led(&self) -> &C::LEDDevice {
         &self.led
     }
-    
+
     pub fn led_mut(&mut self) -> &mut C::LEDDevice {
         &mut self.led
     }

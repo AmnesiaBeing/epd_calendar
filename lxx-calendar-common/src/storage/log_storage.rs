@@ -7,13 +7,14 @@
 //! - Automatic wrap-around when storage is full
 //! - Timestamp and log level support
 
+use crate::SystemResult;
 use crate::flash_layout::{
-    LOG_MAGIC, LOG_MAX_ENTRY_SIZE, LOG_OFFSET, LOG_SECTOR_COUNT,
-    LOG_SIZE, SECTOR_SIZE,
+    LOG_MAGIC, LOG_MAX_ENTRY_SIZE, LOG_OFFSET, LOG_SECTOR_COUNT, LOG_SIZE, SECTOR_SIZE,
 };
 use crate::types::error::{StorageError, SystemError};
-use crate::SystemResult;
 use core::mem::size_of;
+
+use crate::{debug, info};
 
 #[cfg(feature = "defmt")]
 use defmt::Format;
@@ -125,11 +126,7 @@ impl LogEntryHeader {
             length: bytes[9],
             checksum: u16::from_le_bytes([bytes[10], bytes[11]]),
         };
-        if header.verify() {
-            Some(header)
-        } else {
-            None
-        }
+        if header.verify() { Some(header) } else { None }
     }
 
     pub fn level(&self) -> Option<LogLevel> {
@@ -210,8 +207,9 @@ impl<'a, F: FlashDevice> LogIterator<'a, F> {
                         continue;
                     }
 
-                    let offset = LOG_OFFSET + self.current_sector * SECTOR_SIZE + self.current_offset;
-                    
+                    let offset =
+                        LOG_OFFSET + self.current_sector * SECTOR_SIZE + self.current_offset;
+
                     if self.current_offset >= SECTOR_SIZE {
                         self.current_sector += 1;
                         self.current_offset = 0;
@@ -236,10 +234,13 @@ impl<'a, F: FlashDevice> LogIterator<'a, F> {
 
                         let total_size = LogEntryHeader::SIZE + header.length();
                         let mut entry_buf = [0u8; LOG_MAX_ENTRY_SIZE + LogEntryHeader::SIZE];
-                        
+
                         if header.length() > 0 {
                             let data_offset = offset + LogEntryHeader::SIZE as u32;
-                            self.storage.flash.read(data_offset, &mut entry_buf[..header.length()]).await?;
+                            self.storage
+                                .flash
+                                .read(data_offset, &mut entry_buf[..header.length()])
+                                .await?;
                         }
 
                         self.current_offset += total_size as u32;
@@ -248,8 +249,9 @@ impl<'a, F: FlashDevice> LogIterator<'a, F> {
                         }
 
                         let level = header.level().unwrap_or(LogLevel::Info);
-                        let entry = LogEntry::new(header.timestamp(), level, &entry_buf[..header.length()]);
-                        
+                        let entry =
+                            LogEntry::new(header.timestamp(), level, &entry_buf[..header.length()]);
+
                         return Ok(Some(entry));
                     } else {
                         self.current_offset += 4;
@@ -285,21 +287,21 @@ impl<F: FlashDevice> LogStorage<F> {
     pub async fn initialize(&mut self) -> SystemResult<()> {
         self.find_write_position().await?;
         self.initialized = true;
-        crate::info!("Log storage initialized at sector {}", self.write_sector);
+        info!("Log storage initialized at sector {}", self.write_sector);
         Ok(())
     }
 
     async fn find_write_position(&mut self) -> SystemResult<()> {
         let mut header_buf = [0u8; LogEntryHeader::SIZE];
-        
+
         for sector in 0..LOG_SECTOR_COUNT {
             let sector_offset = LOG_OFFSET + sector * SECTOR_SIZE;
             let mut found_empty = false;
-            
+
             for offset in (0..SECTOR_SIZE as usize).step_by(4) {
                 let addr = sector_offset + offset as u32;
                 self.flash.read(addr, &mut header_buf).await?;
-                
+
                 if header_buf[0..4] == [0xFF, 0xFF, 0xFF, 0xFF] {
                     self.write_sector = sector;
                     self.write_offset = offset as u32;
@@ -307,18 +309,23 @@ impl<F: FlashDevice> LogStorage<F> {
                     break;
                 }
             }
-            
+
             if found_empty {
                 return Ok(());
             }
         }
-        
+
         self.write_sector = 0;
         self.write_offset = 0;
         Ok(())
     }
 
-    pub async fn write(&mut self, timestamp: u32, level: LogLevel, message: &[u8]) -> SystemResult<()> {
+    pub async fn write(
+        &mut self,
+        timestamp: u32,
+        level: LogLevel,
+        message: &[u8],
+    ) -> SystemResult<()> {
         if !self.initialized {
             return Err(SystemError::StorageError(StorageError::WriteFailed));
         }
@@ -334,14 +341,19 @@ impl<F: FlashDevice> LogStorage<F> {
         let header_bytes = header.to_bytes();
 
         let write_addr = LOG_OFFSET + self.write_sector * SECTOR_SIZE + self.write_offset;
-        
+
         self.flash.write(write_addr, &header_bytes).await?;
-        
+
         if msg_len > 0 {
             let mut aligned_msg = [0u8; LOG_MAX_ENTRY_SIZE + 4];
             aligned_msg[..msg_len].copy_from_slice(&message[..msg_len]);
             let aligned_len = (msg_len + 3) & !3;
-            self.flash.write(write_addr + LogEntryHeader::SIZE as u32, &aligned_msg[..aligned_len]).await?;
+            self.flash
+                .write(
+                    write_addr + LogEntryHeader::SIZE as u32,
+                    &aligned_msg[..aligned_len],
+                )
+                .await?;
         }
 
         self.write_offset += total_size as u32;
@@ -354,22 +366,26 @@ impl<F: FlashDevice> LogStorage<F> {
         self.write_offset = 0;
 
         let sector_start = LOG_OFFSET + self.write_sector * SECTOR_SIZE;
-        self.flash.erase(sector_start, sector_start + SECTOR_SIZE).await?;
+        self.flash
+            .erase(sector_start, sector_start + SECTOR_SIZE)
+            .await?;
 
-        crate::debug!("Log storage advanced to sector {}", self.write_sector);
+        debug!("Log storage advanced to sector {}", self.write_sector);
         Ok(())
     }
 
     pub async fn clear(&mut self) -> SystemResult<()> {
         for sector in 0..LOG_SECTOR_COUNT {
             let sector_start = LOG_OFFSET + sector * SECTOR_SIZE;
-            self.flash.erase(sector_start, sector_start + SECTOR_SIZE).await?;
+            self.flash
+                .erase(sector_start, sector_start + SECTOR_SIZE)
+                .await?;
         }
-        
+
         self.write_sector = 0;
         self.write_offset = 0;
-        
-        crate::info!("Log storage cleared");
+
+        info!("Log storage cleared");
         Ok(())
     }
 
@@ -377,10 +393,13 @@ impl<F: FlashDevice> LogStorage<F> {
         LogIterator::new(self)
     }
 
-    pub async fn read_entries(&mut self, max_entries: usize) -> SystemResult<heapless::Vec<LogEntry, 64>> {
+    pub async fn read_entries(
+        &mut self,
+        max_entries: usize,
+    ) -> SystemResult<heapless::Vec<LogEntry, 64>> {
         let mut entries = heapless::Vec::new();
         let mut iter = self.iterator();
-        
+
         while entries.len() < max_entries {
             match iter.next().await? {
                 Some(entry) => {
@@ -391,7 +410,7 @@ impl<F: FlashDevice> LogStorage<F> {
                 None => break,
             }
         }
-        
+
         Ok(entries)
     }
 

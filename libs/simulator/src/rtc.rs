@@ -1,6 +1,6 @@
 use core::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use embassy_time::{Duration, Instant};
-use lxx_calendar_common::Rtc;
+use lxx_calendar_common::{Rtc, info};
 use std::sync::Arc;
 
 static RTC_TIMESTAMP: AtomicI64 = AtomicI64::new(1771588453);
@@ -30,7 +30,7 @@ impl SimulatedRtc {
 
     pub fn request_wakeup(&self) {
         self.wakeup_flag.store(true, Ordering::SeqCst);
-        log::info!("Wakeup requested (button pressed)");
+        info!("Wakeup requested (button pressed)");
     }
 
     pub fn clear_wakeup_flag(&self) {
@@ -46,7 +46,7 @@ impl SimulatedRtc {
         }
         self.boot_instant = Some(Instant::now());
         self.initialized = true;
-        log::info!(
+        info!(
             "Simulated RTC initialized with base timestamp: {}",
             self.base_timestamp
         );
@@ -99,13 +99,13 @@ impl Rtc for SimulatedRtc {
         self.base_timestamp = timestamp;
         RTC_TIMESTAMP.store(timestamp, Ordering::SeqCst);
         self.boot_instant = Some(Instant::now());
-        log::info!("Simulated RTC time set to: {}", timestamp);
+        info!("Simulated RTC time set to: {}", timestamp);
         Ok(())
     }
 
     async fn set_wakeup(&mut self, duration: Duration) -> Result<(), Self::Error> {
         self.wakeup_duration = Some(duration);
-        log::info!("Simulated RTC wakeup set for {:?}", duration);
+        info!("Simulated RTC wakeup set for {:?}", duration);
         Ok(())
     }
 
@@ -113,23 +113,23 @@ impl Rtc for SimulatedRtc {
         if let Some(duration) = self.wakeup_duration.take() {
             let start = Instant::now();
 
-            log::info!("Simulated light sleep for {:?}", duration);
+            info!("Simulated light sleep for {:?}", duration);
 
             // 每 100ms 检查一次 wakeup flag，模拟硬件中断唤醒
             while start.elapsed() < duration {
                 if self.wakeup_flag.load(Ordering::SeqCst) {
                     self.wakeup_flag.store(false, Ordering::SeqCst);
-                    log::info!("Woke up early (button pressed)");
+                    info!("Woke up early (button pressed)");
                     break;
                 }
                 embassy_time::block_for(Duration::from_millis(100));
             }
 
             if start.elapsed() >= duration {
-                log::info!("Simulated wakeup from light sleep (timeout)");
+                info!("Simulated wakeup from light sleep (timeout)");
             }
         } else {
-            log::info!("Simulated light sleep (no wakeup duration set)");
+            info!("Simulated light sleep (no wakeup duration set)");
         }
     }
 }

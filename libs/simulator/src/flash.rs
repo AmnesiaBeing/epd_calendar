@@ -1,4 +1,6 @@
-use embedded_storage_async::nor_flash::{ErrorType, NorFlashErrorKind, NorFlash, NorFlashError, ReadNorFlash};
+use embedded_storage_async::nor_flash::{
+    ErrorType, NorFlash, NorFlashError, NorFlashErrorKind, ReadNorFlash,
+};
 use std::path::PathBuf;
 use std::sync::Mutex;
 
@@ -47,7 +49,12 @@ impl SimulatedFlash {
         }
     }
 
-    pub fn new_with_config(path: PathBuf, size: usize, _erase_size: usize, _write_size: usize) -> Self {
+    pub fn new_with_config(
+        path: PathBuf,
+        size: usize,
+        _erase_size: usize,
+        _write_size: usize,
+    ) -> Self {
         let data = if path.exists() {
             std::fs::read(&path).unwrap_or_else(|_| vec![0xFFu8; size])
         } else {

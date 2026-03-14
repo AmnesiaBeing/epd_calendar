@@ -3,32 +3,31 @@ name = "lxx-calendar-graphics"
 version = "0.1.0"
 edition.workspace = true
 
-[features]
-default = []
-std = []
-defmt = ["dep:defmt"]
-
 [dependencies]
 # no_std 核心依赖
 heapless = { workspace = true }
+heapless_08 = { workspace = true }
+hash32 = "0.3.1"
 embedded-graphics-core = { workspace = true, optional = true }
 
 # 错误处理
 thiserror = { workspace = true }
 
-# 日志
-log = { workspace = true, optional = true }
-defmt = { workspace = true, optional = true }
+# 序列化/反序列化
+serde = { workspace = true, default-features = false, features = ["derive"] }
+serde_json = { workspace = true, default-features = false }
 
-# 可选的 std 支持
-embedded-graphics = { workspace = true, optional = true }
+lxx-calendar-common = { path = "../lxx-calendar-common" }
+
+[dev-dependencies]
+serde_json = "1.0"
 
 [build-dependencies]
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_yaml = "0.9.34-deprecated"
 walkdir = "2.5"
-freetype-rs = { version = "*", features = ["bundled"] }
+freetype-rs = { version = "0.38.0", features = ["bundled"] }
 unicode-normalization = "0.1"
 usvg = "0.45.1"
 resvg = "0.45.1"
@@ -36,4 +35,4 @@ postcard = { version = "1.1", features = ["use-std"] }
 rayon = "1.11.0"
 html_parser = "0.7.0"
 scraper = "0.25.0"
-anyhow = "1.0"
+anyhow = "1.0.102"

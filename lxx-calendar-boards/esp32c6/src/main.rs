@@ -84,14 +84,11 @@ impl PlatformTrait for Platform {
         let button = Esp32Button::new(&peripherals, spawner);
         let ota = Esp32OTA::new();
         let flash = Esp32Flash::new(unsafe { peripherals.FLASH.clone_unchecked() });
-        
+
         let ble = Esp32BLE::new(spawner, peripherals);
-        
-        let mut led = Esp32LED::new(
-            unsafe { esp_hal::peripherals::GPIO9::steal() },
-            &spawner,
-        );
-        
+
+        let mut led = Esp32LED::new(unsafe { esp_hal::peripherals::GPIO9::steal() }, &spawner);
+
         led.store_pin().await;
 
         Ok(PlatformContext {

@@ -10,12 +10,14 @@
 //! On each save, the inactive bank is written first,
 //! then the active flag is switched.
 
+use crate::SystemResult;
 use crate::flash_layout::{
-    CONFIG_A_OFFSET, CONFIG_A_SIZE, CONFIG_B_OFFSET, CONFIG_B_SIZE,
-    CONFIG_HEADER_SIZE, CONFIG_MAX_DATA_SIZE, SECTOR_SIZE,
+    CONFIG_A_OFFSET, CONFIG_A_SIZE, CONFIG_B_OFFSET, CONFIG_B_SIZE, CONFIG_HEADER_SIZE,
+    CONFIG_MAX_DATA_SIZE, SECTOR_SIZE,
 };
 use crate::types::error::{StorageError, SystemError};
-use crate::SystemResult;
+use crate::{info, warn};
+
 use embedded_storage_async::nor_flash::{NorFlash, ReadNorFlash};
 use postcard;
 use serde::{Deserialize, Serialize};
@@ -51,7 +53,7 @@ impl ConfigHeader {
         self.active == ACTIVE_FLAG
     }
 
-pub fn is_valid(&self) -> bool {
+    pub fn is_valid(&self) -> bool {
         self.magic == CONFIG_MAGIC && self.version == CONFIG_VERSION
     }
 
@@ -222,24 +224,25 @@ impl<F: FlashDevice> ConfigPersistence<F> {
             .ok_or(SystemError::StorageError(StorageError::Corrupted))?;
 
         if !header.is_valid() {
-            log::info!("Config header invalid, using default");
+            info!("Config header invalid, using default");
             return Err(SystemError::StorageError(StorageError::Corrupted));
         }
 
         if header.version != CONFIG_VERSION {
-            log::info!(
+            info!(
                 "Config version mismatch (stored={}, expected={})",
-                header.version,
-                CONFIG_VERSION
+                header.version, CONFIG_VERSION
             );
             return Err(SystemError::StorageError(StorageError::Corrupted));
         }
 
         let mut data_buf = [0u8; CONFIG_MAX_DATA_SIZE];
-        self.flash.read(offset + CONFIG_HEADER_SIZE as u32, &mut data_buf).await?;
+        self.flash
+            .read(offset + CONFIG_HEADER_SIZE as u32, &mut data_buf)
+            .await?;
 
         if header.checksum != Self::calculate_checksum(&data_buf) {
-            log::warn!("Config checksum mismatch");
+            warn!("Config checksum mismatch");
             return Err(SystemError::StorageError(StorageError::Corrupted));
         }
 
@@ -273,13 +276,15 @@ impl<F: FlashDevice> ConfigPersistence<F> {
         let header_buf = header.to_bytes();
         self.flash.write(offset, &header_buf).await?;
 
-        self.flash.write(offset + CONFIG_HEADER_SIZE as u32, &buf).await?;
+        self.flash
+            .write(offset + CONFIG_HEADER_SIZE as u32, &buf)
+            .await?;
 
         if let Some(old_bank) = self.active_bank {
             let old_offset = Self::bank_offset(old_bank);
             let mut old_header_buf = [0u8; CONFIG_HEADER_SIZE];
             self.flash.read(old_offset, &mut old_header_buf).await?;
-            
+
             if let Some(mut old_header) = ConfigHeader::from_bytes(&old_header_buf) {
                 old_header.active = INACTIVE_FLAG;
                 let updated_header_buf = old_header.to_bytes();
@@ -288,17 +293,21 @@ impl<F: FlashDevice> ConfigPersistence<F> {
         }
 
         self.active_bank = Some(target_bank);
-        log::info!("Config saved to bank {:?}", target_bank);
+        info!("Config saved to bank {:?}", target_bank);
 
         Ok(())
     }
 
     pub async fn factory_reset(&mut self) -> SystemResult<()> {
-        self.flash.erase(CONFIG_A_OFFSET, CONFIG_A_OFFSET + CONFIG_A_SIZE).await?;
-        self.flash.erase(CONFIG_B_OFFSET, CONFIG_B_OFFSET + CONFIG_B_SIZE).await?;
-        
+        self.flash
+            .erase(CONFIG_A_OFFSET, CONFIG_A_OFFSET + CONFIG_A_SIZE)
+            .await?;
+        self.flash
+            .erase(CONFIG_B_OFFSET, CONFIG_B_OFFSET + CONFIG_B_SIZE)
+            .await?;
+
         self.active_bank = None;
-        log::info!("Factory reset completed");
+        info!("Factory reset completed");
         Ok(())
     }
 

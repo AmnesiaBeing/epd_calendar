@@ -8,8 +8,12 @@ default = ["esp32c6"]
 esp32c6 = []
 
 [dependencies]
-lxx-calendar-common = { path = "../../lxx-calendar-common" }
-lxx-calendar-core = { path = "../../lxx-calendar-core", default-features = false }
+lxx-calendar-common = { path = "../../lxx-calendar-common", features = [
+    "defmt",
+] }
+lxx-calendar-core = { path = "../../lxx-calendar-core", features = [
+    "defmt",
+] }
 
 riscv.workspace = true
 
@@ -53,7 +57,8 @@ defmt.workspace = true
 embassy-sync.workspace = true
 embassy-time.workspace = true
 embassy-embedded-hal.workspace = true
-embassy-net = { workspace = true }
+embassy-net = { workspace = true, features = ["defmt"] }
+sntpc = { workspace = true, features = ["defmt"] }
 epd-yrd0750ryf665f60 = { version = "0.1.0", path = "../../libs/epd" }
 embedded-hal.workspace = true
 embedded-hal-async.workspace = true

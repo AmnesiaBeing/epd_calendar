@@ -251,8 +251,8 @@ async fn ble_task(bt: BT<'static>) {
                         }
                     }
                 }
-                Err(e) => {
-                    error!("BLE connection error: {:?}", e);
+                Err(_e) => {
+                    error!("BLE connection error");
                     embassy_time::Timer::after_secs(1).await;
                 }
             }
@@ -265,8 +265,8 @@ async fn ble_runner_task<C: Controller, P: trouble_host::prelude::PacketPool>(
     mut runner: trouble_host::prelude::Runner<'_, C, P>,
 ) {
     loop {
-        if let Err(e) = runner.run().await {
-            error!("BLE runner error: {:?}", e);
+        if let Err(_e) = runner.run().await {
+            error!("BLE runner error");
         }
     }
 }

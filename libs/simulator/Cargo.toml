@@ -6,13 +6,13 @@ edition.workspace = true
 [features]
 default = ["std"]
 std = ["tiny_http", "tokio"]
+defmt = ["lxx-calendar-common/defmt"]
 
 [dependencies]
 lxx-calendar-common = { path = "../../lxx-calendar-common" }
 embassy-sync = { workspace = true }
 embassy-executor = { workspace = true }
 embassy-time = { workspace = true }
-log = { workspace = true }
 heapless = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

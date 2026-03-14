@@ -6,6 +6,7 @@ use embedded_io_async::Read;
 use heapless::String;
 
 use lxx_calendar_common::http::http::{HttpClient, HttpMethod, HttpRequest, HttpResponse};
+use lxx_calendar_common::info;
 
 const RX_BUFFER_SIZE: usize = 4096;
 const TX_BUFFER_SIZE: usize = 4096;
@@ -51,7 +52,7 @@ impl HttpClientImpl {
             port
         };
 
-        log::info!("HTTP: Resolving DNS for {}", host);
+        info!("HTTP: Resolving DNS for {}", host);
         let ip_addrs = self
             .stack
             .dns_query(host, DnsQueryType::A)
@@ -62,10 +63,10 @@ impl HttpClientImpl {
             })?;
 
         let ip = ip_addrs.first().ok_or(HttpError::DnsFailed)?;
-        log::info!("HTTP: DNS resolved {} to {}", host, ip);
+        info!("HTTP: DNS resolved {} to {}", host, ip);
 
         let mut socket = TcpSocket::new(self.stack, rx_buffer, tx_buffer);
-        log::info!(
+        info!(
             "HTTP: Connecting to {}:{} (HTTPS={})",
             ip,
             port,
@@ -84,7 +85,7 @@ impl HttpClientImpl {
             HttpError::ConnectionFailed
         })?;
 
-        log::info!("HTTP: Connected to {}:{}", ip, port);
+        info!("HTTP: Connected to {}:{}", ip, port);
 
         let method_str = match method {
             HttpMethod::GET => "GET",

@@ -134,10 +134,10 @@ impl OTADriver for Esp32OTA {
 
         let target_addr = self.get_target_address();
         let sector_count = (total_size + SECTOR_SIZE - 1) / SECTOR_SIZE;
-        
+
         let mut guard = FLASH_MUTEX.lock().await;
         let flash = guard.as_mut().ok_or(OTAError::NotInitialized)?;
-        
+
         for sector in 0..sector_count {
             let sector_addr = target_addr + sector * SECTOR_SIZE;
             SyncNorFlash::erase(&mut flash.inner, sector_addr, sector_addr + SECTOR_SIZE)
@@ -166,28 +166,32 @@ impl OTADriver for Esp32OTA {
 
         let aligned_offset = (write_addr / 4) * 4;
         let offset_in_word = (write_addr % 4) as usize;
-        
+
         if offset_in_word != 0 || data.len() % 4 != 0 {
             let mut aligned_data = [0xFFu8; 260];
             let read_addr = aligned_offset;
-            
+
             SyncReadNorFlash::read(&mut flash.inner, read_addr, &mut aligned_data[..4])
                 .map_err(|_| OTAError::StorageError)?;
-            
+
             let write_len = ((offset_in_word + data.len() + 3) / 4) * 4;
             aligned_data[offset_in_word..offset_in_word + data.len()].copy_from_slice(data);
-            
+
             for chunk_start in (0..write_len).step_by(4) {
                 let chunk_addr = read_addr + chunk_start as u32;
-                SyncNorFlash::write(&mut flash.inner, chunk_addr, &aligned_data[chunk_start..chunk_start + 4])
-                    .map_err(|_| OTAError::WriteFailed)?;
+                SyncNorFlash::write(
+                    &mut flash.inner,
+                    chunk_addr,
+                    &aligned_data[chunk_start..chunk_start + 4],
+                )
+                .map_err(|_| OTAError::WriteFailed)?;
             }
         } else {
             for chunk_start in (0..data.len()).step_by(4) {
                 let chunk_addr = write_addr + chunk_start as u32;
                 let chunk_end = (chunk_start + 4).min(data.len());
                 let chunk = &data[chunk_start..chunk_end];
-                
+
                 if chunk.len() == 4 {
                     SyncNorFlash::write(&mut flash.inner, chunk_addr, chunk)
                         .map_err(|_| OTAError::WriteFailed)?;
@@ -244,17 +248,17 @@ impl OTADriver for Esp32OTA {
         }
 
         let partition = OTA_TARGET_PARTITION.load(Ordering::SeqCst);
-        
+
         let mut guard = FLASH_MUTEX.lock().await;
         let flash = guard.as_mut().ok_or(OTAError::NotInitialized)?;
-        
+
         let mut ota_data = [0u8; 32];
         SyncReadNorFlash::read(&mut flash.inner, OTA_STATE_OFFSET, &mut ota_data)
             .map_err(|_| OTAError::StorageError)?;
-        
+
         ota_data[0] = partition;
         ota_data[1] = 0;
-        
+
         SyncNorFlash::erase(&mut flash.inner, OTA_STATE_OFFSET, OTA_STATE_OFFSET + 4096)
             .map_err(|_| OTAError::StorageError)?;
         SyncNorFlash::write(&mut flash.inner, OTA_STATE_OFFSET, &ota_data)

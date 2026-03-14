@@ -1,4 +1,4 @@
-use embassy_net::{Config, Runner, Stack, StackResources, StaticConfigV4, Ipv4Cidr, Ipv4Address};
+use embassy_net::{Config, Ipv4Address, Ipv4Cidr, Runner, Stack, StackResources, StaticConfigV4};
 use embassy_net_tuntap::TunTapDevice;
 use embassy_time::Duration;
 use heapless_08::Vec as Vec08;
@@ -22,7 +22,10 @@ impl TunTapNetwork {
         let device = match TunTapDevice::new(TUNTAP_NAME) {
             Ok(d) => d,
             Err(e) => {
-                log::warn!("Failed to create TunTap device: {:?}, network unavailable", e);
+                log::warn!(
+                    "Failed to create TunTap device: {:?}, network unavailable",
+                    e
+                );
                 return Ok(Self { stack: None });
             }
         };
@@ -36,7 +39,7 @@ impl TunTapNetwork {
             gateway: Some(Ipv4Address::new(192, 168, 69, 100)),
             dns_servers: {
                 let mut dns = Vec08::new();
-                let _ = dns.push(Ipv4Address::new(223, 5, 5, 5));     // 阿里 DNS
+                let _ = dns.push(Ipv4Address::new(223, 5, 5, 5)); // 阿里 DNS
                 let _ = dns.push(Ipv4Address::new(119, 29, 29, 29)); // 腾讯 DNS
                 dns
             },
@@ -51,10 +54,14 @@ impl TunTapNetwork {
 
         let stack_ref = STACK.init(stack);
 
-        info!("Network stack created with static IP 192.168.69.101, gateway 192.168.69.100, DNS: 223.5.5.5, 119.29.29.29");
+        info!(
+            "Network stack created with static IP 192.168.69.101, gateway 192.168.69.100, DNS: 223.5.5.5, 119.29.29.29"
+        );
         spawner.spawn(net_task(runner)).ok();
 
-        Ok(Self { stack: Some(*stack_ref) })
+        Ok(Self {
+            stack: Some(*stack_ref),
+        })
     }
 }
 

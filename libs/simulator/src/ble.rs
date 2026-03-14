@@ -1,5 +1,6 @@
 use lxx_calendar_common::traits::ble::BLEDriver;
 use lxx_calendar_common::types::ConfigChange;
+use lxx_calendar_common::{info, warn};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -54,7 +55,7 @@ impl SimulatedBLE {
         self.connected = true;
         self.advertising = false;
         self.wakeup_flag.store(true, Ordering::SeqCst);
-        log::info!("Simulated BLE connected");
+        info!("Simulated BLE connected");
         if let Ok(guard) = self.connected_callback.lock() {
             if let Some(ref cb) = *guard {
                 cb();
@@ -64,7 +65,7 @@ impl SimulatedBLE {
 
     pub fn simulate_disconnect(&mut self) {
         self.connected = false;
-        log::info!("Simulated BLE disconnected");
+        info!("Simulated BLE disconnected");
         if let Ok(guard) = self.disconnected_callback.lock() {
             if let Some(ref cb) = *guard {
                 cb();
@@ -90,7 +91,7 @@ impl SimulatedBLE {
             ConfigChange::LogConfig
         };
 
-        log::info!("Simulated BLE config applied: {:?}", change);
+        info!("Simulated BLE config applied: {:?}", change);
 
         if let Ok(guard) = self.data_callback.lock() {
             if let Some(ref cb) = *guard {
@@ -103,7 +104,7 @@ impl SimulatedBLE {
 
     pub fn simulate_advertising(&mut self) {
         self.advertising = true;
-        log::info!("Simulated BLE advertising");
+        info!("Simulated BLE advertising");
     }
 }
 
@@ -144,19 +145,19 @@ impl BLEDriver for SimulatedBLE {
 
     async fn start_advertising(&mut self) -> Result<(), Self::Error> {
         self.advertising = true;
-        log::info!("Simulated BLE start advertising");
+        info!("Simulated BLE start advertising");
         Ok(())
     }
 
     async fn stop(&mut self) -> Result<(), Self::Error> {
         self.advertising = false;
         self.connected = false;
-        log::info!("Simulated BLE stop");
+        info!("Simulated BLE stop");
         Ok(())
     }
 
     async fn initialize(&mut self) -> Result<(), Self::Error> {
-        log::info!("Simulated BLE initialized");
+        info!("Simulated BLE initialized");
         Ok(())
     }
 
@@ -179,7 +180,7 @@ impl BLEDriver for SimulatedBLE {
     }
 
     async fn notify(&mut self, data: &[u8]) -> Result<(), Self::Error> {
-        log::info!("Simulated BLE notify: {} bytes", data.len());
+        info!("Simulated BLE notify: {} bytes", data.len());
         Ok(())
     }
 }

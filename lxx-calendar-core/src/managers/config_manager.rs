@@ -3,6 +3,8 @@ use lxx_calendar_common::SystemEvent;
 use lxx_calendar_common::storage::{ConfigPersistence, FlashDevice};
 use lxx_calendar_common::types::config::ConfigChange;
 
+use crate::{info, warn};
+
 /// 配置管理器
 ///
 /// 负责配置的加载、保存和通知
@@ -47,7 +49,7 @@ impl<F: FlashDevice> ConfigManager<F> {
 
     /// 初始化配置管理器
     pub async fn initialize(&mut self) -> Result<(), lxx_common::SystemError> {
-        lxx_common::info!("Initializing config manager");
+        info!("Initializing config manager");
         self.initialized = true;
         Ok(())
     }
@@ -64,7 +66,7 @@ impl<F: FlashDevice> ConfigManager<F> {
             ));
         }
 
-        lxx_common::info!("Loading config");
+        info!("Loading config");
 
         match self
             .persistence
@@ -72,12 +74,12 @@ impl<F: FlashDevice> ConfigManager<F> {
             .await
         {
             Ok(config) => {
-                lxx_common::info!("Config loaded from storage, version: {}", config.version);
+                info!("Config loaded from storage, version: {}", config.version);
                 self.config = Some(config.clone());
                 Ok(config)
             }
             Err(e) => {
-                lxx_common::warn!(
+                warn!(
                     "Failed to load config from storage: {:?}, using default config",
                     e
                 );
@@ -99,7 +101,7 @@ impl<F: FlashDevice> ConfigManager<F> {
             ));
         }
 
-        lxx_common::info!("Saving config");
+        info!("Saving config");
 
         self.persistence.save_config(&config).await?;
 
@@ -146,13 +148,13 @@ impl<F: FlashDevice> ConfigManager<F> {
             ));
         }
 
-        lxx_common::info!("Performing factory reset");
+        info!("Performing factory reset");
 
         self.persistence.factory_reset().await?;
 
         self.config = None;
 
-        lxx_common::info!("Factory reset completed");
+        info!("Factory reset completed");
 
         Ok(())
     }

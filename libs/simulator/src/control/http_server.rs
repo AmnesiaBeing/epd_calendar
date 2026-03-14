@@ -3,11 +3,12 @@ use std::sync::{Arc, Mutex};
 
 use tiny_http::{Response, Server};
 
+use crate::SimulatorControl;
 use crate::ble::SimulatedBLE;
 use crate::button::SimulatorButton;
 use crate::control::types::*;
-use crate::SimulatorControl;
 use lxx_calendar_common::traits::button::ButtonEvent;
+use lxx_calendar_common::{debug, error, info, warn};
 
 pub struct HttpServer {
     control: Arc<Mutex<SimulatorControl>>,
@@ -38,12 +39,12 @@ impl HttpServer {
         let server = match Server::http(&addr) {
             Ok(s) => s,
             Err(e) => {
-                log::error!("Failed to start HTTP server on {}: {}", addr, e);
+                error!("Failed to start HTTP server on {}: {}", addr, e);
                 return;
             }
         };
 
-        log::info!("Simulator HTTP server started on http://{}", addr);
+        info!("Simulator HTTP server started on http://{}", addr);
 
         for mut request in server.incoming_requests() {
             let control = Arc::clone(&self.control);
@@ -67,7 +68,7 @@ impl HttpServer {
             }
             port += 1;
         }
-        log::warn!(
+        warn!(
             "Could not find available port near {}, using default",
             self.port
         );
@@ -83,7 +84,7 @@ fn handle_request(
     url: &str,
     body: &str,
 ) -> Response<std::io::Cursor<Vec<u8>>> {
-    log::debug!("HTTP {} {}", method, url);
+    debug!("HTTP {} {}", method, url);
 
     match (method, url) {
         ("GET", "/status") => handle_get_status(control, ble, button),

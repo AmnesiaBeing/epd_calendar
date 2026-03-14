@@ -1,20 +1,12 @@
 //! 渲染缓冲区模块
 //! 提供墨水屏的帧缓冲区管理
-//!
-//! 支持两种模式:
-//! - `no_std` 模式：使用 `heapless::Vec`，需要静态缓冲区
-//! - `std` 模式：使用 `std::vec::Vec`，用于模拟器/桌面测试
-
-#![cfg_attr(not(feature = "std"), no_std)]
 
 extern crate alloc;
 
-use alloc::vec::Vec;
 use core::fmt::Debug;
 
 /// 系统错误类型 (从 common crate 导入或定义本地版本)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum FramebufferError {
     OutOfBounds,
     OutOfMemory,
@@ -25,7 +17,6 @@ pub type Result<T> = core::result::Result<T, FramebufferError>;
 
 /// 颜色枚举
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Color {
     Black,
     White,
@@ -44,6 +35,18 @@ impl Color {
             Color::Black
         } else {
             Color::White
+        }
+    }
+}
+
+// 实现 From<FramebufferError> for lxx_calendar_common::SystemError
+impl From<FramebufferError> for lxx_calendar_common::SystemError {
+    fn from(err: FramebufferError) -> Self {
+        use lxx_calendar_common::SystemError;
+        match err {
+            FramebufferError::OutOfBounds => SystemError::ServiceError(lxx_calendar_common::ServiceError::InvalidState),
+            FramebufferError::OutOfMemory => SystemError::ServiceError(lxx_calendar_common::ServiceError::OperationFailed),
+            FramebufferError::InvalidParameter => SystemError::HardwareError(lxx_calendar_common::HardwareError::InvalidParameter),
         }
     }
 }

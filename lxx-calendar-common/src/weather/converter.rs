@@ -1,6 +1,6 @@
 use super::api::WeatherDailyResponse;
-use crate::types::weather::{ForecastDay, WeatherCondition, WeatherInfo};
 use crate::types::SystemResult;
+use crate::types::weather::{ForecastDay, WeatherCondition, WeatherInfo};
 use alloc::vec::Vec;
 use heapless::String;
 

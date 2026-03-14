@@ -8,7 +8,7 @@ default = ["tspi"]
 tspi = []
 
 [dependencies]
-lxx-calendar-common = { path = "../../lxx-calendar-common" }
+lxx-calendar-common = { path = "../../lxx-calendar-common", features = ["log"] }
 lxx-calendar-core = { path = "../../lxx-calendar-core" }
 static_cell = { workspace = true }
 simulator = { path = "../../libs/simulator", features = ["std"] }

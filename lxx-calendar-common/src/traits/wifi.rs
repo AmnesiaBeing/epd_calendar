@@ -1,5 +1,3 @@
-#![allow(async_fn_in_trait)]
-
 use crate::{HardwareError, SystemError, SystemResult};
 use alloc::string::String;
 use serde::{Deserialize, Serialize};

@@ -3,9 +3,14 @@ name = "lxx-calendar-core"
 version = "0.1.0"
 edition.workspace = true
 
+[features]
+default = ["log"]
+log = ["dep:log", "lxx-calendar-common/log"]
+defmt = ["dep:defmt", "dep:defmt-rtt", "lxx-calendar-common/defmt"]
+
 [dependencies]
 # 核心依赖
-log = { workspace = true }
+log = { workspace = true, optional = true }
 thiserror = { workspace = true }
 cfg-if = { workspace = true }
 defmt = { workspace = true, optional = true }
@@ -13,10 +18,8 @@ defmt-rtt = { workspace = true, optional = true }
 heapless = { workspace = true }
 
 # 子项目依赖
-lxx-calendar-common = { path = "../lxx-calendar-common", default-features = false, features = [
-    "log",
-] }
-# lxx-calendar-graphics = { path = "../lxx-calendar-graphics" }
+lxx-calendar-common = { path = "../lxx-calendar-common" }
+lxx-calendar-graphics = { path = "../lxx-calendar-graphics" }
 lxx-calendar-quotes = { path = "../lxx-calendar-quotes" }
 sxtwl-rs = { path = "../libs/sxtwl-rs", features = ["festival"] }
 

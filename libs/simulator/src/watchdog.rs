@@ -1,7 +1,7 @@
 use core::sync::atomic::{AtomicBool, Ordering};
 use embassy_executor::{Spawner, task};
 use embassy_time::Duration;
-use lxx_calendar_common::Watchdog;
+use lxx_calendar_common::{Watchdog, debug, warn};
 
 static WATCHDOG_FED: AtomicBool = AtomicBool::new(true);
 static WATCHDOG_ENABLED: AtomicBool = AtomicBool::new(true);
@@ -34,7 +34,7 @@ impl Watchdog for SimulatedWdt {
     fn feed(&mut self) -> Result<(), Self::Error> {
         if WATCHDOG_ENABLED.load(Ordering::SeqCst) {
             WATCHDOG_FED.store(true, Ordering::SeqCst);
-            log::debug!("Watchdog fed");
+            debug!("Watchdog fed");
         }
         Ok(())
     }
@@ -64,14 +64,14 @@ async fn watchdog_task(timeout_ms: u64) {
         embassy_time::Timer::after(Duration::from_millis(timeout_ms)).await;
 
         if !WATCHDOG_ENABLED.load(Ordering::SeqCst) {
-            log::debug!("Watchdog disabled, skipping check");
+            debug!("Watchdog disabled, skipping check");
             continue;
         }
 
         if !WATCHDOG_FED.load(Ordering::SeqCst) {
-            log::warn!("Watchdog expired!");
+            warn!("Watchdog expired!");
         } else {
-            log::debug!("Watchdog check: fed");
+            debug!("Watchdog check: fed");
         }
         WATCHDOG_FED.store(false, Ordering::SeqCst);
     }

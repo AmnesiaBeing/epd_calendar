@@ -1,5 +1,5 @@
 use embassy_executor::Spawner;
-use embassy_sync::{channel::Channel, blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex};
+use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel, mutex::Mutex};
 use esp_hal::gpio::{Level, Output, OutputConfig};
 use lxx_calendar_common::{LEDDriver, LEDIndicatorState};
 
@@ -19,18 +19,18 @@ pub struct Esp32LED<'d> {
 impl<'d> Esp32LED<'d> {
     pub fn new(pin: impl esp_hal::gpio::OutputPin + 'd, spawner: &Spawner) -> Self {
         let led_pin = Output::new(pin, Level::Low, OutputConfig::default());
-        
+
         let _ = spawner.spawn(led_blink_task());
-        
+
         Self {
             led_pin,
             current_state: LEDIndicatorState::Off,
         }
     }
-    
+
     pub async fn store_pin(&mut self) {
         let mut guard = LED_MUTEX.lock().await;
-        let output = unsafe { 
+        let output = unsafe {
             core::ptr::read(&self.led_pin as *const Output<'d> as *const Output<'static>)
         };
         *guard = Some(output);
@@ -44,24 +44,28 @@ impl<'d> LEDDriver for Esp32LED<'d> {
         if self.current_state == state {
             return Ok(());
         }
-        
-        defmt::debug!("LED state changing from {:?} to {:?}", self.current_state, state);
+
+        defmt::debug!(
+            "LED state changing from {:?} to {:?}",
+            self.current_state,
+            state
+        );
         self.current_state = state;
-        
+
         let _ = LED_COMMAND.try_send(state);
-        
+
         Ok(())
     }
 }
 
 #[embassy_executor::task]
 async fn led_blink_task() {
+    use embassy_futures::select::{Either, select};
     use embassy_time::{Duration, Timer};
-    use embassy_futures::select::{select, Either};
-    
+
     let mut current_state = LEDIndicatorState::Off;
     let receiver = LED_COMMAND.receiver();
-    
+
     loop {
         match current_state {
             LEDIndicatorState::Off => {
@@ -83,7 +87,12 @@ async fn led_blink_task() {
                 }
             }
             LEDIndicatorState::BlinkFast => {
-                match select(receiver.receive(), Timer::after(Duration::from_millis(BLINK_FAST_MS))).await {
+                match select(
+                    receiver.receive(),
+                    Timer::after(Duration::from_millis(BLINK_FAST_MS)),
+                )
+                .await
+                {
                     Either::First(new_state) => {
                         current_state = new_state;
                         defmt::debug!("LED task received: {:?}", current_state);
@@ -97,7 +106,12 @@ async fn led_blink_task() {
                 }
             }
             LEDIndicatorState::BlinkSlow => {
-                match select(receiver.receive(), Timer::after(Duration::from_millis(BLINK_SLOW_MS))).await {
+                match select(
+                    receiver.receive(),
+                    Timer::after(Duration::from_millis(BLINK_SLOW_MS)),
+                )
+                .await
+                {
                     Either::First(new_state) => {
                         current_state = new_state;
                         defmt::debug!("LED task received: {:?}", current_state);

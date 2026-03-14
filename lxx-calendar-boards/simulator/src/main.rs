@@ -4,7 +4,8 @@ use epd_yrd0750ryf665f60::yrd0750ryf665f60::Epd7in5;
 use lxx_calendar_common::*;
 use lxx_calendar_core::main_task;
 use simulator::{
-    HttpServer, SimulatedBLE, SimulatedFlash, SimulatedRtc, SimulatedWdt, SimulatorButton, SimulatorControl,
+    HttpServer, SimulatedBLE, SimulatedFlash, SimulatedRtc, SimulatedWdt, SimulatorButton,
+    SimulatorControl,
 };
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
