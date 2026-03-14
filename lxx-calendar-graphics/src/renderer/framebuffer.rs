@@ -44,15 +44,21 @@ impl From<FramebufferError> for lxx_calendar_common::SystemError {
     fn from(err: FramebufferError) -> Self {
         use lxx_calendar_common::SystemError;
         match err {
-            FramebufferError::OutOfBounds => SystemError::ServiceError(lxx_calendar_common::ServiceError::InvalidState),
-            FramebufferError::OutOfMemory => SystemError::ServiceError(lxx_calendar_common::ServiceError::OperationFailed),
-            FramebufferError::InvalidParameter => SystemError::HardwareError(lxx_calendar_common::HardwareError::InvalidParameter),
+            FramebufferError::OutOfBounds => {
+                SystemError::ServiceError(lxx_calendar_common::ServiceError::InvalidState)
+            }
+            FramebufferError::OutOfMemory => {
+                SystemError::ServiceError(lxx_calendar_common::ServiceError::OperationFailed)
+            }
+            FramebufferError::InvalidParameter => {
+                SystemError::HardwareError(lxx_calendar_common::HardwareError::InvalidParameter)
+            }
         }
     }
 }
 
 /// 渲染缓冲区
-/// 
+///
 /// 在嵌入式环境中，缓冲区大小需要在编译时确定。
 /// 对于 800x480 的屏幕，需要 384KB 缓冲区。
 /// 建议使用外部 PSRAM 或分块渲染。
@@ -70,13 +76,13 @@ impl<const SIZE: usize> Framebuffer<SIZE> {
         if required_size > SIZE {
             return None; // 缓冲区太小
         }
-        
+
         let mut buffer = [0xFFu8; SIZE];
         // 只初始化需要使用的部分
         for i in 0..required_size {
             buffer[i] = 0xFF;
         }
-        
+
         Some(Self {
             width,
             height,
@@ -126,14 +132,17 @@ impl<const SIZE: usize> Framebuffer<SIZE> {
 
     /// 绘制像素
     pub fn draw_pixel(&mut self, x: u16, y: u16, color: Color) -> Result<()> {
-        let index = self.pixel_index(x, y).ok_or(FramebufferError::OutOfBounds)?;
+        let index = self
+            .pixel_index(x, y)
+            .ok_or(FramebufferError::OutOfBounds)?;
         self.buffer[index] = color.as_byte();
         Ok(())
     }
 
     /// 获取像素颜色
     pub fn get_pixel(&self, x: u16, y: u16) -> Option<Color> {
-        self.pixel_index(x, y).map(|i| Color::from_byte(self.buffer[i]))
+        self.pixel_index(x, y)
+            .map(|i| Color::from_byte(self.buffer[i]))
     }
 
     /// 绘制垂直线
@@ -146,7 +155,13 @@ impl<const SIZE: usize> Framebuffer<SIZE> {
     }
 
     /// 绘制水平线
-    pub fn draw_horizontal_line(&mut self, x: u16, y: u16, length: u16, color: Color) -> Result<()> {
+    pub fn draw_horizontal_line(
+        &mut self,
+        x: u16,
+        y: u16,
+        length: u16,
+        color: Color,
+    ) -> Result<()> {
         for i in 0..length {
             let nx = x.saturating_add(i);
             self.draw_pixel(nx, y, color)?;
@@ -155,7 +170,14 @@ impl<const SIZE: usize> Framebuffer<SIZE> {
     }
 
     /// 填充矩形
-    pub fn fill_rectangle(&mut self, x: u16, y: u16, width: u16, height: u16, color: Color) -> Result<()> {
+    pub fn fill_rectangle(
+        &mut self,
+        x: u16,
+        y: u16,
+        width: u16,
+        height: u16,
+        color: Color,
+    ) -> Result<()> {
         for row in 0..height {
             let ry = y.saturating_add(row);
             self.draw_horizontal_line(x, ry, width, color)?;
@@ -164,21 +186,28 @@ impl<const SIZE: usize> Framebuffer<SIZE> {
     }
 
     /// 绘制矩形边框
-    pub fn draw_rectangle(&mut self, x: u16, y: u16, width: u16, height: u16, color: Color) -> Result<()> {
+    pub fn draw_rectangle(
+        &mut self,
+        x: u16,
+        y: u16,
+        width: u16,
+        height: u16,
+        color: Color,
+    ) -> Result<()> {
         if width < 2 || height < 2 {
             return self.fill_rectangle(x, y, width, height, color);
         }
-        
+
         // 上下边框
         self.draw_horizontal_line(x, y, width, color)?;
         self.draw_horizontal_line(x, y + height - 1, width, color)?;
-        
+
         // 左右边框
         for row in 1..height - 1 {
             self.draw_pixel(x, y + row, color)?;
             self.draw_pixel(x + width - 1, y + row, color)?;
         }
-        
+
         Ok(())
     }
 
@@ -191,7 +220,14 @@ impl<const SIZE: usize> Framebuffer<SIZE> {
     }
 
     /// 清除指定区域
-    pub fn clear_area(&mut self, x: u16, y: u16, width: u16, height: u16, color: Color) -> Result<()> {
+    pub fn clear_area(
+        &mut self,
+        x: u16,
+        y: u16,
+        width: u16,
+        height: u16,
+        color: Color,
+    ) -> Result<()> {
         for row in 0..height {
             let ry = y.saturating_add(row);
             self.draw_horizontal_line(x, ry, width, color)?;

@@ -10,16 +10,16 @@ use alloc::format;
 use alloc::string::String;
 use core::str::FromStr;
 
-use heapless::IndexMap;
 use hash32::{BuildHasherDefault, FnvHasher};
+use heapless::IndexMap;
 
-use lxx_calendar_common::layout::*;
 use super::framebuffer::{Color, Framebuffer};
 use super::text::TextRenderer;
 use lxx_calendar_common::SystemResult;
+use lxx_calendar_common::layout::*;
 
 /// 布局渲染引擎
-/// 
+///
 /// 此引擎接收已解析的布局定义和数据进行渲染
 /// JSON 解析应在外部完成（在 std 环境下），然后传递解析后的数据
 pub struct LayoutEngine {
@@ -155,9 +155,7 @@ impl LayoutEngine {
             Block::ProgressBar(progress_bar_block) => {
                 self.render_progress_bar_block(framebuffer, progress_bar_block, data)
             }
-            Block::Image(image_block) => {
-                self.render_image_block(framebuffer, image_block, data)
-            }
+            Block::Image(image_block) => self.render_image_block(framebuffer, image_block, data),
             Block::CenteredText(centered_text_block) => {
                 self.render_centered_text_block(framebuffer, centered_text_block, data)
             }
@@ -177,9 +175,7 @@ impl LayoutEngine {
             Block::KeyValue(key_value_block) => {
                 self.render_key_value_block(framebuffer, key_value_block, data)
             }
-            Block::Group(group_block) => {
-                self.render_group_block(framebuffer, group_block, data)
-            }
+            Block::Group(group_block) => self.render_group_block(framebuffer, group_block, data),
             Block::ForecastCards(forecast_cards_block) => {
                 self.render_forecast_cards_block(framebuffer, forecast_cards_block, data)
             }
@@ -194,15 +190,15 @@ impl LayoutEngine {
         data: &LayoutData,
     ) -> SystemResult<()> {
         let text = Self::get_text_content(data, block.field.as_deref(), block.template.as_deref());
-        
+
         let x = block.margin_x;
         let y = self.current_y + 4;
-        
+
         self.text_renderer.render(framebuffer, x, y, &text)?;
-        
+
         // 更新 Y 位置
         self.current_y += block.font_size + 8;
-        
+
         Ok(())
     }
 
@@ -214,7 +210,7 @@ impl LayoutEngine {
         data: &LayoutData,
     ) -> SystemResult<()> {
         let text = data.get_string(&block.field).unwrap_or_default();
-        
+
         // 估算文本宽度
         let text_width = (text.len() as u16) * (block.font_size / 2 + 2);
         let start_x = if self.screen_width > text_width {
@@ -222,12 +218,12 @@ impl LayoutEngine {
         } else {
             0
         };
-        
+
         let y = self.current_y + 4;
         self.text_renderer.render(framebuffer, start_x, y, &text)?;
-        
+
         self.current_y += block.font_size + block.line_spacing;
-        
+
         Ok(())
     }
 
@@ -239,11 +235,11 @@ impl LayoutEngine {
     ) -> SystemResult<()> {
         let y = self.current_y + 4;
         let margin_x = block.margin_x;
-        
-        let width = block.width.unwrap_or_else(|| {
-            self.screen_width.saturating_sub(margin_x * 2)
-        });
-        
+
+        let width = block
+            .width
+            .unwrap_or_else(|| self.screen_width.saturating_sub(margin_x * 2));
+
         match block.style {
             SeparatorStyle::Solid => {
                 framebuffer.draw_horizontal_line(margin_x, y, width, Color::Black)?;
@@ -265,9 +261,9 @@ impl LayoutEngine {
                 framebuffer.draw_horizontal_line(start_x, y, short_width, Color::Black)?;
             }
         }
-        
+
         self.current_y += 8;
-        
+
         Ok(())
     }
 
@@ -285,7 +281,7 @@ impl LayoutEngine {
         data: &LayoutData,
     ) -> SystemResult<()> {
         let text = data.get_string(&block.field).unwrap_or_default();
-        
+
         let x = match block.align {
             TextAlign::Left => block.margin_x,
             TextAlign::Center => {
@@ -298,24 +294,32 @@ impl LayoutEngine {
             }
             TextAlign::Right => {
                 let text_width = (text.len() as u16) * (block.font_size / 2 + 2);
-                self.screen_width.saturating_sub(text_width + block.margin_x)
+                self.screen_width
+                    .saturating_sub(text_width + block.margin_x)
             }
         };
-        
+
         let y = self.current_y + 4;
-        
+
         // 使用大号字体渲染
-        self.text_renderer.render_large_with_size(framebuffer, x, y, &text, block.font_size)?;
-        
+        self.text_renderer
+            .render_large_with_size(framebuffer, x, y, &text, block.font_size)?;
+
         // 渲染单位
         if let Some(unit) = &block.unit {
             let unit_x = x + (text.len() as u16) * (block.font_size / 2 + 2) + 4;
             let unit_y = y + block.font_size / 3;
-            self.text_renderer.render_with_size(framebuffer, unit_x, unit_y, unit, block.font_size / 2)?;
+            self.text_renderer.render_with_size(
+                framebuffer,
+                unit_x,
+                unit_y,
+                unit,
+                block.font_size / 2,
+            )?;
         }
-        
+
         self.current_y += block.font_size + 8;
-        
+
         Ok(())
     }
 
@@ -327,10 +331,10 @@ impl LayoutEngine {
         data: &LayoutData,
     ) -> SystemResult<()> {
         let text = Self::get_text_content(data, block.field.as_deref(), block.text.as_deref());
-        
+
         let mut x = block.margin_x;
         let y = self.current_y + 4;
-        
+
         // 渲染图标（如果有）
         if let Some(icon_name) = &block.icon {
             // TODO: 使用生成的图标数据渲染图标
@@ -339,12 +343,13 @@ impl LayoutEngine {
             framebuffer.draw_rectangle(x, y, icon_size, icon_size, Color::Black)?;
             x += icon_size + 4;
         }
-        
+
         // 渲染文本
-        self.text_renderer.render_with_size(framebuffer, x, y, &text, block.font_size)?;
-        
+        self.text_renderer
+            .render_with_size(framebuffer, x, y, &text, block.font_size)?;
+
         self.current_y += block.font_size.max(block.icon_size) + 4;
-        
+
         Ok(())
     }
 
@@ -357,21 +362,22 @@ impl LayoutEngine {
     ) -> SystemResult<()> {
         let code = data.get_string(&block.code_field).unwrap_or_default();
         let text = data.get_string(&block.field).unwrap_or_default();
-        
+
         let mut x = block.margin_x;
         let y = self.current_y + 4;
-        
+
         // 渲染天气图标
         // TODO: 使用天气图标枚举渲染
         let icon_size = block.icon_size;
         framebuffer.draw_rectangle(x, y, icon_size, icon_size, Color::Black)?;
         x += icon_size + 4;
-        
+
         // 渲染文本
-        self.text_renderer.render_with_size(framebuffer, x, y, &text, block.font_size)?;
-        
+        self.text_renderer
+            .render_with_size(framebuffer, x, y, &text, block.font_size)?;
+
         self.current_y += block.font_size.max(icon_size) + 4;
-        
+
         Ok(())
     }
 
@@ -383,23 +389,23 @@ impl LayoutEngine {
         data: &LayoutData,
     ) -> SystemResult<()> {
         let start_y = self.current_y;
-        
+
         // 渲染左列
         let left_x = block.left_x;
         let mut left_engine = LayoutEngine::new(block.left_width, self.screen_height);
         left_engine.current_y = start_y;
         left_engine.render_blocks(framebuffer, &block.left, data)?;
-        
+
         // 渲染右列
         let right_x = left_x + block.left_width + block.gap;
         let right_width = self.screen_width.saturating_sub(right_x);
         let mut right_engine = LayoutEngine::new(right_width, self.screen_height);
         right_engine.current_y = start_y;
         right_engine.render_blocks(framebuffer, &block.right, data)?;
-        
+
         // 更新 Y 位置为两列中较高的那个
         self.current_y = left_engine.current_y.max(right_engine.current_y);
-        
+
         Ok(())
     }
 
@@ -412,26 +418,36 @@ impl LayoutEngine {
     ) -> SystemResult<()> {
         let current = data.get_f64(&block.field).unwrap_or(0.0);
         let max = data.get_f64(&block.max_field).unwrap_or(100.0);
-        
-        let ratio = if max > 0.0 { (current / max).min(1.0) } else { 0.0 };
-        
+
+        let ratio = if max > 0.0 {
+            (current / max).min(1.0)
+        } else {
+            0.0
+        };
+
         let x = block.margin_x;
         let y = self.current_y + 4;
         let width = block.width;
         let height = block.height;
-        
+
         // 绘制背景
         framebuffer.draw_rectangle(x, y, width, height, Color::White)?;
         framebuffer.draw_rectangle(x, y, width, height, Color::Black)?;
-        
+
         // 绘制进度
         let fill_width = ((width as f64) * ratio) as u16;
         if fill_width > 0 {
-            framebuffer.fill_rectangle(x + 1, y + 1, fill_width.saturating_sub(2), height.saturating_sub(2), Color::White)?;
+            framebuffer.fill_rectangle(
+                x + 1,
+                y + 1,
+                fill_width.saturating_sub(2),
+                height.saturating_sub(2),
+                Color::White,
+            )?;
         }
-        
+
         self.current_y += height + 4;
-        
+
         Ok(())
     }
 
@@ -448,11 +464,11 @@ impl LayoutEngine {
         let y = self.current_y + block.y;
         let width = block.width.unwrap_or(100);
         let height = block.height.unwrap_or(100);
-        
+
         framebuffer.draw_rectangle(x, y, width, height, Color::Black)?;
-        
+
         self.current_y += height + 4;
-        
+
         Ok(())
     }
 
@@ -465,7 +481,9 @@ impl LayoutEngine {
     ) -> SystemResult<()> {
         for (i, child) in block.children.iter().enumerate() {
             if i > 0 && block.spacing > 0 {
-                self.render_spacer_block(&SpacerBlock { height: block.spacing })?;
+                self.render_spacer_block(&SpacerBlock {
+                    height: block.spacing,
+                })?;
             }
             self.render_block(framebuffer, child, data)?;
         }
@@ -503,12 +521,12 @@ impl LayoutEngine {
             &block.title,
             block.title_font_size,
         )?;
-        
+
         self.current_y += block.title_font_size + 8;
-        
+
         // 渲染子块
         self.render_blocks(framebuffer, &block.children, data)?;
-        
+
         Ok(())
     }
 
@@ -522,7 +540,7 @@ impl LayoutEngine {
         if let Some(items) = data.get_array(&block.field) {
             for (i, item) in items.iter().enumerate().take(block.max_items as usize) {
                 let mut text = String::new();
-                
+
                 if block.numbered {
                     text.push_str(&format!("{}. ", i + 1));
                 }
@@ -533,15 +551,15 @@ impl LayoutEngine {
                     // 简单转换为字符串
                     text.push_str("[item]");
                 }
-                
+
                 let x = block.margin_x;
                 let y = self.current_y + 4;
                 self.text_renderer.render(framebuffer, x, y, &text)?;
-                
+
                 self.current_y += block.font_size + block.item_spacing;
             }
         }
-        
+
         Ok(())
     }
 
@@ -556,7 +574,7 @@ impl LayoutEngine {
             for item in items.iter().take(block.max_items as usize) {
                 let mut x = 10u16;
                 let y = self.current_y + 4;
-                
+
                 // 渲染图标（如果有）
                 if let Some(icon_field) = &block.icon_field {
                     let icon_name = item.get_string(icon_field).unwrap_or_default();
@@ -564,17 +582,17 @@ impl LayoutEngine {
                     framebuffer.draw_rectangle(x, y, 16, 16, Color::Black)?;
                     x += 20;
                 }
-                
+
                 // 渲染文本（如果有）
                 if let Some(text_field) = &block.text_field {
                     let text = item.get_string(text_field).unwrap_or_default();
                     self.text_renderer.render(framebuffer, x, y, &text)?;
                 }
-                
+
                 self.current_y += 20;
             }
         }
-        
+
         Ok(())
     }
 
@@ -587,15 +605,16 @@ impl LayoutEngine {
     ) -> SystemResult<()> {
         let value = data.get_string(&block.field).unwrap_or_default();
         let label = block.label.as_deref().unwrap_or(&block.field);
-        
+
         let text = format!("{}: {}", label, value);
-        
+
         let x = 10u16;
         let y = self.current_y + 4;
-        self.text_renderer.render_with_size(framebuffer, x, y, &text, block.font_size)?;
-        
+        self.text_renderer
+            .render_with_size(framebuffer, x, y, &text, block.font_size)?;
+
         self.current_y += block.font_size + 4;
-        
+
         Ok(())
     }
 
@@ -608,12 +627,13 @@ impl LayoutEngine {
     ) -> SystemResult<()> {
         // 渲染组标题
         let y = self.current_y + 4;
-        self.text_renderer.render(framebuffer, 10, y, &block.title)?;
+        self.text_renderer
+            .render(framebuffer, 10, y, &block.title)?;
         self.current_y += 20;
-        
+
         // 渲染子块
         self.render_blocks(framebuffer, &block.children, data)?;
-        
+
         Ok(())
     }
 
@@ -629,40 +649,53 @@ impl LayoutEngine {
             let y = self.current_y + 4;
             let card_width = 60u16;
             let card_height = 80u16;
-            
+
             for item in items.iter().take(block.max_items as usize) {
                 // 绘制卡片边框
                 framebuffer.draw_rectangle(x, y, card_width, card_height, Color::Black)?;
-                
+
                 // 渲染卡片内容
                 let icon_x = x + (card_width - block.icon_size) / 2;
                 let icon_y = y + 4;
-                
+
                 // TODO: 渲染天气图标
-                framebuffer.draw_rectangle(icon_x, icon_y, block.icon_size, block.icon_size, Color::Black)?;
-                
+                framebuffer.draw_rectangle(
+                    icon_x,
+                    icon_y,
+                    block.icon_size,
+                    block.icon_size,
+                    Color::Black,
+                )?;
+
                 // 渲染温度等信息
                 if let Some(temp) = item.get_string("temp") {
                     let temp_x = x + (card_width - temp.len() as u16 * 8) / 2;
                     let temp_y = y + block.icon_size + 8;
-                    self.text_renderer.render_with_size(framebuffer, temp_x, temp_y, &temp, 14)?;
+                    self.text_renderer
+                        .render_with_size(framebuffer, temp_x, temp_y, &temp, 14)?;
                 }
-                
+
                 x += card_width + block.gap;
             }
-            
+
             self.current_y += card_height + 4;
         }
-        
+
         Ok(())
     }
 
     /// 从数据中获取文本内容
-    fn get_text_content(data: &LayoutData, field: Option<&str>, template: Option<&str>) -> alloc::string::String {
+    fn get_text_content(
+        data: &LayoutData,
+        field: Option<&str>,
+        template: Option<&str>,
+    ) -> alloc::string::String {
         if let Some(tpl) = template {
             Self::apply_template(tpl, data)
         } else if let Some(f) = field {
-            data.get_string(f).map(|s| s.as_str().into()).unwrap_or_default()
+            data.get_string(f)
+                .map(|s| s.as_str().into())
+                .unwrap_or_default()
         } else {
             alloc::string::String::new()
         }
@@ -712,19 +745,23 @@ impl LayoutEngine {
             }
             lxx_calendar_common::layout::ConditionOp::Gt => {
                 if let (Some(fv), Some(cv)) = (field_value, compare_value) {
-                    return fv.partial_cmp(cv).map(|o| o == core::cmp::Ordering::Greater).unwrap_or(false);
+                    return fv
+                        .partial_cmp(cv)
+                        .map(|o| o == core::cmp::Ordering::Greater)
+                        .unwrap_or(false);
                 }
                 false
             }
             lxx_calendar_common::layout::ConditionOp::Lt => {
                 if let (Some(fv), Some(cv)) = (field_value, compare_value) {
-                    return fv.partial_cmp(cv).map(|o| o == core::cmp::Ordering::Less).unwrap_or(false);
+                    return fv
+                        .partial_cmp(cv)
+                        .map(|o| o == core::cmp::Ordering::Less)
+                        .unwrap_or(false);
                 }
                 false
             }
-            lxx_calendar_common::layout::ConditionOp::Exists => {
-                field_value.is_some()
-            }
+            lxx_calendar_common::layout::ConditionOp::Exists => field_value.is_some(),
             // 其他操作符可根据需要添加
             _ => false,
         }
@@ -773,35 +810,45 @@ impl LayoutData {
     pub fn set_string(&mut self, key: &str, value: &str) -> Result<(), ()> {
         let key_str = heapless::String::from_str(key).map_err(|_| ())?;
         let value_str = heapless::String::from_str(value).map_err(|_| ())?;
-        self.fields.insert(key_str, LayoutValue::String(value_str)).map_err(|_| ())?;
+        self.fields
+            .insert(key_str, LayoutValue::String(value_str))
+            .map_err(|_| ())?;
         Ok(())
     }
 
     /// 设置整数字段
     pub fn set_i64(&mut self, key: &str, value: i64) -> Result<(), ()> {
         let key_str = heapless::String::from_str(key).map_err(|_| ())?;
-        self.fields.insert(key_str, LayoutValue::I64(value)).map_err(|_| ())?;
+        self.fields
+            .insert(key_str, LayoutValue::I64(value))
+            .map_err(|_| ())?;
         Ok(())
     }
 
     /// 设置浮点字段
     pub fn set_f64(&mut self, key: &str, value: f64) -> Result<(), ()> {
         let key_str = heapless::String::from_str(key).map_err(|_| ())?;
-        self.fields.insert(key_str, LayoutValue::F64(value)).map_err(|_| ())?;
+        self.fields
+            .insert(key_str, LayoutValue::F64(value))
+            .map_err(|_| ())?;
         Ok(())
     }
 
     /// 设置布尔字段
     pub fn set_bool(&mut self, key: &str, value: bool) -> Result<(), ()> {
         let key_str = heapless::String::from_str(key).map_err(|_| ())?;
-        self.fields.insert(key_str, LayoutValue::Bool(value)).map_err(|_| ())?;
+        self.fields
+            .insert(key_str, LayoutValue::Bool(value))
+            .map_err(|_| ())?;
         Ok(())
     }
 
     /// 设置数组字段
     pub fn set_array(&mut self, key: &str, value: heapless::Vec<LayoutData, 16>) -> Result<(), ()> {
         let key_str = heapless::String::from_str(key).map_err(|_| ())?;
-        self.fields.insert(key_str, LayoutValue::Array(Box::new(value))).map_err(|_| ())?;
+        self.fields
+            .insert(key_str, LayoutValue::Array(Box::new(value)))
+            .map_err(|_| ())?;
         Ok(())
     }
 

@@ -36,7 +36,9 @@ pub mod parser;
 pub mod renderer;
 
 pub use parser::{LayoutParser, ParseError};
-pub use renderer::{IconRenderer, LayoutData, LayoutEngine, LayoutRenderer, LayoutValue, Renderer, TextRenderer};
+pub use renderer::{
+    IconRenderer, LayoutData, LayoutEngine, LayoutRenderer, LayoutValue, Renderer, TextRenderer,
+};
 
 // 重新导出常用的类型
 pub use lxx_calendar_common::layout;

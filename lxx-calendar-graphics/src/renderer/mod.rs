@@ -22,8 +22,8 @@ pub use layout::LayoutRenderer;
 pub use layout_engine::{LayoutData, LayoutEngine, LayoutValue};
 pub use text::TextRenderer;
 
-use lxx_calendar_common::types::{LunarDate, WeatherInfo};
 use lxx_calendar_common::SystemResult;
+use lxx_calendar_common::types::{LunarDate, WeatherInfo};
 
 /// 日期时间信息（本地定义，用于向后兼容）
 #[derive(Debug, Clone)]
@@ -60,18 +60,12 @@ impl<const SIZE: usize> Renderer<SIZE> {
     /// # 参数
     /// * `layout_json` - JSON 格式的布局定义字符串
     /// * `data` - 包含渲染数据的 LayoutData
-    pub fn render_from_json(
-        &mut self,
-        layout_json: &str,
-        data: &LayoutData,
-    ) -> SystemResult<()> {
-        let layout = crate::parser::LayoutParser::parse_layout(layout_json)
-            .map_err(|_| lxx_calendar_common::SystemError::DataError(lxx_calendar_common::DataError::ParseError))?;
-        self.layout_engine.render(
-            &mut self.framebuffer,
-            &layout,
-            data,
-        )?;
+    pub fn render_from_json(&mut self, layout_json: &str, data: &LayoutData) -> SystemResult<()> {
+        let layout = crate::parser::LayoutParser::parse_layout(layout_json).map_err(|_| {
+            lxx_calendar_common::SystemError::DataError(lxx_calendar_common::DataError::ParseError)
+        })?;
+        self.layout_engine
+            .render(&mut self.framebuffer, &layout, data)?;
         Ok(())
     }
 
@@ -81,11 +75,8 @@ impl<const SIZE: usize> Renderer<SIZE> {
         layout: &lxx_calendar_common::layout::LayoutDefinition,
         data: &LayoutData,
     ) -> SystemResult<()> {
-        self.layout_engine.render(
-            &mut self.framebuffer,
-            layout,
-            data,
-        )?;
+        self.layout_engine
+            .render(&mut self.framebuffer, layout, data)?;
         Ok(())
     }
 

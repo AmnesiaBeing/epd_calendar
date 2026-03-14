@@ -6,9 +6,7 @@ use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 
-use lxx_calendar_common::layout::{
-    ConditionOp, LayoutDefinition, SeparatorStyle, TextAlign,
-};
+use lxx_calendar_common::layout::{ConditionOp, LayoutDefinition, SeparatorStyle, TextAlign};
 use serde_json::Value;
 
 /// 解析错误类型
@@ -35,18 +33,19 @@ impl LayoutParser {
 
     /// 解析数据 JSON 字符串为 LayoutData
     pub fn parse_data(json_str: &str) -> Result<crate::LayoutData, ParseError> {
-        let value: Value = serde_json::from_str(json_str).map_err(|e| ParseError::JsonParseError {
-            message: e.to_string(),
-        })?;
+        let value: Value =
+            serde_json::from_str(json_str).map_err(|e| ParseError::JsonParseError {
+                message: e.to_string(),
+            })?;
         Self::value_to_layout_data(&value)
     }
 
     /// 从 JSON Value 转换为 LayoutData
     pub fn value_to_layout_data(value: &Value) -> Result<crate::LayoutData, ParseError> {
         use crate::LayoutData;
-        
+
         let mut data = LayoutData::new();
-        
+
         if let Value::Object(map) = value {
             for (key, val) in map {
                 match val {
@@ -84,7 +83,7 @@ impl LayoutParser {
                 }
             }
         }
-        
+
         Ok(data)
     }
 
@@ -193,9 +192,7 @@ impl LayoutParser {
             }
             ConditionOp::LenEq => {
                 if let (Some(fv), Some(cv)) = (field_value, compare_value) {
-                    if let (Some(len_f), Some(len_c)) =
-                        (Self::get_length(fv), cv.as_u64())
-                    {
+                    if let (Some(len_f), Some(len_c)) = (Self::get_length(fv), cv.as_u64()) {
                         return len_f == len_c;
                     }
                 }
@@ -203,9 +200,7 @@ impl LayoutParser {
             }
             ConditionOp::LenGt => {
                 if let (Some(fv), Some(cv)) = (field_value, compare_value) {
-                    if let (Some(len_f), Some(len_c)) =
-                        (Self::get_length(fv), cv.as_u64())
-                    {
+                    if let (Some(len_f), Some(len_c)) = (Self::get_length(fv), cv.as_u64()) {
                         return len_f > len_c;
                     }
                 }
@@ -231,9 +226,11 @@ impl LayoutParser {
     /// 比较两个值的大小（大于）
     fn compare_values_greater(a: &Value, b: &Value) -> bool {
         match (a, b) {
-            (Value::Number(an), Value::Number(bn)) => {
-                an.as_f64().zip(bn.as_f64()).map(|(a, b)| a > b).unwrap_or(false)
-            }
+            (Value::Number(an), Value::Number(bn)) => an
+                .as_f64()
+                .zip(bn.as_f64())
+                .map(|(a, b)| a > b)
+                .unwrap_or(false),
             (Value::String(as_), Value::String(bs)) => as_ > bs,
             _ => false,
         }
@@ -242,9 +239,11 @@ impl LayoutParser {
     /// 比较两个值的大小（小于）
     fn compare_values_less(a: &Value, b: &Value) -> bool {
         match (a, b) {
-            (Value::Number(an), Value::Number(bn)) => {
-                an.as_f64().zip(bn.as_f64()).map(|(a, b)| a < b).unwrap_or(false)
-            }
+            (Value::Number(an), Value::Number(bn)) => an
+                .as_f64()
+                .zip(bn.as_f64())
+                .map(|(a, b)| a < b)
+                .unwrap_or(false),
             (Value::String(as_), Value::String(bs)) => as_ < bs,
             _ => false,
         }

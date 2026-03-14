@@ -1,5 +1,8 @@
 use core::sync::atomic::Ordering;
-use lxx_calendar_common::{info, traits::button::{ButtonDriver, ButtonEvent}};
+use lxx_calendar_common::{
+    info,
+    traits::button::{ButtonDriver, ButtonEvent},
+};
 use std::sync::{Arc, Mutex};
 
 #[derive(Clone)]
