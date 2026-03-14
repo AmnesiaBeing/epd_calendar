@@ -26,8 +26,6 @@ pub struct IconCategoryConfig {
 pub struct WeatherIconConfig {
     /// 天气图标文件的根目录
     pub dir: PathBuf,
-    /// 图标清单JSON文件路径，包含天气图标的元数据
-    pub list_path: PathBuf,
     /// 生成的Rust枚举类型名称
     pub enum_name: String,
     /// 天气图标的固定宽度（像素）
@@ -88,8 +86,7 @@ impl BuildConfig {
                 },
             ],
             weather_icon_config: WeatherIconConfig {
-                dir: PathBuf::from("./WeatherIcons"),
-                list_path: PathBuf::from("./WeatherIcons/icons-list-minimal.json"),
+                dir: PathBuf::from("assets/icons/weather"),
                 enum_name: "WeatherIcon".to_string(),
                 width: 64,
                 height: 64,

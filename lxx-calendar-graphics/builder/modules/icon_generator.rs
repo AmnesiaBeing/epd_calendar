@@ -220,51 +220,33 @@ fn process_single_local_icon(
     })
 }
 
-/// 处理天气图标
+/// 处理天气图标（从目录直接读取 SVG 文件）
 fn process_weather_icons(
     config: &BuildConfig,
-    progress: &ProgressTracker,
+    _progress: &ProgressTracker,
 ) -> Result<Vec<ProcessedIconInfo>> {
     let weather_config = &config.weather_icon_config;
     let mut stats = ProcessingStats::default();
 
-    // 加载并处理图标列表
-    let icons = load_and_process_weather_icons(weather_config, &mut stats, progress)?;
-
-    Ok(icons)
-}
-
-/// 加载并处理天气图标列表
-fn load_and_process_weather_icons(
-    config: &WeatherIconConfig,
-    stats: &mut ProcessingStats,
-    progress: &ProgressTracker,
-) -> Result<Vec<ProcessedIconInfo>> {
-    // 加载图标列表
-    let icons_list = load_weather_icon_list(config)?;
-
-    // 过滤-fill图标
-    let filtered_icons = filter_fill_weather_icons(&icons_list);
-
-    if filtered_icons.is_empty() {
-        bail!("过滤后没有天气图标");
+    // 检查目录是否存在
+    if !weather_config.dir.exists() {
+        bail!("天气图标目录不存在：{:?}", weather_config.dir);
     }
 
-    // 顺序处理天气图标
-    let total_icons = filtered_icons.len();
+    // 收集 SVG 文件
+    let svg_files = collect_svg_files(&weather_config.dir)?;
+    if svg_files.is_empty() {
+        bail!("目录中没有找到 SVG 文件：{:?}", weather_config.dir);
+    }
+
+    // 顺序处理图标
     let mut weather_icons = Vec::new();
 
-    for (idx, icon) in filtered_icons.iter().enumerate() {
-        // 每100个图标打印一次进度，或者处理第一个图标时打印一次
-        if idx == 0 || idx % 100 == 0 {
-            progress.update_progress(idx, total_icons, "处理天气图标");
-        }
-
-        match process_single_weather_icon(icon, config, stats) {
+    for svg_path in &svg_files {
+        match process_single_weather_icon_svg(svg_path, weather_config, &mut stats) {
             Ok(processed_icon) => weather_icons.push(processed_icon),
             Err(_e) => {
                 stats.record_error();
-                // 错误日志已注释，保持原有逻辑
             }
         }
     }
@@ -277,104 +259,39 @@ fn load_and_process_weather_icons(
     Ok(weather_icons)
 }
 
-/// 天气图标JSON结构
-#[derive(Debug, Deserialize, Clone)]
-struct WeatherIconListEntry {
-    icon_code: String,
-    icon_name: String,
-}
-
-/// 加载天气图标列表
-fn load_weather_icon_list(config: &WeatherIconConfig) -> Result<Vec<WeatherIconListEntry>> {
-    let content = fs::read_to_string(&config.list_path)
-        .with_context(|| format!("读取天气图标列表失败: {:?}", config.list_path))?;
-
-    let icons: Vec<WeatherIconListEntry> =
-        serde_json::from_str(&content).context("解析天气图标列表JSON失败")?;
-
-    if icons.is_empty() {
-        bail!("天气图标列表为空");
-    }
-
-    Ok(icons)
-}
-
-/// 过滤掉-fill天气图标，保留非fill版本
-fn filter_fill_weather_icons(icons: &[WeatherIconListEntry]) -> Vec<WeatherIconListEntry> {
-    let mut icon_map = HashMap::new();
-
-    for icon in icons {
-        if icon.icon_code.ends_with("-fill") {
-            continue;
-        }
-
-        let fill_code = format!("{}-fill", icon.icon_code);
-        let has_fill_version = icons.iter().any(|i| i.icon_code == fill_code);
-
-        if has_fill_version {
-            // 检查是否已经有对应的非fill版本
-            icon_map
-                .entry(icon.icon_code.clone())
-                .or_insert_with(|| icon.clone());
-        } else {
-            icon_map
-                .entry(icon.icon_code.clone())
-                .or_insert_with(|| icon.clone());
-        }
-    }
-
-    let mut filtered: Vec<_> = icon_map.into_values().collect();
-    filtered.sort_by(|a, b| a.icon_code.cmp(&b.icon_code));
-    filtered
-}
-
-/// 处理单个天气图标
-fn process_single_weather_icon(
-    icon: &WeatherIconListEntry,
+/// 处理单个天气图标 SVG 文件
+fn process_single_weather_icon_svg(
+    svg_path: &Path,
     config: &WeatherIconConfig,
     stats: &mut ProcessingStats,
 ) -> Result<ProcessedIconInfo> {
-    let svg_path = config
-        .dir
-        .join("icons")
-        .join(format!("{}.svg", icon.icon_code));
+    // 获取文件名（不含扩展名）
+    let filename = svg_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .ok_or_else(|| anyhow::anyhow!("获取文件名失败：{:?}", svg_path))?
+        .to_string();
 
-    let (bitmap_data, size) = if svg_path.exists() {
-        let render_result = render_svg(&svg_path, config.width as u32, config.height as u32)?;
-        let size = IconSize {
-            width: config.width,
-            height: config.height,
-        };
-        (render_result.bitmap_data, size)
-    } else {
-        eprintln!(
-            "Warning: 天气图标文件不存在，使用空白图标: {}",
-            icon.icon_code
-        );
-        stats.record_skipped();
+    // 转换为 Rust 枚举变体名
+    let variant_name = convert_to_variant_name(&filename);
 
-        let size = IconSize {
-            width: config.width,
-            height: config.height,
-        };
-        (size.create_blank_bitmap(), size)
-    };
+    // 渲染图标
+    let render_result = render_svg(svg_path, config.width as u32, config.height as u32)?;
 
-    let variant_name = if icon.icon_code.chars().all(|c| c.is_ascii_digit()) {
-        format!("Icon{}", icon.icon_code)
-    } else {
-        convert_to_variant_name(&icon.icon_name)
+    let size = IconSize {
+        width: config.width,
+        height: config.height,
     };
 
     stats.record_success();
 
     Ok(ProcessedIconInfo {
-        id: icon.icon_code.clone(),
+        id: filename.clone(),
         variant_name,
-        bitmap_data,
+        bitmap_data: render_result.bitmap_data,
         size,
         source_type: IconSourceType::Weather {
-            icon_code: icon.icon_code.clone(),
+            icon_code: filename,
         },
     })
 }

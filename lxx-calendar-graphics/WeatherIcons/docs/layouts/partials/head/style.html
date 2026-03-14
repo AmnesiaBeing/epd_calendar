@@ -1,8 +1,0 @@
-{{ $styles := resources.Get "/css/style.css" | resources.Fingerprint  }}
-{{ if hugo.IsServer }}
-  <link rel="stylesheet" href="{{ $styles.RelPermalink }}"/>
-{{ else }}
-  {{ $styles := $styles | minify  }}
-  <link rel="stylesheet" href="{{ $styles.RelPermalink }}" />
-{{ end }}
-<link rel="stylesheet" href="/assets/font/qweather-icons.css?{{ now.Unix }}">

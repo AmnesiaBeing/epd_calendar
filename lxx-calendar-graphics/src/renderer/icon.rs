@@ -53,7 +53,7 @@ impl IconRenderer {
             self.render_weather_icon_by_enum(framebuffer, x, y, icon)
         } else {
             // 如果图标代码无效，使用默认图标（阴天）
-            self.render_weather_icon_by_enum(framebuffer, x, y, WeatherIcon::Icon104)
+            self.render_weather_icon_by_enum(framebuffer, x, y, WeatherIcon::I104)
         }
     }
 
@@ -112,25 +112,25 @@ impl IconRenderer {
     fn condition_to_weather_icon(&self, condition: WeatherCondition, is_day: bool) -> WeatherIcon {
         match (condition, is_day) {
             // 晴天
-            (WeatherCondition::Sunny, true) => WeatherIcon::Icon100,
-            (WeatherCondition::Sunny, false) => WeatherIcon::Icon150,
+            (WeatherCondition::Sunny, true) => WeatherIcon::I100,
+            (WeatherCondition::Sunny, false) => WeatherIcon::I150,
             // 多云
-            (WeatherCondition::Cloudy, true) => WeatherIcon::Icon102,
-            (WeatherCondition::Cloudy, false) => WeatherIcon::Icon151,
+            (WeatherCondition::Cloudy, true) => WeatherIcon::I102,
+            (WeatherCondition::Cloudy, false) => WeatherIcon::I151,
             // 阴天
-            (WeatherCondition::Overcast, _) => WeatherIcon::Icon104,
+            (WeatherCondition::Overcast, _) => WeatherIcon::I104,
             // 雨天
-            (WeatherCondition::LightRain, _) => WeatherIcon::Icon309,
-            (WeatherCondition::ModerateRain, _) => WeatherIcon::Icon306,
-            (WeatherCondition::HeavyRain, _) => WeatherIcon::Icon306,
+            (WeatherCondition::LightRain, _) => WeatherIcon::I309,
+            (WeatherCondition::ModerateRain, _) => WeatherIcon::I306,
+            (WeatherCondition::HeavyRain, _) => WeatherIcon::I306,
             // 雷暴
-            (WeatherCondition::Thunderstorm, _) => WeatherIcon::Icon302,
+            (WeatherCondition::Thunderstorm, _) => WeatherIcon::I302,
             // 雪
-            (WeatherCondition::Snow, _) => WeatherIcon::Icon400,
+            (WeatherCondition::Snow, _) => WeatherIcon::I400,
             // 雾
-            (WeatherCondition::Fog, _) => WeatherIcon::Icon501,
+            (WeatherCondition::Fog, _) => WeatherIcon::I501,
             // 霾
-            (WeatherCondition::Haze, _) => WeatherIcon::Icon104,
+            (WeatherCondition::Haze, _) => WeatherIcon::I104,
         }
     }
 }
