@@ -4,6 +4,7 @@
 extern crate alloc;
 
 use super::framebuffer::{Color, Framebuffer};
+use crate::assets::generated_icons::{IconId, WeatherIcon};
 use lxx_calendar_common::SystemResult;
 use lxx_calendar_common::types::weather::WeatherCondition;
 
@@ -15,124 +16,121 @@ impl IconRenderer {
         Self
     }
 
-    /// 渲染天气图标
+    /// 渲染天气图标（使用 WeatherCondition）
     /// 参数：
     /// - framebuffer: 渲染缓冲区
     /// - x: X 坐标
     /// - y: Y 坐标
     /// - condition: 天气条件
+    /// - is_day: 是否为白天
     pub fn render_weather_icon<const SIZE: usize>(
         &self,
         framebuffer: &mut Framebuffer<SIZE>,
         x: u16,
         y: u16,
         condition: WeatherCondition,
+        is_day: bool,
     ) -> SystemResult<()> {
-        // 简化实现：绘制一个矩形表示天气图标占位符
-        // 实际项目中应该使用生成的天气图标位图
-        framebuffer.draw_rectangle(x, y, 32, 32, Color::Black)?;
+        // 将 WeatherCondition 转换为 WeatherIcon
+        let icon = self.condition_to_weather_icon(condition, is_day);
+        self.render_weather_icon_by_enum(framebuffer, x, y, icon)
+    }
 
-        // 根据天气类型绘制简单的图形
-        match condition {
-            WeatherCondition::Sunny => {
-                self.draw_sun(framebuffer, x + 16, y + 16)?;
-            }
-            WeatherCondition::Cloudy | WeatherCondition::Overcast => {
-                self.draw_cloud(framebuffer, x + 16, y + 20)?;
-            }
-            WeatherCondition::LightRain
-            | WeatherCondition::ModerateRain
-            | WeatherCondition::HeavyRain => {
-                self.draw_cloud(framebuffer, x + 16, y + 18)?;
-                self.draw_rain(framebuffer, x + 8, y + 28)?;
-            }
-            WeatherCondition::Thunderstorm => {
-                self.draw_cloud(framebuffer, x + 16, y + 18)?;
-                self.draw_lightning(framebuffer, x + 20, y + 24)?;
-            }
-            WeatherCondition::Snow => {
-                self.draw_snow(framebuffer, x + 12, y + 32)?;
-            }
-            WeatherCondition::Fog => {
-                self.draw_fog(framebuffer, x + 8, y + 16)?;
-            }
-            WeatherCondition::Haze => {
-                self.draw_cloud(framebuffer, x + 16, y + 18)?;
+    /// 根据天气代码渲染图标
+    /// 参数：
+    /// - framebuffer: 渲染缓冲区
+    /// - x: X 坐标
+    /// - y: Y 坐标
+    /// - icon_code: 和风天气图标代码（如 "100", "300" 等）
+    pub fn render_weather_icon_by_code<const SIZE: usize>(
+        &self,
+        framebuffer: &mut Framebuffer<SIZE>,
+        x: u16,
+        y: u16,
+        icon_code: &str,
+    ) -> SystemResult<()> {
+        if let Some(icon) = WeatherIcon::from_api_str(icon_code) {
+            self.render_weather_icon_by_enum(framebuffer, x, y, icon)
+        } else {
+            // 如果图标代码无效，使用默认图标（阴天）
+            self.render_weather_icon_by_enum(framebuffer, x, y, WeatherIcon::Icon104)
+        }
+    }
+
+    /// 渲染天气图标（使用 WeatherIcon 枚举）
+    fn render_weather_icon_by_enum<const SIZE: usize>(
+        &self,
+        framebuffer: &mut Framebuffer<SIZE>,
+        x: u16,
+        y: u16,
+        icon: WeatherIcon,
+    ) -> SystemResult<()> {
+        let icon_id = IconId::Weather(icon);
+        let bitmap_data = icon_id.data();
+        let width = icon_id.width();
+        let height = icon_id.height();
+
+        // 从位图数据渲染图标
+        self.render_bitmap(framebuffer, x, y, bitmap_data, width, height)
+    }
+
+    /// 从位图数据渲染图标
+    /// 位图格式：单色位图，每像素 1 位，0=黑色，1=白色
+    fn render_bitmap<const SIZE: usize>(
+        &self,
+        framebuffer: &mut Framebuffer<SIZE>,
+        x: u16,
+        y: u16,
+        bitmap_data: &[u8],
+        width: usize,
+        height: usize,
+    ) -> SystemResult<()> {
+        for row in 0..height {
+            for col in 0..width {
+                let byte_index = (row * width + col) / 8;
+                let bit_index = 7 - ((row * width + col) % 8);
+
+                if byte_index < bitmap_data.len() {
+                    let pixel_value = (bitmap_data[byte_index] >> bit_index) & 1;
+                    // 0=黑色（绘制），1=白色（不绘制）
+                    if pixel_value == 0 {
+                        let px = x as usize + col;
+                        let py = y as usize + row;
+                        if px < framebuffer.width() as usize && py < framebuffer.height() as usize {
+                            framebuffer
+                                .draw_pixel(px as u16, py as u16, Color::Black)
+                                .ok();
+                        }
+                    }
+                }
             }
         }
-
         Ok(())
     }
 
-    /// 渲染太阳
-    fn draw_sun<const SIZE: usize>(
-        &self,
-        framebuffer: &mut Framebuffer<SIZE>,
-        x: u16,
-        y: u16,
-    ) -> SystemResult<()> {
-        // 太阳本体 - 绘制一个矩形
-        framebuffer.draw_rectangle(x - 8, y - 8, 16, 16, Color::Black)?;
-        Ok(())
-    }
-
-    /// 渲染云
-    fn draw_cloud<const SIZE: usize>(
-        &self,
-        framebuffer: &mut Framebuffer<SIZE>,
-        x: u16,
-        y: u16,
-    ) -> SystemResult<()> {
-        // 绘制简单的云形 - 矩形
-        framebuffer.draw_rectangle(x - 6, y - 4, 12, 8, Color::Black)?;
-        Ok(())
-    }
-
-    /// 渲染雨
-    fn draw_rain<const SIZE: usize>(
-        &self,
-        framebuffer: &mut Framebuffer<SIZE>,
-        x: u16,
-        y: u16,
-    ) -> SystemResult<()> {
-        // 绘制雨滴 - 小矩形
-        framebuffer.draw_rectangle(x, y, 2, 4, Color::Black)?;
-        Ok(())
-    }
-
-    /// 渲染闪电
-    fn draw_lightning<const SIZE: usize>(
-        &self,
-        framebuffer: &mut Framebuffer<SIZE>,
-        x: u16,
-        y: u16,
-    ) -> SystemResult<()> {
-        // 绘制闪电 - 矩形
-        framebuffer.draw_rectangle(x, y, 4, 8, Color::Black)?;
-        Ok(())
-    }
-
-    /// 渲染雪
-    fn draw_snow<const SIZE: usize>(
-        &self,
-        framebuffer: &mut Framebuffer<SIZE>,
-        x: u16,
-        y: u16,
-    ) -> SystemResult<()> {
-        // 绘制雪花 - 小点
-        framebuffer.draw_pixel(x, y, Color::Black)?;
-        Ok(())
-    }
-
-    /// 渲染雾
-    fn draw_fog<const SIZE: usize>(
-        &self,
-        framebuffer: &mut Framebuffer<SIZE>,
-        x: u16,
-        y: u16,
-    ) -> SystemResult<()> {
-        // 绘制雾 - 矩形
-        framebuffer.draw_rectangle(x, y, 12, 4, Color::Black)?;
-        Ok(())
+    /// 将 WeatherCondition 转换为 WeatherIcon
+    fn condition_to_weather_icon(&self, condition: WeatherCondition, is_day: bool) -> WeatherIcon {
+        match (condition, is_day) {
+            // 晴天
+            (WeatherCondition::Sunny, true) => WeatherIcon::Icon100,
+            (WeatherCondition::Sunny, false) => WeatherIcon::Icon150,
+            // 多云
+            (WeatherCondition::Cloudy, true) => WeatherIcon::Icon102,
+            (WeatherCondition::Cloudy, false) => WeatherIcon::Icon151,
+            // 阴天
+            (WeatherCondition::Overcast, _) => WeatherIcon::Icon104,
+            // 雨天
+            (WeatherCondition::LightRain, _) => WeatherIcon::Icon309,
+            (WeatherCondition::ModerateRain, _) => WeatherIcon::Icon306,
+            (WeatherCondition::HeavyRain, _) => WeatherIcon::Icon306,
+            // 雷暴
+            (WeatherCondition::Thunderstorm, _) => WeatherIcon::Icon302,
+            // 雪
+            (WeatherCondition::Snow, _) => WeatherIcon::Icon400,
+            // 雾
+            (WeatherCondition::Fog, _) => WeatherIcon::Icon501,
+            // 霾
+            (WeatherCondition::Haze, _) => WeatherIcon::Icon104,
+        }
     }
 }

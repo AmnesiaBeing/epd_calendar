@@ -89,7 +89,7 @@ impl BuildConfig {
             ],
             weather_icon_config: WeatherIconConfig {
                 dir: PathBuf::from("./WeatherIcons"),
-                list_path: PathBuf::from("./WeatherIcons/icons-list.json"),
+                list_path: PathBuf::from("./WeatherIcons/icons-list-minimal.json"),
                 enum_name: "WeatherIcon".to_string(),
                 width: 64,
                 height: 64,

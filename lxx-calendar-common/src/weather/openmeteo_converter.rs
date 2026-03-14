@@ -115,21 +115,39 @@ pub fn get_weather_description(code: u8) -> &'static str {
     }
 }
 
-pub fn get_icon_name(code: u8, is_day: bool) -> &'static str {
+/// 根据 WMO 天气代码和昼夜状态获取和风图标代码
+/// 
+/// # 参数
+/// - `code`: WMO 天气代码 (0-99)
+/// - `is_day`: 是否为白天 (true=白天，false=夜间)
+/// 
+/// # 返回
+/// 和风天气图标代码字符串（如 "100", "150" 等）
+pub fn get_icon_code(code: u8, is_day: bool) -> &'static str {
     match (code, is_day) {
-        (0, true) => "sunny",
-        (0, false) => "clear_night",
-        (1, true) => "mostly_sunny",
-        (1, false) => "partly_cloudy_night",
-        (2, true) => "partly_cloudy",
-        (2, false) => "partly_cloudy_night",
-        (3, _) => "overcast",
-        (45 | 48, _) => "fog",
-        (51 | 53 | 55, _) => "light_rain",
-        (61 | 63 | 65, _) => "moderate_rain",
-        (71 | 73 | 75, _) => "snow",
-        (80 | 81 | 82, _) => "showers",
-        (95 | 96 | 99, _) => "thunderstorm",
-        _ => "cloudy",
+        // 晴空
+        (0, true) => "100",
+        (0, false) => "150",
+        // 主要晴朗/部分多云
+        (1 | 2, true) => "102",
+        (1 | 2, false) => "151",
+        // 阴天
+        (3, _) => "104",
+        // 雾
+        (45 | 48, _) => "501",
+        // 毛毛雨/小雨
+        (51 | 53 | 55 | 56 | 57, _) => "309",
+        // 雨/冻雨
+        (61 | 63 | 65 | 66 | 67, _) => "306",
+        // 雪/雪粒
+        (71 | 73 | 75 | 77, _) => "400",
+        // 阵雨
+        (80 | 81 | 82, _) => "300",
+        // 阵雪
+        (85 | 86, _) => "406",
+        // 雷暴（可能伴冰雹）
+        (95 | 96 | 99, _) => "302",
+        // 默认
+        _ => "104",
     }
 }

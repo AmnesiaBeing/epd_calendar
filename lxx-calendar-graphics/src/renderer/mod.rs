@@ -166,12 +166,17 @@ impl<const SIZE: usize> Renderer<SIZE> {
         self.text_renderer
             .render(&mut self.framebuffer, 100, 140, humidity_str.as_str())?;
 
+        // 判断是否为白天（6 点 -18 点）
+        // 注意：这里使用固定时间判断，实际项目中应该传入当前时间
+        let is_day = true; // 默认白天，TODO: 从系统时间获取
+
         // 渲染天气图标
         self.icon_renderer.render_weather_icon(
             &mut self.framebuffer,
             250,
             110,
             weather.current.condition,
+            is_day,
         )?;
 
         Ok(())

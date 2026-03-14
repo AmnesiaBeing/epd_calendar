@@ -14,6 +14,7 @@ use hash32::{BuildHasherDefault, FnvHasher};
 use heapless::IndexMap;
 
 use super::framebuffer::{Color, Framebuffer};
+use super::icon::IconRenderer;
 use super::text::TextRenderer;
 use lxx_calendar_common::SystemResult;
 use lxx_calendar_common::layout::*;
@@ -24,6 +25,7 @@ use lxx_calendar_common::layout::*;
 /// JSON 解析应在外部完成（在 std 环境下），然后传递解析后的数据
 pub struct LayoutEngine {
     text_renderer: TextRenderer,
+    icon_renderer: IconRenderer,
     current_y: u16,
     screen_width: u16,
     screen_height: u16,
@@ -34,6 +36,7 @@ impl LayoutEngine {
     pub fn new(width: u16, height: u16) -> Self {
         Self {
             text_renderer: TextRenderer::new(),
+            icon_renderer: IconRenderer::new(),
             current_y: 0,
             screen_width: width,
             screen_height: height,
@@ -366,17 +369,37 @@ impl LayoutEngine {
         let mut x = block.margin_x;
         let y = self.current_y + 4;
 
-        // 渲染天气图标
-        // TODO: 使用天气图标枚举渲染
-        let icon_size = block.icon_size;
-        framebuffer.draw_rectangle(x, y, icon_size, icon_size, Color::Black)?;
-        x += icon_size + 4;
+        // 渲染天气图标（使用图标代码）
+        // 默认白天，TODO: 从系统时间获取 is_day
+        let is_day = true;
+        let icon_code = if code.is_empty() {
+            // 如果没有代码，尝试从文本推断
+            if text.contains("晴") {
+                if is_day { "100" } else { "150" }
+            } else if text.contains("雨") {
+                "306"
+            } else if text.contains("雪") {
+                "400"
+            } else if text.contains("雷") {
+                "302"
+            } else if text.contains("雾") {
+                "501"
+            } else {
+                "104" // 默认阴天
+            }
+        } else {
+            code.as_str()
+        };
+
+        self.icon_renderer
+            .render_weather_icon_by_code(framebuffer, x, y, icon_code)?;
+        x += block.icon_size + 4;
 
         // 渲染文本
         self.text_renderer
             .render_with_size(framebuffer, x, y, &text, block.font_size)?;
 
-        self.current_y += block.font_size.max(icon_size) + 4;
+        self.current_y += block.font_size.max(block.icon_size) + 4;
 
         Ok(())
     }

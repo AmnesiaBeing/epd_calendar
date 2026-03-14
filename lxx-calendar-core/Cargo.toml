@@ -55,7 +55,6 @@ sntpc = { workspace = true }
 sntpc-net-embassy = { workspace = true }
 
 # JWT认证
-ed25519-compact = { workspace = true }
 static_cell.workspace = true
 
 # Flash存储

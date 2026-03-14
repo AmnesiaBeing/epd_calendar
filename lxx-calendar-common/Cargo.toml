@@ -56,9 +56,6 @@ sxtwl-rs = { path = "../libs/sxtwl-rs", features = ["festival"] }
 sntpc = { workspace = true }
 sntpc-net-embassy = { workspace = true }
 
-# JWT 认证
-ed25519-compact = { workspace = true }
-
 # GZip 解压
 miniz_oxide = { workspace = true }
 
