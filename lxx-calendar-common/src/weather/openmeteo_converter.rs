@@ -116,11 +116,11 @@ pub fn get_weather_description(code: u8) -> &'static str {
 }
 
 /// 根据 WMO 天气代码和昼夜状态获取和风图标代码
-/// 
+///
 /// # 参数
 /// - `code`: WMO 天气代码 (0-99)
 /// - `is_day`: 是否为白天 (true=白天，false=夜间)
-/// 
+///
 /// # 返回
 /// 和风天气图标代码字符串（如 "100", "150" 等）
 pub fn get_icon_code(code: u8, is_day: bool) -> &'static str {

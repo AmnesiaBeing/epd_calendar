@@ -13,3 +13,9 @@
 [submodule "libs/embedded-hal-mock"]
 	path = libs/embedded-hal-mock
 	url = https://github.com/AmnesiaBeing/embedded-hal-mock.git
+[submodule "libs/reqwless"]
+	path = libs/reqwless
+	url = https://github.com/AmnesiaBeing/reqwless.git
+[submodule "libs/embedded-tls"]
+	path = libs/embedded-tls
+	url = https://github.com/AmnesiaBeing/embedded-tls.git

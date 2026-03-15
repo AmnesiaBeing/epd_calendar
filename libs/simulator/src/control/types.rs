@@ -82,3 +82,67 @@ pub struct StatusResponse {
     pub ble: BleStatusResponse,
     pub watchdog: WatchdogStatusResponse,
 }
+
+// ==================== 显示相关类型 ====================
+
+#[derive(Debug, Serialize)]
+pub struct DisplayStatusResponse {
+    pub initialized: bool,
+    pub mode: String,
+    pub width: u16,
+    pub height: u16,
+    pub busy: bool,
+    pub last_refresh: Option<u64>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DisplayRefreshRequest {
+    #[serde(default = "default_refresh_mode")]
+    pub mode: String,
+}
+
+fn default_refresh_mode() -> String {
+    "full".to_string()
+}
+
+#[derive(Debug, Serialize)]
+pub struct DisplayRefreshResponse {
+    pub success: bool,
+    pub message: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DisplayModeRequest {
+    pub mode: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DisplayModeResponse {
+    pub success: bool,
+    pub message: String,
+}
+
+// ==================== 闹钟相关类型 ====================
+
+#[derive(Debug, Serialize)]
+pub struct AlarmStatusResponse {
+    pub enabled: bool,
+    pub triggered: bool,
+    pub trigger_time: Option<u64>,
+    pub repeat: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AlarmRequest {
+    pub action: String,
+    #[serde(default)]
+    pub trigger_time: Option<String>,
+    #[serde(default)]
+    pub delay_seconds: Option<u64>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct AlarmResponse {
+    pub success: bool,
+    pub message: String,
+}

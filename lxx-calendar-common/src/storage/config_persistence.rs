@@ -59,15 +59,30 @@ impl ConfigHeader {
 
     pub fn to_bytes(&self) -> [u8; Self::SIZE] {
         let mut buf = [0u8; Self::SIZE];
-        let mut temp_buf = [0u8; Self::SIZE];
-        if let Ok(serialized) = postcard::to_slice(self, &mut temp_buf[..Self::SIZE - 4]) {
-            buf[..serialized.len()].copy_from_slice(serialized);
-        }
+        // 直接使用 to_le_bytes() 写入各个字段，确保 Magic Number 在开头
+        buf[0..4].copy_from_slice(&self.magic.to_le_bytes());
+        buf[4..8].copy_from_slice(&self.version.to_le_bytes());
+        buf[8..12].copy_from_slice(&self.checksum.to_le_bytes());
+        buf[12..16].copy_from_slice(&self.active.to_le_bytes());
+        buf[16..32].copy_from_slice(&self.reserved);
         buf
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
-        postcard::from_bytes(bytes).ok()
+        if bytes.len() < Self::SIZE {
+            return None;
+        }
+        Some(Self {
+            magic: u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]),
+            version: u32::from_le_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]),
+            checksum: u32::from_le_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]),
+            active: u32::from_le_bytes([bytes[12], bytes[13], bytes[14], bytes[15]]),
+            reserved: [
+                bytes[16], bytes[17], bytes[18], bytes[19], bytes[20], bytes[21], bytes[22],
+                bytes[23], bytes[24], bytes[25], bytes[26], bytes[27], bytes[28], bytes[29],
+                bytes[30], bytes[31],
+            ],
+        })
     }
 }
 

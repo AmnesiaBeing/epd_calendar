@@ -1,7 +1,7 @@
+use crate::rtc::SleepState;
 use lxx_calendar_common::traits::ble::BLEDriver;
 use lxx_calendar_common::types::ConfigChange;
 use lxx_calendar_common::{info, warn};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 pub struct SimulatedBLE {
@@ -11,7 +11,7 @@ pub struct SimulatedBLE {
     connected_callback: Arc<Mutex<Option<Box<dyn Fn() + Send + 'static>>>>,
     disconnected_callback: Arc<Mutex<Option<Box<dyn Fn() + Send + 'static>>>>,
     data_callback: Arc<Mutex<Option<Box<dyn Fn(&[u8]) + Send + 'static>>>>,
-    pub wakeup_flag: Arc<AtomicBool>,
+    sleep_state: Option<SleepState>,
 }
 
 impl SimulatedBLE {
@@ -23,20 +23,15 @@ impl SimulatedBLE {
             connected_callback: Arc::new(Mutex::new(None)),
             disconnected_callback: Arc::new(Mutex::new(None)),
             data_callback: Arc::new(Mutex::new(None)),
-            wakeup_flag: Arc::new(AtomicBool::new(false)),
+            sleep_state: None,
         }
     }
 
-    pub fn set_wakeup_flag(&self, flag: Arc<AtomicBool>) {
-        // This replaces the internal flag with the external one
-    }
-
-    pub fn get_wakeup_flag(&self) -> Arc<AtomicBool> {
-        Arc::clone(&self.wakeup_flag)
-    }
-
-    pub fn set_external_wakeup_flag(&mut self, flag: Arc<AtomicBool>) {
-        self.wakeup_flag = flag;
+    pub fn set_external_wakeup_flag(
+        &mut self,
+        sleep_state: Arc<(Mutex<bool>, std::sync::Condvar)>,
+    ) {
+        self.sleep_state = Some(SleepState::new_with_condvar(sleep_state));
     }
 
     pub fn is_connected(&self) -> bool {
@@ -54,7 +49,10 @@ impl SimulatedBLE {
     pub fn simulate_connect(&mut self) {
         self.connected = true;
         self.advertising = false;
-        self.wakeup_flag.store(true, Ordering::SeqCst);
+        // 唤醒系统
+        if let Some(ref sleep_state) = self.sleep_state {
+            sleep_state.request_wakeup();
+        }
         info!("Simulated BLE connected");
         if let Ok(guard) = self.connected_callback.lock() {
             if let Some(ref cb) = *guard {
@@ -76,19 +74,54 @@ impl SimulatedBLE {
     pub fn simulate_config(&mut self, data: &[u8]) -> ConfigChange {
         self.configured = true;
 
-        // 设置 wakeup flag 唤醒系统
-        self.wakeup_flag.store(true, Ordering::SeqCst);
+        // 唤醒系统
+        if let Some(ref sleep_state) = self.sleep_state {
+            sleep_state.request_wakeup();
+        }
 
-        let change = if data.len() < 10 {
-            ConfigChange::TimeConfig
-        } else if data.len() < 50 {
-            ConfigChange::NetworkConfig
-        } else if data.len() < 100 {
-            ConfigChange::DisplayConfig
-        } else if data.len() < 150 {
-            ConfigChange::PowerConfig
+        // 解析 JSON 数据以确定配置类型
+        let change = if let Ok(json_str) = std::str::from_utf8(data) {
+            if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(json_str) {
+                // 根据 type 字段判断配置类型
+                let config_type = json_value
+                    .get("type")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("unknown");
+
+                info!("Simulated BLE config type: {}", config_type);
+
+                match config_type {
+                    "wifi_config" | "network_config" => ConfigChange::NetworkConfig,
+                    "display_config" => ConfigChange::DisplayConfig,
+                    "time_config" => ConfigChange::TimeConfig,
+                    "power_config" => ConfigChange::PowerConfig,
+                    "log_config" => ConfigChange::LogConfig,
+                    "command" => {
+                        // 命令类型不改变配置状态
+                        ConfigChange::NetworkConfig
+                    }
+                    _ => {
+                        // 未知类型，根据数据长度回退到旧逻辑
+                        if data.len() < 10 {
+                            ConfigChange::TimeConfig
+                        } else if data.len() < 50 {
+                            ConfigChange::NetworkConfig
+                        } else if data.len() < 100 {
+                            ConfigChange::DisplayConfig
+                        } else if data.len() < 150 {
+                            ConfigChange::PowerConfig
+                        } else {
+                            ConfigChange::LogConfig
+                        }
+                    }
+                }
+            } else {
+                // JSON 解析失败，使用旧逻辑
+                Self::guess_config_type_by_length(data.len())
+            }
         } else {
-            ConfigChange::LogConfig
+            // UTF-8 解码失败，使用旧逻辑
+            Self::guess_config_type_by_length(data.len())
         };
 
         info!("Simulated BLE config applied: {:?}", change);
@@ -100,6 +133,21 @@ impl SimulatedBLE {
         }
 
         change
+    }
+
+    /// 根据数据长度猜测配置类型（回退逻辑）
+    fn guess_config_type_by_length(len: usize) -> ConfigChange {
+        if len < 10 {
+            ConfigChange::TimeConfig
+        } else if len < 50 {
+            ConfigChange::NetworkConfig
+        } else if len < 100 {
+            ConfigChange::DisplayConfig
+        } else if len < 150 {
+            ConfigChange::PowerConfig
+        } else {
+            ConfigChange::LogConfig
+        }
     }
 
     pub fn simulate_advertising(&mut self) {
@@ -123,7 +171,7 @@ impl Clone for SimulatedBLE {
             connected_callback: Arc::clone(&self.connected_callback),
             disconnected_callback: Arc::clone(&self.disconnected_callback),
             data_callback: Arc::clone(&self.data_callback),
-            wakeup_flag: Arc::clone(&self.wakeup_flag),
+            sleep_state: self.sleep_state.clone(),
         }
     }
 }

@@ -2,6 +2,7 @@ use embassy_executor::Spawner;
 use epd_yrd0750ryf665f60::{prelude::WaveshareDisplay as _, yrd0750ryf665f60::Epd7in5};
 use linux_embedded_hal::{SpidevDevice, SysfsPin};
 use lxx_calendar_common::platform::PlatformTrait;
+use lxx_calendar_common::traits::platform::{RtcMemoryData, WakeupSource};
 use lxx_calendar_common::*;
 use lxx_calendar_core::main_task;
 use simulator::{
@@ -13,10 +14,13 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::thread;
+use tokio::sync::Mutex as TokioMutex;
 
 pub mod drivers;
+pub mod sleep;
 
 use crate::drivers::{LinuxBuzzer, LinuxWifi, TspiButton, TspiLED, TunTapNetwork};
+use crate::sleep::TspiSleepManager;
 
 static SIMULATOR_CONTROL: StaticCell<Option<Arc<Mutex<SimulatorControl>>>> = StaticCell::new();
 
@@ -139,6 +143,12 @@ impl PlatformTrait for Platform {
     }
 
     fn init_heap() {}
+
+    fn get_wakeup_source() -> WakeupSource {
+        // T-SPi 默认返回 PowerOn
+        // 实际唤醒源从 RTC 内存读取
+        WakeupSource::PowerOn
+    }
 }
 
 #[embassy_executor::main]

@@ -7,6 +7,7 @@ edition.workspace = true
 default = ["log"]
 log = ["dep:log", "lxx-calendar-common/log"]
 defmt = ["dep:defmt", "dep:defmt-rtt", "lxx-calendar-common/defmt"]
+simulator = []
 
 [dependencies]
 # 核心依赖
@@ -23,39 +24,28 @@ lxx-calendar-graphics = { path = "../lxx-calendar-graphics" }
 lxx-calendar-quotes = { path = "../lxx-calendar-quotes" }
 sxtwl-rs = { path = "../libs/sxtwl-rs", features = ["festival"] }
 
-# Embassy框架
+# Embassy 框架
 embassy-executor = { workspace = true }
 embassy-sync = { workspace = true }
 embassy-time = { workspace = true }
 embassy-net = { workspace = true }
 embassy-embedded-hal = { workspace = true }
-embassy-futures = "0.1.2"
+embassy-futures = { workspace = true }
 
-# HTTP客户端 - 使用embedded-tls
+# HTTP client (reqwless 已包含 embedded-tls)
 reqwless = { workspace = true }
-
 embedded-io = { workspace = true }
 embedded-io-async = { workspace = true }
-
-# TLS / crypto
-embedded-tls = { workspace = true }
-rand = { version = "0.6.3", default-features = false }
-rand_core = { version = "0.6.3", default-features = false, features = [
-    "getrandom",
-] }
 
 # 序列化
 serde_json = { workspace = true }
 
-# 随机数
-getrandom = { workspace = true, features = ["custom"] }
-
-# SNTP时间同步
+# SNTP 时间同步
 sntpc = { workspace = true }
 sntpc-net-embassy = { workspace = true }
 
-# JWT认证
-static_cell.workspace = true
-
-# Flash存储
+# Flash 存储
 embedded-storage = { workspace = true }
+
+# 静态单元格
+static_cell = { workspace = true }

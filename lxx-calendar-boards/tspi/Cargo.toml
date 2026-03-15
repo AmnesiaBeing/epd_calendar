@@ -17,24 +17,17 @@ critical-section = { workspace = true, features = ["std"] }
 wifi-rs = "0.2"
 env_logger = "0.11.9"
 embassy-net = { workspace = true, features = ["std"] }
+embassy-net-tuntap = { workspace = true }
 getrandom = { workspace = true, features = ["std"] }
-embassy-net-tuntap.workspace = true
-
-[dependencies.embassy-sync]
-workspace = true
-
-[dependencies.embassy-time]
-workspace = true
-features = ["std"]
-
-[dependencies.embassy-executor]
-workspace = true
-features = ["arch-std", "executor-thread"]
-
-[dependencies.linux-embedded-hal]
-path = "../../libs/linux-embedded-hal"
-features = ["gpio_sysfs", "spi", "async-tokio", "async-spi", "async-gpio-sysfs"]
-
-[dependencies.tokio]
-version = "1"
-features = ["rt-multi-thread", "macros"]
+embassy-sync = { workspace = true }
+embassy-time = { workspace = true, features = ["std"] }
+embassy-executor = { workspace = true, features = ["arch-std", "executor-thread"] }
+linux-embedded-hal = { path = "../../libs/linux-embedded-hal", features = [
+    "gpio_sysfs",
+    "spi",
+    "async-tokio",
+    "async-spi",
+    "async-gpio-sysfs",
+] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+futures-executor = "0.3"

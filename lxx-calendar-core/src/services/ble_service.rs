@@ -7,6 +7,7 @@ use lxx_calendar_common::{
     traits::LxxChannelSender,
     types::config::{ConfigChange, LogLevel},
     types::error::{HardwareError, ServiceError, SystemError, SystemResult},
+    warn,
 };
 
 pub struct BLEService<D: BLEDriver> {
@@ -39,9 +40,13 @@ impl<D: BLEDriver> BLEService<D> {
         let sender_clone = sender;
         self.driver
             .set_data_callback(Box::new(move |data| {
+                info!("BLE data callback triggered with {} bytes", data.len());
                 if let Some(ble_event) = parse_ble_event(data) {
                     let event = SystemEvent::BLEEvent(ble_event);
+                    info!("Sending BLE event: {:?}", event);
                     let _ = sender_clone.try_send(event);
+                } else {
+                    warn!("Failed to parse BLE event from {} bytes", data.len());
                 }
             }))
             .await;
@@ -222,9 +227,15 @@ impl<D: BLEDriver> BLEService<D> {
 }
 
 fn parse_ble_event(data: &[u8]) -> Option<BLEEvent> {
+    info!("Parsing BLE event from {} bytes", data.len());
+    let json_str = core::str::from_utf8(data).ok()?;
+    info!("BLE event JSON: {}", json_str);
+
     let json: serde_json::Value = serde_json::from_slice(data).ok()?;
     let msg_type = json.get("type")?.as_str()?;
     let data_obj = json.get("data")?;
+
+    info!("BLE event type: {}", msg_type);
 
     match msg_type {
         "wifi_config" => {
@@ -236,10 +247,19 @@ fn parse_ble_event(data: &[u8]) -> Option<BLEEvent> {
             })
         }
         "network_config" => {
-            let location_id = data_obj.get("location_id")?.as_str()?;
-            let latitude = data_obj.get("latitude")?.as_f64().unwrap_or(0.0);
-            let longitude = data_obj.get("longitude")?.as_f64().unwrap_or(0.0);
-            let location_name = data_obj.get("location_name")?.as_str().unwrap_or("未知");
+            let location_id = data_obj.get("location_id")?.as_str().unwrap_or("");
+            let latitude = data_obj
+                .get("latitude")
+                .and_then(|v| v.as_f64())
+                .unwrap_or(0.0);
+            let longitude = data_obj
+                .get("longitude")
+                .and_then(|v| v.as_f64())
+                .unwrap_or(0.0);
+            let location_name = data_obj
+                .get("location_name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("未知");
             let sync_interval_minutes = data_obj.get("sync_interval_minutes")?.as_u64()? as u16;
             let auto_sync = data_obj
                 .get("auto_sync")

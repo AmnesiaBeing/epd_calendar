@@ -1,7 +1,7 @@
 [package]
 name = "lxx-calendar-common"
 version = "0.1.0"
-edition = "2024"
+edition.workspace = true
 
 [features]
 default = ["log"]
@@ -39,11 +39,10 @@ embassy-executor = { workspace = true }
 embassy-time = { workspace = true }
 embassy-net = { workspace = true }
 embassy-embedded-hal = { workspace = true }
-embassy-net-tuntap = { workspace = true, optional = true }
 
 # 序列化/反序列化
 serde_json = { workspace = true }
-serde = { workspace = true, features = ["derive"] }
+serde = { workspace = true }
 postcard = { workspace = true }
 
 # 时间相关

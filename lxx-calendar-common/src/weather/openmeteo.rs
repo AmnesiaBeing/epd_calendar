@@ -46,11 +46,17 @@ pub struct DailyUnits {
     pub weather_code: String<16>,
     pub temperature_2m_max: String<8>,
     pub temperature_2m_min: String<8>,
+    #[serde(default)]
     pub precipitation_sum: String<8>,
+    #[serde(default)]
     pub precipitation_probability_max: String<8>,
+    #[serde(default)]
     pub wind_speed_10m_max: String<8>,
+    #[serde(default)]
     pub sunrise: String<16>,
+    #[serde(default)]
     pub sunset: String<16>,
+    #[serde(default)]
     pub uv_index_max: String<16>,
 }
 
@@ -60,11 +66,17 @@ pub struct DailyData {
     pub weather_code: Vec<u8, 16>,
     pub temperature_2m_max: Vec<f32, 16>,
     pub temperature_2m_min: Vec<f32, 16>,
+    #[serde(default)]
     pub precipitation_sum: Vec<f32, 16>,
+    #[serde(default)]
     pub precipitation_probability_max: Vec<u8, 16>,
+    #[serde(default)]
     pub wind_speed_10m_max: Vec<f32, 16>,
+    #[serde(default)]
     pub sunrise: Vec<String<8>, 16>,
+    #[serde(default)]
     pub sunset: Vec<String<8>, 16>,
+    #[serde(default)]
     pub uv_index_max: Vec<f32, 16>,
 }
 

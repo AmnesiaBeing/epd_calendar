@@ -1,3 +1,4 @@
+use embassy_futures::select::{Either, select};
 use embassy_time::Duration;
 
 use lxx_calendar_common::{
@@ -311,13 +312,24 @@ impl<'a, P: PlatformTrait, F: FlashDevice> StateManager<'a, P, F> {
 
         self.watchdog.end_task().await;
 
+        // ★★★ 恢复睡眠逻辑 ★★★
         if let Some((timestamp, _source)) = &next_wakeup {
             let current_ts = self.time_service.get_timestamp().await?;
             if *timestamp > current_ts {
                 self.time_service.set_rtc_alarm(*timestamp).await?;
                 let duration = Duration::from_secs(*timestamp - current_ts);
+
+                // 睡眠前禁用看门狗，避免睡眠期间超时
+                info!("Disabling watchdog before light sleep");
+                self.watchdog.disable().await?;
+
                 info!("Entering light sleep for {:?}", duration);
                 self.time_service.enter_light_sleep().await;
+
+                // 唤醒后立即启用看门狗并喂狗
+                info!("Enabling watchdog after wakeup");
+                self.watchdog.enable().await?;
+                self.watchdog.feed();
             }
         }
 
@@ -327,7 +339,25 @@ impl<'a, P: PlatformTrait, F: FlashDevice> StateManager<'a, P, F> {
     }
 
     pub async fn wait_for_event(&mut self) -> SystemResult<SystemEvent> {
-        Ok(self.event_channel.receive().await)
+        // 使用 select 实现带超时的事件接收，每 10 秒喂一次狗
+        loop {
+            let event_future = self.event_channel.receive();
+            let timeout_future = embassy_time::Timer::after(Duration::from_secs(10));
+
+            match select(event_future, timeout_future).await {
+                // 收到事件
+                Either::First(event) => {
+                    self.watchdog.feed();
+                    debug!("Watchdog fed on event");
+                    return Ok(event);
+                }
+                // 超时，喂狗后继续等待
+                Either::Second(_) => {
+                    self.watchdog.feed();
+                    debug!("Watchdog fed in event loop");
+                }
+            }
+        }
     }
 
     pub async fn schedule_next_wakeup(&mut self) -> SystemResult<()> {
@@ -355,7 +385,10 @@ impl<'a, P: PlatformTrait, F: FlashDevice> StateManager<'a, P, F> {
         match event {
             WakeupEvent::WakeFromLightSleep => {
                 info!("Waking from light sleep");
-                self.transition_to(SystemMode::NormalWork).await?;
+                // ★★★ 唤醒后直接执行任务并睡眠，不进入事件循环 ★★★
+                if let Err(e) = self.execute_scheduled_tasks().await {
+                    error!("Failed to execute scheduled tasks: {:?}", e);
+                }
             }
             WakeupEvent::WakeByButton => {
                 info!("Waking by button");
@@ -363,7 +396,10 @@ impl<'a, P: PlatformTrait, F: FlashDevice> StateManager<'a, P, F> {
             }
             WakeupEvent::WakeByWDT => {
                 warn!("Waking by watchdog");
-                self.transition_to(SystemMode::NormalWork).await?;
+                // ★★★ 唤醒后直接执行任务并睡眠 ★★★
+                if let Err(e) = self.execute_scheduled_tasks().await {
+                    error!("Failed to execute scheduled tasks: {:?}", e);
+                }
             }
         }
         Ok(())
@@ -408,14 +444,26 @@ impl<'a, P: PlatformTrait, F: FlashDevice> StateManager<'a, P, F> {
                 self.transition_to(SystemMode::BleConnection).await?;
 
                 info!("Factory reset triggered");
-                info!("This feature is not yet implemented");
-                info!("TODO: Clear configuration and reboot");
+
+                // 执行工厂重置
+                match self.config_manager.factory_reset().await {
+                    Ok(_) => {
+                        info!("Factory reset completed successfully");
+                        // 重启系统
+                        P::sys_reset();
+                    }
+                    Err(e) => {
+                        error!("Factory reset failed: {:?}", e);
+                    }
+                }
             }
         }
         Ok(())
     }
 
     async fn handle_ble_event(&mut self, event: BLEEvent) -> SystemResult<()> {
+        info!("Handling BLE event: {:?}", event);
+
         match event {
             BLEEvent::WifiConfigReceived { ssid, password } => {
                 info!("WiFi config received: ssid={}", ssid);
@@ -471,6 +519,14 @@ impl<'a, P: PlatformTrait, F: FlashDevice> StateManager<'a, P, F> {
                     .await?;
 
                 info!("Network config saved to flash");
+
+                // 触发网络同步
+                info!("Starting network sync after config update");
+                let result = self.network_sync_service.sync(&mut self.time_service).await;
+                match result {
+                    Ok(_) => info!("Network sync completed successfully"),
+                    Err(e) => error!("Network sync failed: {:?}", e),
+                }
             }
             BLEEvent::DisplayConfigReceived {
                 refresh_interval_seconds,
@@ -663,9 +719,8 @@ impl<'a, P: PlatformTrait, F: FlashDevice> StateManager<'a, P, F> {
             }
         }
 
-        info!("Saving config to flash");
-        self.config_manager.save_config(config).await?;
-        info!("Config saved successfully");
+        // Note: Config is already saved in update_config, no need to save again here
+        // This prevents infinite loop: update_config -> save_config -> notify_config_changed -> handle_config_changed -> save_config
 
         Ok(())
     }

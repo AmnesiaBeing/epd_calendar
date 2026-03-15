@@ -1,15 +1,17 @@
 use embassy_executor::Spawner;
 use embedded_hal_mock::eh1::{delay::NoopDelay, digital::no_pin::NoPin, spi::no_spi::NoSpi};
 use epd_yrd0750ryf665f60::yrd0750ryf665f60::Epd7in5;
+use lxx_calendar_common::traits::platform::{RtcMemoryData, WakeupSource};
 use lxx_calendar_common::*;
-use lxx_calendar_core::main_task;
 use simulator::{
     HttpServer, SimulatedBLE, SimulatedFlash, SimulatedRtc, SimulatedWdt, SimulatorButton,
-    SimulatorControl,
+    SimulatorControl, SimulatorSleepManager,
 };
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use std::sync::Mutex as StdMutex;
 use std::thread;
+use tokio::sync::{Mutex as TokioMutex, Notify};
 
 pub mod drivers;
 
@@ -97,6 +99,12 @@ impl PlatformTrait for Platform {
     }
 
     fn init_heap() {}
+
+    fn get_wakeup_source() -> WakeupSource {
+        // 模拟器默认返回 PowerOn
+        // 实际唤醒源从 RTC 内存读取，由 main 循环管理
+        WakeupSource::PowerOn
+    }
 }
 
 #[embassy_executor::main]
@@ -111,43 +119,124 @@ async fn main(spawner: Spawner) {
 
     info!("Starting simulator on port {}", port);
 
-    let mut ble_instance = SimulatedBLE::new();
+    // 创建共享的 RTC 内存（Deep Sleep 后保留）
+    let rtc_memory = Arc::new(TokioMutex::new(RtcMemoryData::new()));
+    let wakeup_notify = Arc::new(Notify::new());
 
-    let rtc_for_button = SimulatedRtc::new();
-    let rtc_wakeup = rtc_for_button.get_wakeup_flag();
+    // 创建睡眠管理器
+    let sleep_manager = SimulatorSleepManager::new(rtc_memory.clone(), wakeup_notify.clone());
 
-    ble_instance.set_external_wakeup_flag(rtc_wakeup.clone());
+    // 启动 HTTP 服务器（独立线程，始终保持运行）
+    {
+        let shared_rtc = Arc::new(StdMutex::new(SimulatedRtc::new()));
+        {
+            let mut rtc = shared_rtc.lock().unwrap();
+            futures_executor::block_on(async {
+                rtc.initialize().await.ok();
+            });
+            info!("Shared RTC initialized");
+        }
 
-    let ble_for_http = ble_instance.clone();
-    let ble_for_app = ble_instance;
+        let mut ble_instance = SimulatedBLE::new();
+        let rtc_sleep_state = {
+            let rtc = shared_rtc.lock().unwrap();
+            rtc.get_sleep_state()
+        };
+        ble_instance.set_external_wakeup_flag(rtc_sleep_state.get_condvar());
 
-    let mut button_for_http = SimulatorButton::new();
-    button_for_http.set_wakeup_flag(rtc_wakeup);
+        let ble_for_http = ble_instance.clone();
+        let mut button_for_http = SimulatorButton::new();
+        button_for_http.set_sleep_state(rtc_sleep_state.clone());
 
-    let control = Arc::new(Mutex::new(SimulatorControl::new(
-        SimulatedRtc::new(),
-        SimulatedWdt::new(30000),
-    )));
+        let control = Arc::new(StdMutex::new(SimulatorControl::new_with_shared_rtc(
+            Arc::clone(&shared_rtc),
+            SimulatedWdt::new(30000),
+        )));
 
-    let ble = Arc::new(Mutex::new(ble_for_http));
-    let button = Arc::new(Mutex::new(button_for_http));
+        let ble = Arc::new(StdMutex::new(ble_for_http));
+        let button = Arc::new(StdMutex::new(button_for_http));
 
-    let ctrl_clone = Arc::clone(&control);
-    let ble_clone = Arc::clone(&ble);
-    let btn_clone = Arc::clone(&button);
-    thread::spawn(move || {
-        HttpServer::new(ctrl_clone, ble_clone, btn_clone, port).run();
-    });
+        let ctrl_clone = Arc::clone(&control);
+        let ble_clone = Arc::clone(&ble);
+        let btn_clone = Arc::clone(&button);
 
-    match Platform::init(spawner).await {
-        Ok(mut platform_ctx) => {
-            platform_ctx.ble = ble_for_app;
-            if let Err(e) = main_task::<Platform>(spawner, platform_ctx).await {
-                error!("Main task error: {:?}", e);
+        thread::spawn(move || {
+            HttpServer::new(ctrl_clone, ble_clone, btn_clone, port).run();
+        });
+    }
+
+    // Deep Sleep 循环：模拟器逻辑重启
+    loop {
+        info!("=== Simulator Deep Sleep cycle starting ===");
+
+        // 获取唤醒源
+        let wakeup_source = {
+            match rtc_memory.try_lock() {
+                Ok(mem) => {
+                    if mem.is_valid() {
+                        mem.wakeup_source
+                    } else {
+                        WakeupSource::PowerOn
+                    }
+                }
+                Err(_) => WakeupSource::PowerOn,
+            }
+        };
+        info!("Wakeup source: {:?}", wakeup_source);
+
+        // 初始化平台
+        match Platform::init(spawner).await {
+            Ok(platform_ctx) => {
+                // 执行主任务
+                if let Err(e) = run_main_task_with_sleep(
+                    spawner,
+                    platform_ctx,
+                    sleep_manager.clone(),
+                    wakeup_source,
+                )
+                .await
+                {
+                    error!("Main task error: {:?}", e);
+                }
+            }
+            Err(e) => {
+                error!("Platform init error: {:?}", e);
             }
         }
-        Err(e) => {
-            error!("Platform init error: {:?}", e);
-        }
+
+        info!("=== Simulator Deep Sleep cycle ended, restarting ===");
     }
+}
+
+/// 带睡眠管理的主任务
+async fn run_main_task_with_sleep(
+    spawner: Spawner,
+    platform_ctx: PlatformContext<Platform>,
+    mut sleep_manager: SimulatorSleepManager,
+    wakeup_source: WakeupSource,
+) -> SystemResult<()> {
+    use lxx_calendar_common::traits::platform::SleepMode;
+
+    info!("lxx-calendar starting... (wakeup: {:?})", wakeup_source);
+
+    // 调用原始 main_task
+    if let Err(e) = lxx_calendar_core::main_task::<Platform>(spawner, platform_ctx).await {
+        error!("Main task error: {:?}", e);
+        return Err(e);
+    }
+
+    // 计算下次唤醒时间（60 秒后）
+    let next_wakeup = embassy_time::Duration::from_secs(60);
+
+    // 进入 Deep Sleep
+    info!("Entering deep sleep for {} seconds", next_wakeup.as_secs());
+
+    match sleep_manager.sleep(SleepMode::DeepSleep, next_wakeup).await {
+        Ok(_) => info!("Deep sleep ended"),
+        Err(e) => error!("Sleep error: {:?}", e),
+    }
+
+    // Deep Sleep 后返回，外层循环会重启
+
+    Ok(())
 }

@@ -16,6 +16,7 @@ pub mod weather;
 cfg_if::cfg_if! {
     if #[cfg(feature = "defmt")] {
         pub use defmt::{trace, debug, info, warn, error};
+        pub use defmt;
     }
     else if #[cfg(feature = "log")] {
         pub use log::{trace, debug, info, warn, error};

@@ -12,10 +12,12 @@ extern crate alloc;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use esp_hal::{interrupt::software::SoftwareInterruptControl, timer::timg::TimerGroup};
 use esp_rtos::main as platform_main;
+use lxx_calendar_common::traits::platform::WakeupSource;
 use lxx_calendar_common::*;
 use lxx_calendar_core::main_task;
 
 pub mod drivers;
+pub mod sleep;
 
 esp_bootloader_esp_idf::esp_app_desc!();
 
@@ -119,10 +121,23 @@ impl PlatformTrait for Platform {
         esp_alloc::heap_allocator!(#[esp_hal::ram(reclaimed)] size: 64 * 1024);
         esp_alloc::heap_allocator!(size: 64 * 1024);
     }
+
+    fn get_wakeup_source() -> WakeupSource {
+        // 从 RTC 内存读取唤醒源
+        // Deep Sleep 后系统重启，需要读取 RTC 内存中的唤醒源标记
+        // 这里使用简化的实现，实际需要使用 esp_hal 的 RTC 内存 API
+
+        // TODO: 实现真实的 RTC 内存读取
+        WakeupSource::PowerOn
+    }
 }
 
 #[platform_main]
 async fn main(spawner: embassy_executor::Spawner) {
+    // 获取唤醒源
+    let wakeup_source = Platform::get_wakeup_source();
+    defmt::info!("Wakeup source: {:?}", wakeup_source);
+
     match Platform::init(spawner).await {
         Ok(platform_ctx) => {
             if let Err(e) = main_task::<Platform>(spawner, platform_ctx).await {

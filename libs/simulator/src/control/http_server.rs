@@ -1,5 +1,6 @@
 use std::io::Read;
 use std::sync::{Arc, Mutex};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use tiny_http::{Response, Server};
 
@@ -87,14 +88,27 @@ fn handle_request(
     debug!("HTTP {} {}", method, url);
 
     match (method, url) {
+        // 基础状态端点
         ("GET", "/status") => handle_get_status(control, ble, button),
         ("GET", "/status/rtc") => handle_get_rtc_status(control, ble, button),
         ("GET", "/status/ble") => handle_get_ble_status(control, ble, button),
         ("GET", "/status/watchdog") => handle_get_watchdog_status(control, ble, button),
+
+        // 显示相关端点
+        ("GET", "/status/display") => handle_get_display_status(control),
+        ("POST", "/api/display/refresh") => handle_display_refresh(control, body),
+        ("POST", "/api/display/mode") => handle_display_mode(control, body),
+
+        // 闹钟相关端点
+        ("GET", "/status/alarm") => handle_get_alarm_status(control),
+        ("POST", "/api/alarm") => handle_alarm(control, body),
+
+        // BLE 和按键端点
         ("POST", "/api/button") => handle_button(control, ble, button, body),
         ("POST", "/api/ble/connect") => handle_ble_connect(control, ble, button),
         ("POST", "/api/ble/disconnect") => handle_ble_disconnect(control, ble, button),
         ("POST", "/api/ble/config") => handle_ble_config(control, ble, button, body),
+
         _ => not_found(),
     }
 }
@@ -102,7 +116,7 @@ fn handle_request(
 fn handle_get_status(
     control: Arc<Mutex<SimulatorControl>>,
     ble: Arc<Mutex<SimulatedBLE>>,
-    button: Arc<Mutex<SimulatorButton>>,
+    _button: Arc<Mutex<SimulatorButton>>,
 ) -> Response<std::io::Cursor<Vec<u8>>> {
     let ctrl = control.lock().unwrap();
     let b = ble.lock().unwrap();
@@ -203,25 +217,159 @@ fn handle_ble_disconnect(
 }
 
 fn handle_ble_config(
-    _control: Arc<Mutex<SimulatorControl>>,
+    control: Arc<Mutex<SimulatorControl>>,
     ble: Arc<Mutex<SimulatedBLE>>,
     _button: Arc<Mutex<SimulatorButton>>,
     body: &str,
 ) -> Response<std::io::Cursor<Vec<u8>>> {
     match serde_json::from_str::<BleConfigRequest>(body) {
-        Ok(req) => {
-            // 将整个请求体作为数据传递，让 BLEService 解析
+        Ok(_req) => {
+            // 将整个请求体作为数据传递
             let data = body.as_bytes();
-            let result = {
+
+            // 设置 BLE configured 状态
+            {
                 let mut b = ble.lock().unwrap();
-                b.simulate_config(data)
-            };
+                // 调用 simulate_config 来设置状态和触发数据回调
+                b.simulate_config(data);
+            }
+
+            // 触发 SimulatorControl 的 BLE 配置回调，将配置传递给 StateManager
+            {
+                let ctrl = control.lock().unwrap();
+                ctrl.simulate_ble_config(data);
+            }
+
             let resp = BleConfigResponse {
                 success: true,
-                change: Some(format!("{:?}", result)),
+                change: Some("Config received and being processed".to_string()),
                 message: "Config applied".to_string(),
             };
             json_response(&resp)
+        }
+        Err(e) => bad_request(&format!("Invalid request: {}", e)),
+    }
+}
+
+// ==================== 显示相关处理函数 ====================
+
+fn handle_get_display_status(
+    control: Arc<Mutex<SimulatorControl>>,
+) -> Response<std::io::Cursor<Vec<u8>>> {
+    let ctrl = control.lock().unwrap();
+    let status = ctrl.get_display_status();
+    json_response(&status)
+}
+
+fn handle_display_refresh(
+    control: Arc<Mutex<SimulatorControl>>,
+    body: &str,
+) -> Response<std::io::Cursor<Vec<u8>>> {
+    match serde_json::from_str::<DisplayRefreshRequest>(body) {
+        Ok(req) => {
+            let ctrl = control.lock().unwrap();
+            ctrl.refresh_display(&req.mode);
+
+            let resp = DisplayRefreshResponse {
+                success: true,
+                message: format!("Display refreshed in {} mode", req.mode),
+            };
+            json_response(&resp)
+        }
+        Err(e) => bad_request(&format!("Invalid request: {}", e)),
+    }
+}
+
+fn handle_display_mode(
+    control: Arc<Mutex<SimulatorControl>>,
+    body: &str,
+) -> Response<std::io::Cursor<Vec<u8>>> {
+    match serde_json::from_str::<DisplayModeRequest>(body) {
+        Ok(req) => {
+            let valid_modes = ["normal", "power_save", "high_quality"];
+            if !valid_modes.contains(&req.mode.as_str()) {
+                return bad_request(&format!(
+                    "Invalid mode: {}. Valid modes: {:?}",
+                    req.mode, valid_modes
+                ));
+            }
+
+            let ctrl = control.lock().unwrap();
+            ctrl.set_display_mode(&req.mode);
+
+            let resp = DisplayModeResponse {
+                success: true,
+                message: format!("Display mode set to {}", req.mode),
+            };
+            json_response(&resp)
+        }
+        Err(e) => bad_request(&format!("Invalid request: {}", e)),
+    }
+}
+
+// ==================== 闹钟相关处理函数 ====================
+
+fn handle_get_alarm_status(
+    control: Arc<Mutex<SimulatorControl>>,
+) -> Response<std::io::Cursor<Vec<u8>>> {
+    let ctrl = control.lock().unwrap();
+    let status = ctrl.get_alarm_status();
+    json_response(&status)
+}
+
+fn handle_alarm(
+    control: Arc<Mutex<SimulatorControl>>,
+    body: &str,
+) -> Response<std::io::Cursor<Vec<u8>>> {
+    match serde_json::from_str::<AlarmRequest>(body) {
+        Ok(req) => {
+            let ctrl = control.lock().unwrap();
+
+            match req.action.as_str() {
+                "set" => {
+                    let trigger_time = if let Some(delay) = req.delay_seconds {
+                        let rtc = ctrl.rtc.lock().unwrap();
+                        Some(rtc.get_timestamp() as u64 + delay)
+                    } else if let Some(_time_str) = req.trigger_time {
+                        // 简化处理：使用当前时间 + 5 秒
+                        let now = SystemTime::now()
+                            .duration_since(UNIX_EPOCH)
+                            .unwrap()
+                            .as_secs();
+                        Some(now + 5)
+                    } else {
+                        None
+                    };
+
+                    ctrl.set_alarm(trigger_time);
+
+                    let resp = AlarmResponse {
+                        success: true,
+                        message: "Alarm set successfully".to_string(),
+                    };
+                    json_response(&resp)
+                }
+                "cancel" => {
+                    ctrl.cancel_alarm();
+
+                    let resp = AlarmResponse {
+                        success: true,
+                        message: "Alarm cancelled".to_string(),
+                    };
+                    json_response(&resp)
+                }
+                "trigger" => {
+                    // 用于测试手动触发
+                    ctrl.trigger_alarm();
+
+                    let resp = AlarmResponse {
+                        success: true,
+                        message: "Alarm triggered manually".to_string(),
+                    };
+                    json_response(&resp)
+                }
+                _ => bad_request(&format!("Unknown alarm action: {}", req.action)),
+            }
         }
         Err(e) => bad_request(&format!("Invalid request: {}", e)),
     }

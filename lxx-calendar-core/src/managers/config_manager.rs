@@ -107,7 +107,7 @@ impl<F: FlashDevice> ConfigManager<F> {
 
         self.config = Some(config.clone());
 
-        self.notify_config_changed(config);
+        self.notify_config_changed();
 
         Ok(())
     }
@@ -160,18 +160,11 @@ impl<F: FlashDevice> ConfigManager<F> {
     }
 
     /// 通知配置变更
-    fn notify_config_changed(&self, _config: lxx_common::SystemConfig) {
+    fn notify_config_changed(&self) {
         if let Some(ref sender) = self.event_sender {
-            for change in [
-                ConfigChange::TimeConfig,
-                ConfigChange::NetworkConfig,
-                ConfigChange::DisplayConfig,
-                ConfigChange::PowerConfig,
-                ConfigChange::LogConfig,
-            ] {
-                let event = lxx_common::SystemEvent::ConfigChanged(change);
-                let _ = sender.try_send(event);
-            }
+            // 只发送一个通用的配置变更事件，避免重复处理
+            let event = lxx_common::SystemEvent::ConfigChanged(ConfigChange::NetworkConfig);
+            let _ = sender.try_send(event);
         }
     }
 

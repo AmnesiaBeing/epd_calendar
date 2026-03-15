@@ -71,9 +71,12 @@ impl QuoteService {
     }
 
     fn random_index(max: usize) -> usize {
-        let mut buf = [0u8; 4];
-        let _ = getrandom::getrandom(&mut buf);
-        let random_u32 = u32::from_le_bytes(buf);
-        (random_u32 as usize) % max
+        // 使用简单的伪随机数生成器
+        // 在实际应用中，应该使用更好的随机数源
+        static mut SEED: u32 = 12345;
+        unsafe {
+            SEED = SEED.wrapping_mul(1103515245).wrapping_add(12345);
+            ((SEED >> 16) as usize) % max
+        }
     }
 }

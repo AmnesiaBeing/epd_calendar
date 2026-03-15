@@ -11,8 +11,9 @@ use lxx_calendar_common::{
     warn,
 };
 
-use crate::services::http_client::HttpClientImpl;
+use crate::services::http_client::{HttpClientImpl, HttpError, RequestImpl};
 use crate::services::time_service::TimeService;
+use lxx_calendar_common::http::http::{HttpClient, HttpResponse};
 
 extern crate alloc;
 use alloc::format;
@@ -24,8 +25,8 @@ pub struct SyncResult {
     pub sync_duration: u64,
 }
 
-const HTTP_RX_SIZE: usize = 4096;
-const HTTP_TX_SIZE: usize = 4096;
+const TLS_RX_BUFFER_SIZE: usize = 16384;
+const TLS_TX_BUFFER_SIZE: usize = 16384;
 
 pub struct NetworkSyncService {
     initialized: bool,
@@ -34,8 +35,6 @@ pub struct NetworkSyncService {
     retry_count: u8,
     max_retries: u8,
     stack: Option<Stack<'static>>,
-    http_rx_buffer: Option<[u8; HTTP_RX_SIZE]>,
-    http_tx_buffer: Option<[u8; HTTP_TX_SIZE]>,
     latitude: f64,
     longitude: f64,
     location_name: heapless::String<32>,
@@ -52,8 +51,6 @@ impl NetworkSyncService {
             retry_count: 0,
             max_retries: 2,
             stack: None,
-            http_rx_buffer: None,
-            http_tx_buffer: None,
             latitude: 0.0,
             longitude: 0.0,
             location_name: heapless::String::new(),
@@ -64,16 +61,12 @@ impl NetworkSyncService {
 
     pub fn with_stack(mut self, stack: Stack<'static>) -> Self {
         self.stack = Some(stack);
-        self.http_rx_buffer = Some([0u8; HTTP_RX_SIZE]);
-        self.http_tx_buffer = Some([0u8; HTTP_TX_SIZE]);
         self
     }
 
     pub fn set_stack(&mut self, stack: Stack<'static>) {
         info!("Setting network stack for sync service");
         self.stack = Some(stack);
-        self.http_rx_buffer = Some([0u8; HTTP_RX_SIZE]);
-        self.http_tx_buffer = Some([0u8; HTTP_TX_SIZE]);
     }
 
     pub async fn initialize(&mut self) -> SystemResult<()> {
@@ -101,7 +94,7 @@ impl NetworkSyncService {
                     Ok(())
                 }
                 Err(_e) => {
-                    error!("HTTP request failed");
+                    error!("WiFi connection failed");
                     return Err(SystemError::NetworkError(NetworkError::Unknown));
                 }
             }
@@ -128,7 +121,7 @@ impl NetworkSyncService {
                 true
             }
             Err(_e) => {
-                error!("HTTP request failed");
+                error!("Time sync failed");
                 return Err(SystemError::NetworkError(NetworkError::Unknown));
             }
         };
@@ -139,7 +132,7 @@ impl NetworkSyncService {
                 true
             }
             Err(_e) => {
-                error!("HTTP request failed");
+                error!("Weather sync failed");
                 return Err(SystemError::NetworkError(NetworkError::Unknown));
             }
         };
@@ -218,19 +211,14 @@ impl NetworkSyncService {
             .stack
             .as_ref()
             .ok_or_else(|| SystemError::HardwareError(HardwareError::NotInitialized))?;
-        let rx_buf = self
-            .http_rx_buffer
-            .as_mut()
-            .ok_or_else(|| SystemError::HardwareError(HardwareError::NotInitialized))?;
-        let tx_buf = self
-            .http_tx_buffer
-            .as_mut()
-            .ok_or_else(|| SystemError::HardwareError(HardwareError::NotInitialized))?;
 
-        let mut http_client = HttpClientImpl::new(*stack);
+        // 创建 TLS 缓冲区
+        let mut tls_rx_buf: [u8; TLS_RX_BUFFER_SIZE] = [0; TLS_RX_BUFFER_SIZE];
+        let mut tls_tx_buf: [u8; TLS_TX_BUFFER_SIZE] = [0; TLS_TX_BUFFER_SIZE];
+        let mut http_client = HttpClientImpl::new(*stack, &mut tls_rx_buf, &mut tls_tx_buf);
 
-        // 使用 Open-Meteo API（不需要认证，使用 HTTP）
-        // 简化请求以避免chunked encoding问题
+        // 使用 Open-Meteo API (HTTP)
+        // 注意：Open-Meteo 支持 HTTP 和 HTTPS，嵌入式设备可先用 HTTP 测试
         let url = format!(
             "http://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=3",
             self.latitude, self.longitude
@@ -238,29 +226,28 @@ impl NetworkSyncService {
 
         info!("Requesting Open-Meteo API: {}", url);
 
-        let headers: [(&str, &str); 1] = [("Connection", "close")];
+        // 创建请求
+        let request = RequestImpl::new(lxx_calendar_common::http::http::HttpMethod::GET, &url);
 
-        let result = http_client
-            .request(
-                rx_buf,
-                tx_buf,
-                lxx_calendar_common::http::http::HttpMethod::GET,
-                &url,
-                None,
-                Some(&headers),
-            )
-            .await;
+        let result = http_client.request(&request).await;
 
-        let (status, body) = result.map_err(|e| {
-            warn!("HTTP request failed: {:?}", e);
-            SystemError::NetworkError(NetworkError::Unknown)
-        })?;
+        let (status, body_vec) = match result {
+            Ok(response) => {
+                let status = response.status();
+                let body = response.body();
+                let body_vec: heapless::Vec<u8, 16384> = body.iter().copied().collect();
+                (status, body_vec)
+            }
+            Err(e) => {
+                warn!("HTTP request failed: {:?}", e);
+                return Err(SystemError::NetworkError(NetworkError::Unknown));
+            }
+        };
 
         info!("Open-Meteo API response status: {}", status);
 
         if status != 200 {
-            let body = body.as_slice();
-            if let Ok(response_str) = core::str::from_utf8(body) {
+            if let Ok(response_str) = core::str::from_utf8(body_vec.as_slice()) {
                 warn!(
                     "Open-Meteo API returned status: {}, response: {}",
                     status, response_str
@@ -274,8 +261,7 @@ impl NetworkSyncService {
             return Err(SystemError::NetworkError(NetworkError::Unknown));
         }
 
-        let body = body.as_slice();
-        let response_str = core::str::from_utf8(body).map_err(|_| {
+        let response_str = core::str::from_utf8(body_vec.as_slice()).map_err(|_| {
             warn!("Failed to parse response as UTF-8");
             SystemError::NetworkError(NetworkError::Unknown)
         })?;

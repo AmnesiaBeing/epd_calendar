@@ -3,24 +3,28 @@ name = "lxx-calendar-graphics"
 version = "0.1.0"
 edition.workspace = true
 
+[features]
+default = []
+graphics = ["dep:embedded-graphics-core"]
+
 [dependencies]
 # no_std 核心依赖
 heapless = { workspace = true }
 heapless_08 = { workspace = true }
-hash32 = "0.3.1"
+hash32 = { workspace = true }
 embedded-graphics-core = { workspace = true, optional = true }
 
 # 错误处理
 thiserror = { workspace = true }
 
 # 序列化/反序列化
-serde = { workspace = true, default-features = false, features = ["derive"] }
-serde_json = { workspace = true, default-features = false }
+serde = { workspace = true }
+serde_json = { workspace = true }
 
 lxx-calendar-common = { path = "../lxx-calendar-common" }
 
 [dev-dependencies]
-serde_json = "1.0"
+serde_json = { workspace = true }
 
 [build-dependencies]
 serde = { version = "1.0", features = ["derive"] }
