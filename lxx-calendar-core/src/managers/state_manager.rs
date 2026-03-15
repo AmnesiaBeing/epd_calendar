@@ -64,7 +64,7 @@ impl<'a, P: PlatformTrait, F: FlashDevice> StateManager<'a, P, F> {
         config_manager: ConfigManager<F>,
     ) -> Self {
         Self {
-            current_state: SystemMode::LightSleep,
+            current_state: SystemMode::NormalWork,
             event_channel: event_receiver,
             event_sender,
             button_service,
@@ -159,11 +159,6 @@ impl<'a, P: PlatformTrait, F: FlashDevice> StateManager<'a, P, F> {
 
     async fn on_state_enter(&mut self, mode: SystemMode) -> SystemResult<()> {
         match mode {
-            SystemMode::LightSleep => {
-                info!("Entering light sleep mode");
-                self.watchdog.disable().await?;
-                self.stop().await?;
-            }
             SystemMode::BleConnection => {
                 info!("Entering BLE connection mode");
                 self.watchdog.enable().await?;
@@ -180,10 +175,6 @@ impl<'a, P: PlatformTrait, F: FlashDevice> StateManager<'a, P, F> {
 
     async fn on_state_exit(&mut self, mode: SystemMode) -> SystemResult<()> {
         match mode {
-            SystemMode::LightSleep => {
-                info!("Exiting light sleep mode");
-                self.watchdog.enable().await?;
-            }
             SystemMode::BleConnection => {
                 info!("Exiting BLE connection mode");
                 self.ble_service.stop().await?;
@@ -312,27 +303,6 @@ impl<'a, P: PlatformTrait, F: FlashDevice> StateManager<'a, P, F> {
 
         self.watchdog.end_task().await;
 
-        // ★★★ 恢复睡眠逻辑 ★★★
-        if let Some((timestamp, _source)) = &next_wakeup {
-            let current_ts = self.time_service.get_timestamp().await?;
-            if *timestamp > current_ts {
-                self.time_service.set_rtc_alarm(*timestamp).await?;
-                let duration = Duration::from_secs(*timestamp - current_ts);
-
-                // 睡眠前禁用看门狗，避免睡眠期间超时
-                info!("Disabling watchdog before light sleep");
-                self.watchdog.disable().await?;
-
-                info!("Entering light sleep for {:?}", duration);
-                self.time_service.enter_light_sleep().await;
-
-                // 唤醒后立即启用看门狗并喂狗
-                info!("Enabling watchdog after wakeup");
-                self.watchdog.enable().await?;
-                self.watchdog.feed();
-            }
-        }
-
         info!("Scheduled tasks completed");
 
         Ok(())
@@ -383,20 +353,13 @@ impl<'a, P: PlatformTrait, F: FlashDevice> StateManager<'a, P, F> {
 
     async fn handle_wakeup_event(&mut self, event: WakeupEvent) -> SystemResult<()> {
         match event {
-            WakeupEvent::WakeFromLightSleep => {
-                info!("Waking from light sleep");
-                // ★★★ 唤醒后直接执行任务并睡眠，不进入事件循环 ★★★
-                if let Err(e) = self.execute_scheduled_tasks().await {
-                    error!("Failed to execute scheduled tasks: {:?}", e);
-                }
-            }
             WakeupEvent::WakeByButton => {
                 info!("Waking by button");
                 self.transition_to(SystemMode::BleConnection).await?;
             }
             WakeupEvent::WakeByWDT => {
                 warn!("Waking by watchdog");
-                // ★★★ 唤醒后直接执行任务并睡眠 ★★★
+                // 唤醒后执行任务
                 if let Err(e) = self.execute_scheduled_tasks().await {
                     error!("Failed to execute scheduled tasks: {:?}", e);
                 }
@@ -727,10 +690,6 @@ impl<'a, P: PlatformTrait, F: FlashDevice> StateManager<'a, P, F> {
 
     async fn handle_system_event(&mut self, event: SystemStateEvent) -> SystemResult<()> {
         match event {
-            SystemStateEvent::EnterLightSleep => {
-                info!("Entering light sleep");
-                self.transition_to(SystemMode::LightSleep).await?;
-            }
             SystemStateEvent::EnterBLEMode => {
                 info!("Entering BLE mode");
                 self.transition_to(SystemMode::BleConnection).await?;

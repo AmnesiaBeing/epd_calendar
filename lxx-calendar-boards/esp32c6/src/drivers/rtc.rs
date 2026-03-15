@@ -38,14 +38,4 @@ impl Rtc for Esp32Rtc {
         info!("ESP32 RTC wakeup set for {:?}", duration);
         Ok(())
     }
-
-    async fn sleep_light(&mut self) {
-        if let Some(timer) = self.wakeup_source.take() {
-            info!("ESP32 entering light sleep");
-            self.rtc.sleep_light(&[&timer]);
-        } else {
-            info!("No wakeup source set, entering light sleep without timer");
-            self.rtc.sleep_light(&[]);
-        }
-    }
 }

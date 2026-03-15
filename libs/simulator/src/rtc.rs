@@ -1,60 +1,65 @@
-use core::sync::atomic::{AtomicBool, AtomicI64, Ordering};
+use core::sync::atomic::AtomicI64;
+use core::sync::atomic::Ordering;
 use embassy_time::{Duration, Instant};
 use lxx_calendar_common::{Rtc, info};
 use std::sync::{Arc, Condvar, Mutex};
 
 static RTC_TIMESTAMP: AtomicI64 = AtomicI64::new(1771588453);
 
-/// 共享的睡眠状态，用于 Condvar 等待
+/// 共享的睡眠状态，用于轮询等待
 #[derive(Clone)]
 pub struct SleepState {
-    should_wakeup: Arc<(Mutex<bool>, Condvar)>,
+    should_wakeup: Arc<Mutex<bool>>,
 }
 
 impl SleepState {
     pub fn new() -> Self {
         Self {
-            should_wakeup: Arc::new((Mutex::new(false), Condvar::new())),
+            should_wakeup: Arc::new(Mutex::new(false)),
         }
-    }
-
-    pub fn new_with_condvar(condvar: Arc<(Mutex<bool>, Condvar)>) -> Self {
-        Self {
-            should_wakeup: condvar,
-        }
-    }
-
-    pub fn get_condvar(&self) -> Arc<(Mutex<bool>, Condvar)> {
-        Arc::clone(&self.should_wakeup)
     }
 
     pub fn request_wakeup(&self) {
-        let (lock, cvar) = &*self.should_wakeup;
-        let mut should_wakeup = lock.lock().unwrap();
+        let mut should_wakeup = self.should_wakeup.lock().unwrap();
         *should_wakeup = true;
-        cvar.notify_one();
         info!("Wakeup requested (button pressed)");
     }
 
     pub fn clear_wakeup_flag(&self) {
-        let (lock, _) = &*self.should_wakeup;
-        let mut should_wakeup = lock.lock().unwrap();
+        let mut should_wakeup = self.should_wakeup.lock().unwrap();
         *should_wakeup = false;
     }
 
-    pub fn wait_for_wakeup(&self, duration: Duration) -> bool {
-        let (lock, cvar) = &*self.should_wakeup;
+    pub fn get_flag(&self) -> Arc<Mutex<bool>> {
+        Arc::clone(&self.should_wakeup)
+    }
 
-        // 等待指定时间或被唤醒
-        let mut should_wakeup = lock.lock().unwrap();
-        let mut result = cvar.wait_timeout(should_wakeup, duration.into()).unwrap();
-
-        let woke_up = *result.0;
-
-        // 清除唤醒标志
-        *result.0 = false;
-
-        woke_up
+    /// 异步等待唤醒或超时
+    pub async fn wait_for_wakeup(&self, duration: Duration) -> bool {
+        use embassy_time::{Timer, Duration};
+        
+        // 轮询检查唤醒标志，同时计时
+        let start = Instant::now();
+        loop {
+            // 检查是否被唤醒
+            {
+                let should_wakeup = self.should_wakeup.lock().unwrap();
+                if *should_wakeup {
+                    drop(should_wakeup);
+                    // 清除唤醒标志
+                    self.clear_wakeup_flag();
+                    return true;
+                }
+            }
+            
+            // 检查是否超时
+            if start.elapsed() >= duration {
+                return false;
+            }
+            
+            // 短暂等待后继续轮询（100ms）
+            Timer::after(Duration::from_millis(100)).await;
+        }
     }
 }
 
@@ -166,22 +171,5 @@ impl Rtc for SimulatedRtc {
         self.wakeup_duration = Some(duration);
         info!("Simulated RTC wakeup set for {:?}", duration);
         Ok(())
-    }
-
-    async fn sleep_light(&mut self) {
-        if let Some(duration) = self.wakeup_duration.take() {
-            info!("Simulated light sleep for {:?}", duration);
-
-            // 使用 Condvar 等待，不会阻塞 HTTP 服务器线程
-            let woke_up = self.sleep_state.wait_for_wakeup(duration);
-
-            if woke_up {
-                info!("Woke up early (button pressed)");
-            } else {
-                info!("Simulated wakeup from light sleep (timeout)");
-            }
-        } else {
-            info!("Simulated light sleep (no wakeup duration set)");
-        }
     }
 }

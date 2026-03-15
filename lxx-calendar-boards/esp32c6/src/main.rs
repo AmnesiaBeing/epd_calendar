@@ -17,7 +17,6 @@ use lxx_calendar_common::*;
 use lxx_calendar_core::main_task;
 
 pub mod drivers;
-pub mod sleep;
 
 esp_bootloader_esp_idf::esp_app_desc!();
 
@@ -129,6 +128,15 @@ impl PlatformTrait for Platform {
 
         // TODO: 实现真实的 RTC 内存读取
         WakeupSource::PowerOn
+    }
+
+    async fn deep_sleep(duration: embassy_time::Duration) -> WakeupSource {
+        // TODO: 使用真实的 Deep Sleep API
+        // esp_hal::rtc_cntl::sleep::deep_sleep();
+
+        // 临时实现：等待后返回（模拟）
+        embassy_time::Timer::after(duration).await;
+        WakeupSource::RtcTimer
     }
 }
 

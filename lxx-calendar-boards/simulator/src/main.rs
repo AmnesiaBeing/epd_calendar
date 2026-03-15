@@ -1,19 +1,62 @@
 use embassy_executor::Spawner;
 use embedded_hal_mock::eh1::{delay::NoopDelay, digital::no_pin::NoPin, spi::no_spi::NoSpi};
 use epd_yrd0750ryf665f60::yrd0750ryf665f60::Epd7in5;
-use lxx_calendar_common::traits::platform::{RtcMemoryData, WakeupSource};
+use lxx_calendar_common::traits::platform::WakeupSource;
 use lxx_calendar_common::*;
 use simulator::{
     HttpServer, SimulatedBLE, SimulatedFlash, SimulatedRtc, SimulatedWdt, SimulatorButton,
-    SimulatorControl, SimulatorSleepManager,
+    SimulatorControl,
 };
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex as StdMutex;
+use static_cell::StaticCell;
 use std::thread;
-use tokio::sync::{Mutex as TokioMutex, Notify};
 
 pub mod drivers;
+
+#[embassy_executor::task]
+async fn embassy_main_task(spawner: Spawner) {
+    // 获取唤醒源
+    let wakeup_source = Platform::get_wakeup_source();
+    info!("Wakeup source: {:?}", wakeup_source);
+
+    // 初始化平台
+    match Platform::init(spawner).await {
+        Ok(platform_ctx) => {
+            // 执行主任务（只执行一次，不进入事件循环）
+            if let Err(e) = run_once_main_task(spawner, platform_ctx).await {
+                error!("Main task error: {:?}", e);
+            }
+        }
+        Err(e) => {
+            error!("Platform init error: {:?}", e);
+        }
+    }
+
+    // 进入 Deep Sleep（60 秒后唤醒）
+    let next_wakeup = embassy_time::Duration::from_secs(60);
+    info!("Entering deep sleep for {} seconds", next_wakeup.as_secs());
+
+    let wakeup_source = Platform::deep_sleep(next_wakeup).await;
+    info!("Deep sleep ended, wakeup source: {:?}", wakeup_source);
+}
+
+/// 执行一次主任务（不进入事件循环）
+async fn run_once_main_task<P: lxx_calendar_common::traits::platform::PlatformTrait>(
+    _spawner: embassy_executor::Spawner,
+    platform_ctx: lxx_calendar_common::traits::platform::PlatformContext<P>,
+) -> lxx_calendar_common::SystemResult<()> {
+    use lxx_calendar_common::*;
+
+    info!("lxx-calendar starting...");
+
+    // 简单实现：只显示日志，不实际执行任务
+    info!("Task execution skipped for simulator");
+
+    // 不进入事件循环，直接返回
+    Ok(())
+}
 
 struct Platform;
 
@@ -102,13 +145,18 @@ impl PlatformTrait for Platform {
 
     fn get_wakeup_source() -> WakeupSource {
         // 模拟器默认返回 PowerOn
-        // 实际唤醒源从 RTC 内存读取，由 main 循环管理
         WakeupSource::PowerOn
+    }
+
+    async fn deep_sleep(duration: embassy_time::Duration) -> WakeupSource {
+        // 使用 tokio 等待模拟 Deep Sleep
+        tokio::time::sleep(std::time::Duration::from_millis(duration.as_millis())).await;
+        WakeupSource::RtcTimer
     }
 }
 
-#[embassy_executor::main]
-async fn main(spawner: Spawner) {
+#[tokio::main]
+async fn main() {
     Platform::init_heap();
     Platform::init_logger();
 
@@ -118,13 +166,6 @@ async fn main(spawner: Spawner) {
         .unwrap_or(8080);
 
     info!("Starting simulator on port {}", port);
-
-    // 创建共享的 RTC 内存（Deep Sleep 后保留）
-    let rtc_memory = Arc::new(TokioMutex::new(RtcMemoryData::new()));
-    let wakeup_notify = Arc::new(Notify::new());
-
-    // 创建睡眠管理器
-    let sleep_manager = SimulatorSleepManager::new(rtc_memory.clone(), wakeup_notify.clone());
 
     // 启动 HTTP 服务器（独立线程，始终保持运行）
     {
@@ -142,7 +183,7 @@ async fn main(spawner: Spawner) {
             let rtc = shared_rtc.lock().unwrap();
             rtc.get_sleep_state()
         };
-        ble_instance.set_external_wakeup_flag(rtc_sleep_state.get_condvar());
+        ble_instance.set_external_wakeup_flag(rtc_sleep_state.get_flag());
 
         let ble_for_http = ble_instance.clone();
         let mut button_for_http = SimulatorButton::new();
@@ -169,74 +210,19 @@ async fn main(spawner: Spawner) {
     loop {
         info!("=== Simulator Deep Sleep cycle starting ===");
 
-        // 获取唤醒源
-        let wakeup_source = {
-            match rtc_memory.try_lock() {
-                Ok(mem) => {
-                    if mem.is_valid() {
-                        mem.wakeup_source
-                    } else {
-                        WakeupSource::PowerOn
-                    }
-                }
-                Err(_) => WakeupSource::PowerOn,
-            }
-        };
-        info!("Wakeup source: {:?}", wakeup_source);
+        // 在 tokio 任务中运行 embassy 执行器
+        let embassy_handle = tokio::task::spawn_blocking(move || {
+            static EXECUTOR: StaticCell<embassy_executor::Executor> = StaticCell::new();
+            let executor = EXECUTOR.init(embassy_executor::Executor::new());
+            executor.run(|spawner| {
+                // 使用 task 宏定义的任务
+                spawner.spawn(embassy_main_task(spawner)).ok();
+            });
+        });
 
-        // 初始化平台
-        match Platform::init(spawner).await {
-            Ok(platform_ctx) => {
-                // 执行主任务
-                if let Err(e) = run_main_task_with_sleep(
-                    spawner,
-                    platform_ctx,
-                    sleep_manager.clone(),
-                    wakeup_source,
-                )
-                .await
-                {
-                    error!("Main task error: {:?}", e);
-                }
-            }
-            Err(e) => {
-                error!("Platform init error: {:?}", e);
-            }
-        }
+        // 等待 embassy 任务完成（Deep Sleep 后返回）
+        let _ = embassy_handle.await;
 
         info!("=== Simulator Deep Sleep cycle ended, restarting ===");
     }
-}
-
-/// 带睡眠管理的主任务
-async fn run_main_task_with_sleep(
-    spawner: Spawner,
-    platform_ctx: PlatformContext<Platform>,
-    mut sleep_manager: SimulatorSleepManager,
-    wakeup_source: WakeupSource,
-) -> SystemResult<()> {
-    use lxx_calendar_common::traits::platform::SleepMode;
-
-    info!("lxx-calendar starting... (wakeup: {:?})", wakeup_source);
-
-    // 调用原始 main_task
-    if let Err(e) = lxx_calendar_core::main_task::<Platform>(spawner, platform_ctx).await {
-        error!("Main task error: {:?}", e);
-        return Err(e);
-    }
-
-    // 计算下次唤醒时间（60 秒后）
-    let next_wakeup = embassy_time::Duration::from_secs(60);
-
-    // 进入 Deep Sleep
-    info!("Entering deep sleep for {} seconds", next_wakeup.as_secs());
-
-    match sleep_manager.sleep(SleepMode::DeepSleep, next_wakeup).await {
-        Ok(_) => info!("Deep sleep ended"),
-        Err(e) => error!("Sleep error: {:?}", e),
-    }
-
-    // Deep Sleep 后返回，外层循环会重启
-
-    Ok(())
 }

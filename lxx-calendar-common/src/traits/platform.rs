@@ -2,7 +2,6 @@ use embassy_executor::Spawner;
 use embassy_sync::channel::{Channel, Receiver, Sender};
 use embassy_time::Duration;
 use embedded_storage_async::nor_flash::NorFlash;
-use serde::{Deserialize, Serialize};
 
 use crate::{SystemEvent, SystemResult};
 
@@ -22,17 +21,8 @@ pub type LxxChannelSender<'a, T> =
 pub type LxxChannelReceiver<'a, T> =
     Receiver<'a, embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex, T, CAP>;
 
-/// 睡眠模式
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
-pub enum SleepMode {
-    /// Light Sleep: 从暂停点继续
-    LightSleep,
-    /// Deep Sleep: 从头执行
-    DeepSleep,
-}
-
 /// 唤醒源
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum WakeupSource {
     /// 首次上电
     PowerOn,
@@ -50,55 +40,6 @@ impl Default for WakeupSource {
     }
 }
 
-/// RTC 内存数据（Deep Sleep 后保留）
-#[derive(Clone, Copy, Default, Serialize, Deserialize)]
-pub struct RtcMemoryData {
-    /// 唤醒源
-    pub wakeup_source: WakeupSource,
-    /// 上次更新时间戳
-    pub last_update_time: u64,
-    /// 配置哈希
-    pub config_hash: u32,
-    /// 魔数（验证数据有效性）
-    pub magic: u32,
-}
-
-impl RtcMemoryData {
-    pub const MAGIC: u32 = 0x4C585852; // "LXXR"
-
-    pub fn new() -> Self {
-        Self {
-            magic: Self::MAGIC,
-            ..Default::default()
-        }
-    }
-
-    pub fn is_valid(&self) -> bool {
-        self.magic == Self::MAGIC
-    }
-}
-
-/// 平台睡眠管理 Trait
-pub trait SleepManager: Send + Sync {
-    type Error: core::fmt::Debug + Send;
-
-    /// 进入睡眠
-    async fn sleep(
-        &mut self,
-        mode: SleepMode,
-        duration: Duration,
-    ) -> Result<WakeupSource, Self::Error>;
-
-    /// 获取上次唤醒源
-    fn get_wakeup_source(&self) -> WakeupSource;
-
-    /// 保存 RTC 内存数据
-    fn save_rtc_memory(&mut self, data: RtcMemoryData) -> Result<(), Self::Error>;
-
-    /// 读取 RTC 内存数据
-    fn load_rtc_memory(&self) -> Result<RtcMemoryData, Self::Error>;
-}
-
 pub trait PlatformTrait: Sized {
     fn init_logger() {}
 
@@ -108,10 +49,13 @@ pub trait PlatformTrait: Sized {
 
     fn sys_reset();
 
-    /// 获取唤醒源（从 RTC 内存）
+    /// 获取唤醒源
     fn get_wakeup_source() -> WakeupSource {
         WakeupSource::PowerOn
     }
+
+    /// 进入 Deep Sleep，指定唤醒时间
+    async fn deep_sleep(duration: Duration) -> WakeupSource;
 
     type WatchdogDevice: Watchdog;
 
@@ -136,34 +80,6 @@ pub trait PlatformTrait: Sized {
     type OTADevice: OTADriver;
 
     type FlashDevice: NorFlash;
-}
-
-/// 虚拟睡眠管理器（用于未实现睡眠管理的平台）
-pub struct UnimplementedSleepManager;
-
-impl SleepManager for UnimplementedSleepManager {
-    type Error = core::convert::Infallible;
-
-    async fn sleep(
-        &mut self,
-        _mode: SleepMode,
-        _duration: Duration,
-    ) -> Result<WakeupSource, Self::Error> {
-        // 默认不睡眠，直接返回
-        Ok(WakeupSource::PowerOn)
-    }
-
-    fn get_wakeup_source(&self) -> WakeupSource {
-        WakeupSource::PowerOn
-    }
-
-    fn save_rtc_memory(&mut self, _data: RtcMemoryData) -> Result<(), Self::Error> {
-        Ok(())
-    }
-
-    fn load_rtc_memory(&self) -> Result<RtcMemoryData, Self::Error> {
-        Ok(RtcMemoryData::new())
-    }
 }
 
 pub struct PlatformContext<C: PlatformTrait + Sized> {

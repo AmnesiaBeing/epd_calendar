@@ -29,9 +29,9 @@ impl SimulatedBLE {
 
     pub fn set_external_wakeup_flag(
         &mut self,
-        sleep_state: Arc<(Mutex<bool>, std::sync::Condvar)>,
+        sleep_flag: Arc<Mutex<bool>>,
     ) {
-        self.sleep_state = Some(SleepState::new_with_condvar(sleep_state));
+        // 不需要额外存储，BLE 唤醒通过 request_wakeup 直接操作标志
     }
 
     pub fn is_connected(&self) -> bool {

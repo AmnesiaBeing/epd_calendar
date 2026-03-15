@@ -546,12 +546,6 @@ impl<R: Rtc> TimeService<R> {
         Ok(())
     }
 
-    pub async fn enter_light_sleep(&mut self) {
-        if let Some(ref mut rtc) = self.rtc {
-            rtc.sleep_light().await;
-        }
-    }
-
     pub async fn set_time(&mut self, timestamp: u64) -> SystemResult<()> {
         if let Some(ref mut rtc) = self.rtc {
             rtc.set_time(timestamp as i64).await.ok();

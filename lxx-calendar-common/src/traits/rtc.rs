@@ -8,6 +8,4 @@ pub trait Rtc: Send + Sync {
     async fn set_time(&mut self, timestamp: i64) -> Result<(), Self::Error>;
 
     async fn set_wakeup(&mut self, duration: Duration) -> Result<(), Self::Error>;
-
-    async fn sleep_light(&mut self);
 }
