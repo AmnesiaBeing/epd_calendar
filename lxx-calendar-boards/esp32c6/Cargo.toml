@@ -11,8 +11,10 @@ esp32c6 = ["lxx-calendar-core/mbedtls-rs"]
 lxx-calendar-common = { path = "../../lxx-calendar-common", features = [
     "defmt",
 ] }
-lxx-calendar-core = { path = "../../lxx-calendar-core", features = [
+lxx-calendar-core = { path = "../../lxx-calendar-core", default-features = false, features = [
     "defmt",
+    "log",
+    "mbedtls-rs",
 ] }
 
 riscv.workspace = true

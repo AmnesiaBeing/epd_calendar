@@ -4,10 +4,11 @@ version = "0.1.0"
 edition.workspace = true
 
 [features]
-default = ["log"]
+default = ["log", "embedded-tls"]
 log = ["dep:log", "lxx-calendar-common/log"]
 defmt = ["dep:defmt", "dep:defmt-rtt", "lxx-calendar-common/defmt"]
-simulator = []
+simulator = ["embedded-tls"]
+embedded-tls = ["reqwless/embedded-tls"]
 mbedtls-rs = ["reqwless/mbedtls-rs"]
 
 [dependencies]
@@ -33,8 +34,8 @@ embassy-net = { workspace = true }
 embassy-embedded-hal = { workspace = true }
 embassy-futures = { workspace = true }
 
-# HTTP client (reqwless 已包含 embedded-tls)
-reqwless = { workspace = true }
+# HTTP client (reqwless)
+reqwless = { path = "../libs/reqwless", default-features = false, features = ["log"] }
 embedded-io = { workspace = true }
 embedded-io-async = { workspace = true }
 
