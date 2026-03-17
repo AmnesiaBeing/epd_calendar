@@ -45,7 +45,6 @@ impl TextRenderer {
     ) -> SystemResult<()> {
         let mut cursor_x = x;
         let char_width = font_size / 2 + 2;
-        let char_height = font_size;
 
         for ch in text.chars() {
             if ch == ' ' {
@@ -83,7 +82,6 @@ impl TextRenderer {
     ) -> SystemResult<()> {
         let mut cursor_x = x;
         let char_width = font_size / 2 + 2;
-        let char_height = font_size;
 
         for ch in text.chars() {
             if ch == ' ' {
@@ -105,7 +103,7 @@ impl TextRenderer {
         framebuffer: &mut Framebuffer<SIZE>,
         x: u16,
         y: u16,
-        ch: char,
+        _ch: char,
         font_size: u16,
     ) -> SystemResult<()> {
         // 简化的字符渲染 - 绘制字符轮廓
@@ -117,28 +115,6 @@ impl TextRenderer {
         framebuffer.draw_rectangle(x, y, width, height, Color::Black)?;
 
         Ok(())
-    }
-
-    /// 渲染单个字符 (基本尺寸)
-    fn render_char_basic<const SIZE: usize>(
-        &self,
-        framebuffer: &mut Framebuffer<SIZE>,
-        x: u16,
-        y: u16,
-        ch: char,
-    ) -> SystemResult<()> {
-        self.render_char_with_size(framebuffer, x, y, ch, 16)
-    }
-
-    /// 渲染单个字符 (大号)
-    fn render_char_large<const SIZE: usize>(
-        &self,
-        framebuffer: &mut Framebuffer<SIZE>,
-        x: u16,
-        y: u16,
-        ch: char,
-    ) -> SystemResult<()> {
-        self.render_char_with_size(framebuffer, x, y, ch, 48)
     }
 
     /// 渲染文本居中

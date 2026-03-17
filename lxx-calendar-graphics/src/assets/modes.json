@@ -1,0 +1,253 @@
+[
+  {
+    "mode_id": "POETRY",
+    "display_name": "每日诗词",
+    "icon": "book",
+    "cacheable": true,
+    "layout": {
+      "status_bar": {
+        "show_date": true,
+        "show_weather": true,
+        "show_battery": true,
+        "line_width": 1,
+        "dashed": false
+      },
+      "body": {
+        "blocks": [
+          {
+            "type": "section",
+            "title": "📖 今日诗词",
+            "icon": "book",
+            "children": [
+              {
+                "type": "text",
+                "field": "poetry_title",
+                "font_size": 20,
+                "align": "center"
+              },
+              {
+                "type": "text",
+                "field": "poetry_author",
+                "font_size": 14,
+                "align": "center"
+              },
+              {
+                "type": "spacer",
+                "height": 16
+              },
+              {
+                "type": "text",
+                "field": "poetry_content",
+                "font_size": 16,
+                "align": "center",
+                "max_lines": 4
+              }
+            ]
+          }
+        ],
+        "vertical_align": "center"
+      },
+      "footer": {
+        "label": "POETRY",
+        "show_mode_name": true,
+        "line_width": 1,
+        "dashed": false
+      }
+    }
+  },
+  {
+    "mode_id": "QUOTE",
+    "display_name": "每日一言",
+    "icon": "lightbulb",
+    "cacheable": true,
+    "layout": {
+      "status_bar": {
+        "show_date": true,
+        "show_weather": true,
+        "show_battery": true
+      },
+      "body": {
+        "blocks": [
+          {
+            "type": "section",
+            "title": "💡 每日一言",
+            "icon": "lightbulb",
+            "children": [
+              {
+                "type": "text",
+                "field": "quote_text",
+                "font_size": 18,
+                "align": "center",
+                "max_lines": 4
+              },
+              {
+                "type": "spacer",
+                "height": 12
+              },
+              {
+                "type": "separator",
+                "style": "short",
+                "width": 60
+              },
+              {
+                "type": "spacer",
+                "height": 8
+              },
+              {
+                "type": "text",
+                "template": "—— {quote_from}",
+                "font_size": 14,
+                "align": "center"
+              }
+            ]
+          }
+        ],
+        "vertical_align": "center"
+      },
+      "footer": {
+        "label": "QUOTE"
+      }
+    }
+  },
+  {
+    "mode_id": "DATE",
+    "display_name": "日历",
+    "icon": "calendar",
+    "cacheable": true,
+    "layout": {
+      "status_bar": {
+        "show_date": true,
+        "show_weather": true,
+        "show_battery": true
+      },
+      "body": {
+        "blocks": [
+          {
+            "type": "big_number",
+            "field": "day",
+            "font_size": 72,
+            "align": "center"
+          },
+          {
+            "type": "text",
+            "template": "{month}月 {weekday}",
+            "font_size": 18,
+            "align": "center"
+          },
+          {
+            "type": "spacer",
+            "height": 16
+          },
+          {
+            "type": "separator",
+            "style": "short",
+            "width": 80
+          },
+          {
+            "type": "spacer",
+            "height": 12
+          },
+          {
+            "type": "text",
+            "template": "农历{lunar_month}月{lunar_day}",
+            "font_size": 16,
+            "align": "center"
+          },
+          {
+            "type": "conditional",
+            "field": "solar_term",
+            "condition": "exists",
+            "then_children": [
+              {
+                "type": "text",
+                "field": "solar_term",
+                "font_size": 14,
+                "align": "center"
+              }
+            ]
+          },
+          {
+            "type": "conditional",
+            "field": "festival",
+            "condition": "exists",
+            "then_children": [
+              {
+                "type": "text",
+                "field": "festival",
+                "font_size": 14,
+                "align": "center"
+              }
+            ]
+          }
+        ],
+        "vertical_align": "center"
+      },
+      "footer": {
+        "label": "DATE"
+      }
+    }
+  },
+  {
+    "mode_id": "WEATHER",
+    "display_name": "天气",
+    "icon": "cloud",
+    "cacheable": true,
+    "layout": {
+      "status_bar": {
+        "show_date": true,
+        "show_weather": true,
+        "show_battery": true
+      },
+      "body": {
+        "blocks": [
+          {
+            "type": "section",
+            "title": "🌤️ 实时天气",
+            "icon": "cloud",
+            "children": [
+              {
+                "type": "big_number",
+                "field": "temp",
+                "font_size": 56,
+                "align": "center",
+                "unit": "°C"
+              },
+              {
+                "type": "text",
+                "field": "weather_desc",
+                "font_size": 18,
+                "align": "center"
+              },
+              {
+                "type": "spacer",
+                "height": 16
+              },
+              {
+                "type": "vstack",
+                "spacing": 8,
+                "children": [
+                  {
+                    "type": "text",
+                    "template": "湿度：{humidity}%",
+                    "font_size": 14,
+                    "align": "center"
+                  },
+                  {
+                    "type": "text",
+                    "template": "风力：{wind}级",
+                    "font_size": 14,
+                    "align": "center"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "vertical_align": "center"
+      },
+      "footer": {
+        "label": "WEATHER"
+      }
+    }
+  }
+]

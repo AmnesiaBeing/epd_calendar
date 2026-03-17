@@ -2,19 +2,22 @@ use core::fmt::{Debug, Write};
 use embassy_net::Stack;
 use embassy_net::dns::DnsQueryType;
 use embassy_net::tcp::TcpSocket;
-use embedded_io_async::Write as IoWrite;
 use heapless::String;
 use lxx_calendar_common::http::http::{HttpClient, HttpMethod, HttpRequest, HttpResponse};
 use lxx_calendar_common::{error, info};
 
 const RX_BUFFER_SIZE: usize = 4096;
 const TX_BUFFER_SIZE: usize = 4096;
+#[allow(dead_code)]
 const TLS_RX_BUFFER_SIZE: usize = 16384;
+#[allow(dead_code)]
 const TLS_TX_BUFFER_SIZE: usize = 16384;
 
 pub struct HttpClientImpl<'a> {
     stack: Stack<'static>,
+    #[allow(dead_code)]
     tls_rx_buf: &'a mut [u8],
+    #[allow(dead_code)]
     tls_tx_buf: &'a mut [u8],
 }
 
@@ -353,14 +356,12 @@ impl<'a> HttpClientImpl<'a> {
                 info!("HTTP: Read chunk of {} bytes", bytes_read);
 
                 // 读取 trailing \r\n
-                let mut trailer = [0u8; 2];
                 // 先尝试从 header_buf 读取
                 if current_pos + 2 <= header_end_pos {
-                    trailer[0] = header_buf[current_pos];
-                    trailer[1] = header_buf[current_pos + 1];
                     current_pos += 2;
                 } else {
-                    let _ = socket.read(&mut trailer).await;
+                    let mut _trailer = [0u8; 2];
+                    let _ = socket.read(&mut _trailer).await;
                 }
             }
 
@@ -472,11 +473,13 @@ fn parse_full_url(url: &str) -> Result<(&str, &str, u16, &str), HttpError> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HttpError {
+    #[allow(dead_code)]
     NotImplemented,
     InvalidUrl,
     DnsFailed,
     ConnectionFailed,
     RequestFailed,
+    #[allow(dead_code)]
     TlsHandshakeFailed,
 }
 
@@ -499,6 +502,7 @@ impl RequestImpl {
         }
     }
 
+    #[allow(dead_code)]
     pub fn with_body(mut self, body: &[u8]) -> Self {
         let mut body_vec = heapless::Vec::new();
         body_vec.extend_from_slice(body).ok();
@@ -506,6 +510,7 @@ impl RequestImpl {
         self
     }
 
+    #[allow(dead_code)]
     pub fn with_header(mut self, key: &'static str, value: &'static str) -> Self {
         let mut headers = self.headers.unwrap_or_default();
         headers.push((key, value)).ok();

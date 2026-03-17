@@ -8,6 +8,7 @@ default = ["log"]
 log = ["dep:log", "lxx-calendar-common/log"]
 defmt = ["dep:defmt", "dep:defmt-rtt", "lxx-calendar-common/defmt"]
 simulator = []
+mbedtls-rs = ["reqwless/mbedtls-rs"]
 
 [dependencies]
 # 核心依赖

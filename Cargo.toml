@@ -94,6 +94,10 @@ reqwless = { path = "libs/reqwless", default-features = false, features = [
 sntpc = { version = "0.8.1", default-features = false }
 sntpc-net-embassy = { version = "0.8.0", default-features = false }
 
+# ESP-IDF mbedtls (for ESP32 platforms)
+# Note: mbedtls-rs is the new name for esp-mbedtls, use git repository
+mbedtls-rs = { git = "https://github.com/esp-rs/mbedtls-rs.git", default-features = false }
+
 # GZip 解压
 miniz_oxide = "0.9.0"
 

@@ -12,14 +12,10 @@ extern crate alloc;
 
 mod framebuffer;
 mod icon;
-mod layout;
-mod layout_engine;
 mod text;
 
 pub use framebuffer::{Color, Framebuffer, FramebufferError};
 pub use icon::IconRenderer;
-pub use layout::LayoutRenderer;
-pub use layout_engine::{LayoutData, LayoutEngine, LayoutValue};
 pub use text::TextRenderer;
 
 use lxx_calendar_common::SystemResult;
@@ -40,8 +36,6 @@ pub struct Renderer<const SIZE: usize> {
     framebuffer: Framebuffer<SIZE>,
     text_renderer: TextRenderer,
     icon_renderer: IconRenderer,
-    layout_renderer: LayoutRenderer,
-    layout_engine: LayoutEngine,
 }
 
 impl<const SIZE: usize> Renderer<SIZE> {
@@ -50,44 +44,7 @@ impl<const SIZE: usize> Renderer<SIZE> {
             framebuffer,
             text_renderer: TextRenderer::new(),
             icon_renderer: IconRenderer::new(),
-            layout_renderer: LayoutRenderer::new(),
-            layout_engine: LayoutEngine::new(width, height),
         })
-    }
-
-    /// 从 JSON 布局定义渲染
-    ///
-    /// # 参数
-    /// * `layout_json` - JSON 格式的布局定义字符串
-    /// * `data` - 包含渲染数据的 LayoutData
-    pub fn render_from_json(&mut self, layout_json: &str, data: &LayoutData) -> SystemResult<()> {
-        let layout = crate::parser::LayoutParser::parse_layout(layout_json).map_err(|_| {
-            lxx_calendar_common::SystemError::DataError(lxx_calendar_common::DataError::ParseError)
-        })?;
-        self.layout_engine
-            .render(&mut self.framebuffer, &layout, data)?;
-        Ok(())
-    }
-
-    /// 渲染布局定义
-    pub fn render_layout(
-        &mut self,
-        layout: &lxx_calendar_common::layout::LayoutDefinition,
-        data: &LayoutData,
-    ) -> SystemResult<()> {
-        self.layout_engine
-            .render(&mut self.framebuffer, layout, data)?;
-        Ok(())
-    }
-
-    /// 获取布局引擎的可变引用
-    pub fn layout_engine_mut(&mut self) -> &mut LayoutEngine {
-        &mut self.layout_engine
-    }
-
-    /// 获取布局引擎的引用
-    pub fn layout_engine(&self) -> &LayoutEngine {
-        &self.layout_engine
     }
 
     /// 渲染时间区域 (格式：HH:MM)
@@ -105,10 +62,6 @@ impl<const SIZE: usize> Renderer<SIZE> {
         // 在顶部区域渲染时间 (大字体)
         self.text_renderer
             .render_large(&mut self.framebuffer, 10, 30, time_str.as_str())?;
-
-        // 绘制分隔线
-        self.layout_renderer
-            .draw_divider(&mut self.framebuffer, 80, 400)?;
 
         Ok(())
     }
@@ -256,7 +209,7 @@ impl<const SIZE: usize> Renderer<SIZE> {
         let bat_y = 10;
 
         // 绘制电池边框
-        self.layout_renderer.draw_battery_icon(
+        Self::draw_battery_icon(
             &mut self.framebuffer,
             bat_x,
             bat_y,
@@ -286,5 +239,21 @@ impl<const SIZE: usize> Renderer<SIZE> {
     /// 填充整个缓冲区
     pub fn fill(&mut self, color: Color) {
         self.framebuffer.fill(color);
+    }
+
+    /// 绘制电池图标
+    fn draw_battery_icon<const S: usize>(
+        framebuffer: &mut Framebuffer<S>,
+        x: u16,
+        y: u16,
+        _voltage: u16,
+        _charging: bool,
+        _low_battery: bool,
+    ) -> SystemResult<()> {
+        // 绘制电池边框
+        framebuffer.draw_rectangle(x, y, 40, 20, Color::Black)?;
+        // 绘制电池正极
+        framebuffer.draw_rectangle(x + 40, y + 6, 4, 8, Color::Black)?;
+        Ok(())
     }
 }

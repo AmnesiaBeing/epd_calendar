@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use lxx_calendar_common::{
     debug, info,
     traits::Watchdog,

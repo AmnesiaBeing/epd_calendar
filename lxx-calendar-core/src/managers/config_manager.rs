@@ -17,6 +17,7 @@ pub struct ConfigManager<F: FlashDevice> {
 
 impl<F: FlashDevice> ConfigManager<F> {
     /// 创建新的配置管理器
+    #[allow(dead_code)]
     pub fn new(persistence: ConfigPersistence<F>) -> Self {
         Self {
             initialized: false,
@@ -40,6 +41,7 @@ impl<F: FlashDevice> ConfigManager<F> {
     }
 
     /// 设置事件发送器
+    #[allow(dead_code)]
     pub async fn set_event_sender(
         &mut self,
         sender: lxx_common::LxxChannelSender<'static, SystemEvent>,

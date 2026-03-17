@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use embassy_time::Duration;
 use heapless::String;
 
@@ -7,7 +9,6 @@ use lxx_calendar_common::{
     types::error::SystemResult,
     types::{
         display::{DisplayData, DisplayLayout, RefreshError, RefreshState},
-        weather::{CurrentWeather, ForecastDay, WeatherCondition, WeatherInfo},
     },
     warn,
 };
@@ -25,7 +26,9 @@ pub struct DisplayManager<'a, R: Rtc> {
     current_layout: DisplayLayout,
     last_refresh_time: Option<u64>,
     current_display_data: Option<DisplayData>,
+    #[allow(dead_code)]
     refresh_interval_seconds: u16,
+    #[allow(dead_code)]
     low_power_mode: bool,
 }
 

@@ -1,7 +1,7 @@
 use crate::rtc::SleepState;
 use lxx_calendar_common::traits::ble::BLEDriver;
 use lxx_calendar_common::types::ConfigChange;
-use lxx_calendar_common::{info, warn};
+use lxx_calendar_common::info;
 use std::sync::{Arc, Mutex};
 
 pub struct SimulatedBLE {
@@ -29,7 +29,7 @@ impl SimulatedBLE {
 
     pub fn set_external_wakeup_flag(
         &mut self,
-        sleep_flag: Arc<Mutex<bool>>,
+        _sleep_flag: Arc<Mutex<bool>>,
     ) {
         // 不需要额外存储，BLE 唤醒通过 request_wakeup 直接操作标志
     }

@@ -12,9 +12,8 @@ use lxx_calendar_common::{
     traits::{LxxChannelReceiver, LxxChannelSender, PlatformTrait},
     types::{
         ConfigChange,
-        config::SystemConfig,
         error::{HardwareError, SystemError, SystemResult},
-        time::{AlarmInfo, SystemMode},
+        time::SystemMode,
     },
     warn,
 };
@@ -113,6 +112,7 @@ impl<'a, P: PlatformTrait, F: FlashDevice> StateManager<'a, P, F> {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub async fn stop(&mut self) -> SystemResult<()> {
         info!("Stopping state manager");
         self.ble_service.stop().await?;
@@ -653,7 +653,7 @@ impl<'a, P: PlatformTrait, F: FlashDevice> StateManager<'a, P, F> {
     async fn handle_config_changed(&mut self, change: ConfigChange) -> SystemResult<()> {
         info!("Config changed: {:?}", change);
 
-        let config = self
+        let _config = self
             .config_manager
             .get_config()
             .map_err(|_| SystemError::HardwareError(HardwareError::NotInitialized))?;

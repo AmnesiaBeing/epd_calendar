@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use alloc::boxed::Box;
 use lxx_calendar_common::events::BLEEvent;
 use lxx_calendar_common::traits::ble::BLEDriver;

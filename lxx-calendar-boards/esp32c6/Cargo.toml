@@ -5,7 +5,7 @@ edition.workspace = true
 
 [features]
 default = ["esp32c6"]
-esp32c6 = []
+esp32c6 = ["lxx-calendar-core/mbedtls-rs"]
 
 [dependencies]
 lxx-calendar-common = { path = "../../lxx-calendar-common", features = [
@@ -65,3 +65,9 @@ embedded-hal.workspace = true
 embedded-hal-async.workspace = true
 heapless.workspace = true
 trouble-host = { version = "0.5.0", features = ["defmt"] }
+
+# TLS support with mbedtls-rs
+# Note: mbedtls-rs is the new name for esp-mbedtls, use git repository
+# The target chip is selected via esp-hal, not mbedtls-rs features
+# Note: accel-esp32c6 feature has compilation issues, using software TLS for now
+mbedtls-rs = { git = "https://github.com/esp-rs/mbedtls-rs.git" }

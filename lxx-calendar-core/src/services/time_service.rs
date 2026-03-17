@@ -522,6 +522,7 @@ impl<R: Rtc> TimeService<R> {
         Ok(None)
     }
 
+    #[allow(dead_code)]
     pub async fn get_timestamp(&self) -> SystemResult<u64> {
         if let Some(ref rtc) = self.rtc {
             let time = rtc.get_time().await.unwrap_or(1704067200);

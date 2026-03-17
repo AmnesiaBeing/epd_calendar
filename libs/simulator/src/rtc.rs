@@ -2,7 +2,7 @@ use core::sync::atomic::AtomicI64;
 use core::sync::atomic::Ordering;
 use embassy_time::{Duration, Instant};
 use lxx_calendar_common::{Rtc, info};
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::{Arc, Mutex};
 
 static RTC_TIMESTAMP: AtomicI64 = AtomicI64::new(1771588453);
 

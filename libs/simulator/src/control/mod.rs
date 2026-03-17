@@ -4,7 +4,6 @@ pub mod types;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use lxx_calendar_common::SystemEvent;
 use lxx_calendar_common::traits::button::ButtonEvent;
 
 use crate::ble::SimulatedBLE;

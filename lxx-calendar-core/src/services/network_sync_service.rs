@@ -11,7 +11,7 @@ use lxx_calendar_common::{
     warn,
 };
 
-use crate::services::http_client::{HttpClientImpl, HttpError, RequestImpl};
+use crate::services::http_client::{HttpClientImpl, RequestImpl};
 use crate::services::time_service::TimeService;
 use lxx_calendar_common::http::http::{HttpClient, HttpResponse};
 
@@ -21,11 +21,15 @@ use alloc::format;
 pub struct SyncResult {
     pub time_synced: bool,
     pub weather_synced: bool,
+    #[allow(dead_code)]
     pub quote_updated: bool,
+    #[allow(dead_code)]
     pub sync_duration: u64,
 }
 
+#[allow(dead_code)]
 const TLS_RX_BUFFER_SIZE: usize = 16384;
+#[allow(dead_code)]
 const TLS_TX_BUFFER_SIZE: usize = 16384;
 
 pub struct NetworkSyncService {
@@ -39,6 +43,7 @@ pub struct NetworkSyncService {
     longitude: f64,
     location_name: heapless::String<32>,
     wifi_config: Option<(heapless::String<32>, heapless::String<64>)>,
+    #[allow(dead_code)]
     sync_in_progress: bool,
 }
 
@@ -59,6 +64,7 @@ impl NetworkSyncService {
         }
     }
 
+    #[allow(dead_code)]
     pub fn with_stack(mut self, stack: Stack<'static>) -> Self {
         self.stack = Some(stack);
         self
@@ -352,6 +358,7 @@ impl NetworkSyncService {
         }
     }
 
+    #[allow(dead_code)]
     pub async fn is_connected(&self) -> SystemResult<bool> {
         if !self.initialized {
             return Err(SystemError::HardwareError(HardwareError::NotInitialized));

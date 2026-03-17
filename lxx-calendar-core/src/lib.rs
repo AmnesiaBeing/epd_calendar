@@ -1,4 +1,5 @@
 #![no_std]
+#![allow(unused_imports)]
 
 extern crate alloc;
 
@@ -13,7 +14,6 @@ use lxx_calendar_common::{
     types::{SystemConfig, SystemMode, SystemResult},
     warn,
 };
-
 use crate::{
     managers::StateManager,
     services::{

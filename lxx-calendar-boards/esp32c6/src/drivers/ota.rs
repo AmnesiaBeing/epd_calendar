@@ -2,9 +2,7 @@ use core::sync::atomic::{AtomicU8, AtomicU32, Ordering};
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::mutex::Mutex;
 use embedded_storage::nor_flash::{NorFlash as SyncNorFlash, ReadNorFlash as SyncReadNorFlash};
-use embedded_storage_async::nor_flash::{
-    ErrorType, NorFlash, NorFlashError, NorFlashErrorKind, ReadNorFlash,
-};
+use embedded_storage_async::nor_flash::{NorFlashError, NorFlashErrorKind};
 use lxx_calendar_common::flash_layout::{OTA_0_OFFSET, OTA_0_SIZE, OTA_1_OFFSET, OTA_STATE_OFFSET};
 use lxx_calendar_common::traits::ota::{OTADriver, OTAError, OTAProgress, OTAState};
 
@@ -30,6 +28,7 @@ impl EspFlashWrapper {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum Esp32FlashError {
     Flash(esp_storage::FlashStorageError),
     NotInitialized,
@@ -50,6 +49,7 @@ impl NorFlashError for Esp32FlashError {
 
 pub struct Esp32OTA {
     target_partition: u8,
+    #[allow(dead_code)]
     flash: Option<esp_hal::peripherals::FLASH<'static>>,
 }
 

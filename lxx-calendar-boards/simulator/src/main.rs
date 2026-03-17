@@ -45,7 +45,7 @@ async fn embassy_main_task(spawner: Spawner) {
 /// 执行一次主任务（不进入事件循环）
 async fn run_once_main_task<P: lxx_calendar_common::traits::platform::PlatformTrait>(
     _spawner: embassy_executor::Spawner,
-    platform_ctx: lxx_calendar_common::traits::platform::PlatformContext<P>,
+    _platform_ctx: lxx_calendar_common::traits::platform::PlatformContext<P>,
 ) -> lxx_calendar_common::SystemResult<()> {
     use lxx_calendar_common::*;
 

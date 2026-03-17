@@ -6,6 +6,7 @@ edition.workspace = true
 [features]
 default = []
 graphics = ["dep:embedded-graphics-core"]
+builtin-modes = []
 
 [dependencies]
 # no_std 核心依赖

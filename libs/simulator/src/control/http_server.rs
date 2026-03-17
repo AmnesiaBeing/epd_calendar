@@ -126,7 +126,7 @@ fn handle_get_status(
 
 fn handle_get_rtc_status(
     control: Arc<Mutex<SimulatorControl>>,
-    ble: Arc<Mutex<SimulatedBLE>>,
+    _ble: Arc<Mutex<SimulatedBLE>>,
     _button: Arc<Mutex<SimulatorButton>>,
 ) -> Response<std::io::Cursor<Vec<u8>>> {
     let ctrl = control.lock().unwrap();
@@ -147,7 +147,7 @@ fn handle_get_ble_status(
 
 fn handle_get_watchdog_status(
     control: Arc<Mutex<SimulatorControl>>,
-    ble: Arc<Mutex<SimulatedBLE>>,
+    _ble: Arc<Mutex<SimulatedBLE>>,
     _button: Arc<Mutex<SimulatorButton>>,
 ) -> Response<std::io::Cursor<Vec<u8>>> {
     let ctrl = control.lock().unwrap();

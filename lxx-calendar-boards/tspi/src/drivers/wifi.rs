@@ -57,7 +57,7 @@ impl WifiController for LinuxWifi {
 
         info!("Linux WiFi disconnecting");
 
-        let mut wifi = WiFi::new(self.interface.as_ref().map(|s| Config {
+        let wifi = WiFi::new(self.interface.as_ref().map(|s| Config {
             interface: Some(s.as_str()),
         }));
 
